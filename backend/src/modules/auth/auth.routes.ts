@@ -2,8 +2,9 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { env, isProduction } from '../../config/env';
-import { requireAuth, SESSION_COOKIE } from '../../middleware/auth';
-import { getUser, login, logout, SESSION_DAYS } from './auth.service';
+import { requireAuthAllowPending, SESSION_COOKIE } from '../../middleware/auth';
+import { changePassword, getUser, login, logout, SESSION_DAYS } from './auth.service';
+import { passwordSchema } from '../users/users.schemas';
 
 export const authRouter = Router();
 
@@ -39,7 +40,7 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
   }
 });
 
-authRouter.post('/logout', requireAuth, async (req, res, next) => {
+authRouter.post('/logout', requireAuthAllowPending, async (req, res, next) => {
   try {
     await logout(req.auth!.sessionId, req.auth!.userId, req.ip);
     res.clearCookie(SESSION_COOKIE, cookieOptions);
@@ -49,9 +50,21 @@ authRouter.post('/logout', requireAuth, async (req, res, next) => {
   }
 });
 
-authRouter.get('/me', requireAuth, async (req, res, next) => {
+authRouter.get('/me', requireAuthAllowPending, async (req, res, next) => {
   try {
     res.json({ user: await getUser(req.auth!.userId) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.post('/change-password', requireAuthAllowPending, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = z
+      .object({ currentPassword: z.string().min(1).max(200), newPassword: passwordSchema })
+      .parse(req.body);
+    await changePassword(req.auth!.userId, req.auth!.sessionId, currentPassword, newPassword, req.ip);
+    res.status(204).end();
   } catch (e) {
     next(e);
   }

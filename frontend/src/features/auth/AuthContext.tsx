@@ -9,6 +9,7 @@ export interface User {
   lastName: string;
   role: string;
   roleLabel: string;
+  mustChangePassword: boolean;
   permissions: string[];
 }
 

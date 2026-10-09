@@ -21,25 +21,35 @@ declare module 'express-serve-static-core' {
   }
 }
 
-export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  try {
-    const token = req.cookies?.[SESSION_COOKIE] as string | undefined;
-    if (!token) throw new AppError(401, 'Authentification requise', 'NON_AUTHENTIFIE');
+const authenticate =
+  (allowPending: boolean) =>
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const token = req.cookies?.[SESSION_COOKIE] as string | undefined;
+      if (!token) throw new AppError(401, 'Authentification requise', 'NON_AUTHENTIFIE');
 
-    const session = await prisma.session.findUnique({
-      where: { tokenHash: hashToken(token) },
-      include: { user: { include: { role: true } } },
-    });
-    if (!session || session.revokedAt || session.expiresAt < new Date() || !session.user.isActive) {
-      throw new AppError(401, 'Session invalide ou expirée', 'NON_AUTHENTIFIE');
+      const session = await prisma.session.findUnique({
+        where: { tokenHash: hashToken(token) },
+        include: { user: { include: { role: true } } },
+      });
+      if (!session || session.revokedAt || session.expiresAt < new Date() || !session.user.isActive) {
+        throw new AppError(401, 'Session invalide ou expirée', 'NON_AUTHENTIFIE');
+      }
+      if (session.user.mustChangePassword && !allowPending) {
+        throw new AppError(403, 'Vous devez changer votre mot de passe', 'CHANGEMENT_MOT_DE_PASSE_REQUIS');
+      }
+      const role = session.user.role.code;
+      req.auth = { userId: session.userId, sessionId: session.id, role, permissions: permissionsFor(role) };
+      next();
+    } catch (e) {
+      next(e);
     }
-    const role = session.user.role.code;
-    req.auth = { userId: session.userId, sessionId: session.id, role, permissions: permissionsFor(role) };
-    next();
-  } catch (e) {
-    next(e);
-  }
-}
+  };
+
+/** Authentification complète (refuse si un changement de mot de passe est exigé). */
+export const requireAuth = authenticate(false);
+/** Pour /me, /logout et /change-password uniquement. */
+export const requireAuthAllowPending = authenticate(true);
 
 export const requirePermission =
   (permission: Permission) =>

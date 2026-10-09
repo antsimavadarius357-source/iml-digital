@@ -1,5 +1,6 @@
 import argon2 from 'argon2';
 import { randomBytes } from 'node:crypto';
+import { hashPassword } from '../users/users.schemas';
 import { prisma } from '../../database/prisma';
 import { AppError } from '../../middleware/error';
 import { hashToken } from '../../middleware/auth';
@@ -22,6 +23,7 @@ export function toPublicUser(user: {
   email: string;
   firstName: string;
   lastName: string;
+  mustChangePassword: boolean;
   role: { code: string; label: string };
 }) {
   return {
@@ -29,6 +31,7 @@ export function toPublicUser(user: {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
+    mustChangePassword: user.mustChangePassword,
     role: user.role.code,
     roleLabel: user.role.label,
     permissions: permissionsFor(user.role.code),
@@ -91,4 +94,18 @@ export async function logout(sessionId: string, userId: string, ip?: string): Pr
 export async function getUser(userId: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, include: { role: true } });
   return toPublicUser(user);
+}
+
+export async function changePassword(userId: string, sessionId: string, current: string, next: string, ip?: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  if (!(await argon2.verify(user.passwordHash, current).catch(() => false))) {
+    throw new AppError(400, 'Mot de passe actuel incorrect', 'MOT_DE_PASSE_ACTUEL');
+  }
+  if (current === next) throw new AppError(400, 'Le nouveau mot de passe doit être différent', 'MOT_DE_PASSE_IDENTIQUE');
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(next), mustChangePassword: false } }),
+    // Les autres appareils sont déconnectés ; la session courante est conservée.
+    prisma.session.updateMany({ where: { userId, revokedAt: null, id: { not: sessionId } }, data: { revokedAt: new Date() } }),
+    prisma.auditLog.create({ data: { userId, action: 'auth.password_changed', ipAddress: ip } }),
+  ]);
 }

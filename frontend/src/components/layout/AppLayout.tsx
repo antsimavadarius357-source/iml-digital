@@ -26,7 +26,7 @@ const NAV: NavItem[] = [
   { to: '/formations', label: 'Formations et ressources', icon: GraduationCap, permission: 'training:manage', ready: false },
   { to: '/documents', label: 'Documents', icon: FileText, permission: 'documents:read', ready: false },
   { to: '/contacts', label: 'Contacts et partenaires', icon: BookOpen, permission: 'contacts:read', ready: false },
-  { to: '/equipe', label: 'Équipe et utilisateurs', icon: UsersRound, permission: 'users:manage', ready: false },
+  { to: '/equipe', label: 'Équipe et utilisateurs', icon: UsersRound, permission: 'users:manage', ready: true },
   { to: '/rapports', label: 'Indicateurs et rapports', icon: ChartColumn, permission: 'reports:read', ready: false },
   { to: '/audit', label: "Journal d'audit", icon: ShieldCheck, permission: 'audit:read', ready: false },
   { to: '/parametres', label: 'Paramètres', icon: Settings, permission: 'settings:manage', ready: false },

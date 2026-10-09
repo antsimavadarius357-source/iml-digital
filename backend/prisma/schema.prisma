@@ -46,6 +46,7 @@ model User {
   roleId              String
   role                Role      @relation(fields: [roleId], references: [id])
   isActive            Boolean   @default(true)
+  mustChangePassword  Boolean   @default(false)
   emailVerifiedAt     DateTime?
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?

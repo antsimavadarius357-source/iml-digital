@@ -9,6 +9,7 @@ import { errorHandler, notFound } from './middleware/error';
 import { authRouter } from './modules/auth/auth.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
 import { healthRouter } from './modules/health/health.routes';
+import { usersRouter } from './modules/users/users.routes';
 
 export function createApp(): express.Express {
   const app = express();
@@ -27,6 +28,7 @@ export function createApp(): express.Express {
   v1.use('/health', healthRouter);
   v1.use('/auth', authRouter);
   v1.use('/dashboard', dashboardRouter);
+  v1.use('/users', usersRouter);
   app.use('/api/v1', v1);
 
   app.use(notFound);
