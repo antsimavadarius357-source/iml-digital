@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { 
   User, 
   FileText, 
@@ -14,8 +15,10 @@ import {
   Mail, 
   ChevronLeft, 
   ChevronRight, 
-  Info
+  Info,
+  Plus
 } from 'lucide-react';
+import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
 import CreateBeneficiaryModal from '../beneficiaries/CreateBeneficiaryModal';
 import BeneficiaryRequiredModal from '../beneficiaries/BeneficiaryRequiredModal';
@@ -31,7 +34,68 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { count: beneficiaryCount } = useBeneficiariesCount();
-  const [selectedDay, setSelectedDay] = useState(12);
+
+  // =========================================================================
+  // GESTION DU CALENDRIER DYNAMIQUE : AUJOURD'HUI & DEMAIN
+  // =========================================================================
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const tomorrow = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + 1);
+    return d;
+  }, [today]);
+
+  // Mois actuellement affiché dans le calendrier
+  const [viewDate, setViewDate] = useState<Date>(() => new Date(today.getFullYear(), today.getMonth(), 1));
+
+  // Date sélectionnée (par défaut la date du jour "Aujourd'hui")
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date(today));
+
+  // Récupération dynamique des rendez-vous
+  const { data: appointmentsRes } = useQuery({
+    queryKey: ['appointments'],
+    queryFn: () => api<{ items: any[] }>('/appointments').then(r => r.items).catch(() => []),
+  });
+  const appointments = appointmentsRes || [];
+
+  const isSameDay = (d1: Date, d2: Date) => {
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  };
+
+  const formatYearMonthDay = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handlePrevMonth = () => {
+    setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const handleSelectToday = () => {
+    setSelectedDate(new Date(today));
+    setViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  };
+
+  const handleSelectTomorrow = () => {
+    setSelectedDate(new Date(tomorrow));
+    setViewDate(new Date(tomorrow.getFullYear(), tomorrow.getMonth(), 1));
+  };
+
   const [isCreateBeneficiaryOpen, setIsCreateBeneficiaryOpen] = useState(false);
   const [isAddDocumentOpen, setIsAddDocumentOpen] = useState(false);
   const [isCreateNoteOpen, setIsCreateNoteOpen] = useState(false);
@@ -73,44 +137,106 @@ export default function DashboardPage() {
   // Nom affiché de l'utilisateur connecté
   const displayName = user ? (user.firstName || `${user.lastName}` || 'Utilisateur') : 'Utilisateur';
 
-  // Jours du calendrier Octobre 2026 (le 1er octobre est un jeudi)
-  const calendarDays = [
-    { day: 27, currentMonth: false },
-    { day: 28, currentMonth: false },
-    { day: 29, currentMonth: false },
-    { day: 30, currentMonth: false },
-    { day: 1, currentMonth: true },
-    { day: 2, currentMonth: true },
-    { day: 3, currentMonth: true },
-    { day: 4, currentMonth: true },
-    { day: 5, currentMonth: true },
-    { day: 6, currentMonth: true },
-    { day: 7, currentMonth: true },
-    { day: 8, currentMonth: true },
-    { day: 9, currentMonth: true },
-    { day: 10, currentMonth: true },
-    { day: 11, currentMonth: true },
-    { day: 12, currentMonth: true },
-    { day: 13, currentMonth: true },
-    { day: 14, currentMonth: true },
-    { day: 15, currentMonth: true },
-    { day: 16, currentMonth: true },
-    { day: 17, currentMonth: true },
-    { day: 18, currentMonth: true },
-    { day: 19, currentMonth: true },
-    { day: 20, currentMonth: true },
-    { day: 21, currentMonth: true },
-    { day: 22, currentMonth: true },
-    { day: 23, currentMonth: true },
-    { day: 24, currentMonth: true },
-    { day: 25, currentMonth: true },
-    { day: 26, currentMonth: true },
-    { day: 27, currentMonth: true },
-    { day: 28, currentMonth: true },
-    { day: 29, currentMonth: true },
-    { day: 30, currentMonth: true },
-    { day: 31, currentMonth: true },
-  ];
+  // Titre du mois affiché (ex: "Octobre 2026")
+  const monthTitleRaw = viewDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const monthTitle = monthTitleRaw.charAt(0).toUpperCase() + monthTitleRaw.slice(1);
+
+  // Événements dans le mois affiché
+  const monthEventsCount = appointments.filter((a: any) => {
+    if (!a.datetime) return false;
+    const d = new Date(a.datetime);
+    return d.getFullYear() === viewDate.getFullYear() && d.getMonth() === viewDate.getMonth();
+  }).length;
+
+  // Calcul dynamique de la grille du calendrier (semaine commençant le dimanche comme dans la maquette)
+  const calendarGridDays = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const startingDayOfWeek = firstDay.getDay(); // 0 = Dimanche, 1 = Lundi, ...
+
+    const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+    const days: {
+      date: Date;
+      dayNumber: number;
+      currentMonth: boolean;
+      isToday: boolean;
+      isTomorrow: boolean;
+      isSelected: boolean;
+      hasEvents: boolean;
+    }[] = [];
+
+    // Jours du mois précédent
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+      const d = new Date(year, month - 1, daysInPrevMonth - i);
+      const dayHasEvents = appointments.some((a: any) => a.datetime && isSameDay(new Date(a.datetime), d));
+      days.push({
+        date: d,
+        dayNumber: daysInPrevMonth - i,
+        currentMonth: false,
+        isToday: isSameDay(d, today),
+        isTomorrow: isSameDay(d, tomorrow),
+        isSelected: isSameDay(d, selectedDate),
+        hasEvents: dayHasEvents,
+      });
+    }
+
+    // Jours du mois en cours
+    for (let i = 1; i <= daysInCurrentMonth; i++) {
+      const d = new Date(year, month, i);
+      const dayHasEvents = appointments.some((a: any) => a.datetime && isSameDay(new Date(a.datetime), d));
+      days.push({
+        date: d,
+        dayNumber: i,
+        currentMonth: true,
+        isToday: isSameDay(d, today),
+        isTomorrow: isSameDay(d, tomorrow),
+        isSelected: isSameDay(d, selectedDate),
+        hasEvents: dayHasEvents,
+      });
+    }
+
+    // Jours du mois suivant pour compléter les 7 colonnes
+    const remainingCells = (7 - (days.length % 7)) % 7;
+    for (let i = 1; i <= remainingCells; i++) {
+      const d = new Date(year, month + 1, i);
+      const dayHasEvents = appointments.some((a: any) => a.datetime && isSameDay(new Date(a.datetime), d));
+      days.push({
+        date: d,
+        dayNumber: i,
+        currentMonth: false,
+        isToday: isSameDay(d, today),
+        isTomorrow: isSameDay(d, tomorrow),
+        isSelected: isSameDay(d, selectedDate),
+        hasEvents: dayHasEvents,
+      });
+    }
+
+    return days;
+  }, [viewDate, today, tomorrow, selectedDate, appointments]);
+
+  // Propriétés du jour sélectionné
+  const isSelectedToday = isSameDay(selectedDate, today);
+  const isSelectedTomorrow = isSameDay(selectedDate, tomorrow);
+
+  const selectedWeekdayRaw = selectedDate.toLocaleDateString('fr-FR', { weekday: 'long' });
+  const selectedWeekday = selectedWeekdayRaw.charAt(0).toUpperCase() + selectedWeekdayRaw.slice(1);
+
+  const selectedFullDateRaw = selectedDate.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const selectedFullDate = selectedFullDateRaw.charAt(0).toUpperCase() + selectedFullDateRaw.slice(1);
+
+  const selectedDayAppointments = appointments.filter((a: any) => {
+    if (!a.datetime) return false;
+    return isSameDay(new Date(a.datetime), selectedDate);
+  });
 
   return (
     <div className="w-full pb-36 sm:pb-44 relative font-sans text-slate-800">
@@ -483,31 +609,76 @@ export default function DashboardPage() {
 
           {/* CARTE 2 : Mon calendrier */}
           <div className="bg-white rounded-md border border-slate-200/90 p-4 shadow-2xs space-y-3">
-            <h2 className="text-[14px] font-semibold text-slate-800">
-              Mon calendrier
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[14px] font-semibold text-slate-800">
+                Mon calendrier
+              </h2>
+              <button
+                type="button"
+                onClick={handleSelectToday}
+                title="Revenir à aujourd'hui"
+                className="text-[11px] font-medium text-[#23c3b1] hover:underline cursor-pointer"
+              >
+                Aujourd'hui
+              </button>
+            </div>
             <div className="border-b border-slate-100 my-1.5" />
 
-            {/* Notification aucun événement */}
-            <div className="bg-slate-50/80 border border-slate-100 rounded py-1.5 px-3 text-center text-xs text-slate-400">
-              Aucun événement en Octobre 2026
+            {/* Notification aucun événement / X événements en [Mois] */}
+            <div className="bg-slate-50/80 border border-slate-100 rounded py-1.5 px-3 text-center text-xs text-slate-500">
+              {monthEventsCount === 0
+                ? `Aucun événement en ${monthTitle}`
+                : `${monthEventsCount} événement${monthEventsCount > 1 ? 's' : ''} en ${monthTitle}`}
+            </div>
+
+            {/* Raccourcis rapides : Aujourd'hui et Demain */}
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+              <button
+                type="button"
+                onClick={handleSelectToday}
+                className={`py-1 px-2 rounded text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer border ${
+                  isSelectedToday
+                    ? 'bg-[#23c3b1] text-white border-[#23c3b1] shadow-2xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80'
+                }`}
+              >
+                <span className={`size-1.5 rounded-full ${isSelectedToday ? 'bg-white' : 'bg-[#23c3b1]'}`} />
+                <span>Aujourd'hui ({today.getDate()})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSelectTomorrow}
+                className={`py-1 px-2 rounded text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer border ${
+                  isSelectedTomorrow
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80'
+                }`}
+              >
+                <span className={`size-1.5 rounded-full ${isSelectedTomorrow ? 'bg-white' : 'bg-amber-500'}`} />
+                <span>Demain ({tomorrow.getDate()})</span>
+              </button>
             </div>
 
             {/* Mois & Flèches de navigation rouge/corail */}
             <div className="flex items-center justify-between pt-1">
               <button 
                 type="button"
+                onClick={handlePrevMonth}
+                title="Mois précédent"
                 className="size-6 rounded-full border border-red-300 text-red-400 hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <ChevronLeft className="size-3.5" />
               </button>
 
               <span className="text-xs font-bold text-slate-800 tracking-wide">
-                Octobre 2026
+                {monthTitle}
               </span>
 
               <button 
                 type="button"
+                onClick={handleNextMonth}
+                title="Mois suivant"
                 className="size-6 rounded-full border border-red-300 text-red-400 hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <ChevronRight className="size-3.5" />
@@ -527,22 +698,44 @@ export default function DashboardPage() {
 
             {/* Grille des dates */}
             <div className="grid grid-cols-7 gap-y-1 text-center text-xs font-normal">
-              {calendarDays.map((item, idx) => {
-                const isSelected = item.currentMonth && item.day === selectedDay;
+              {calendarGridDays.map((item, idx) => {
                 return (
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => item.currentMonth && setSelectedDay(item.day)}
-                    className={`size-6 mx-auto rounded-full flex items-center justify-center text-xs transition-colors ${
-                      isSelected
+                    onClick={() => {
+                      setSelectedDate(item.date);
+                      if (!item.currentMonth) {
+                        setViewDate(new Date(item.date.getFullYear(), item.date.getMonth(), 1));
+                      }
+                    }}
+                    title={
+                      item.isToday
+                        ? "Aujourd'hui"
+                        : item.isTomorrow
+                        ? 'Demain'
+                        : undefined
+                    }
+                    className={`size-6 mx-auto rounded-full flex flex-col items-center justify-center text-xs transition-all relative cursor-pointer ${
+                      item.isSelected
                         ? 'bg-[#23c3b1] text-white font-medium shadow-xs'
+                        : item.isToday
+                        ? 'border border-[#23c3b1] text-[#1b9a8c] font-bold bg-[#23c3b1]/10 hover:bg-[#23c3b1]/20'
+                        : item.isTomorrow
+                        ? 'border border-amber-300 text-amber-800 font-semibold bg-amber-50/70 hover:bg-amber-100'
                         : item.currentMonth
-                        ? 'text-slate-700 hover:bg-slate-100 cursor-pointer'
-                        : 'text-slate-300 pointer-events-none'
+                        ? 'text-slate-700 hover:bg-slate-100'
+                        : 'text-slate-300 hover:text-slate-500'
                     }`}
                   >
-                    {item.day}
+                    <span>{item.dayNumber}</span>
+                    {item.hasEvents && (
+                      <span
+                        className={`size-1 rounded-full absolute bottom-0.5 ${
+                          item.isSelected ? 'bg-white' : 'bg-[#f06553]'
+                        }`}
+                      />
+                    )}
                   </button>
                 );
               })}
@@ -550,13 +743,103 @@ export default function DashboardPage() {
 
             {/* Détail du jour sélectionné */}
             <div className="pt-2.5 border-t border-slate-100 space-y-2">
-              <div className="text-xs font-bold text-slate-800">
-                Lundi {selectedDay}
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  {isSelectedToday && (
+                    <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-[#23c3b1]/15 text-[#1b9a8c] uppercase tracking-wider">
+                      Aujourd'hui
+                    </span>
+                  )}
+                  {isSelectedTomorrow && (
+                    <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-amber-100 text-amber-800 uppercase tracking-wider">
+                      Demain
+                    </span>
+                  )}
+                  <span>{selectedWeekday} {selectedDate.getDate()}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (beneficiaryCount === 0) {
+                      handleActionClick({
+                        title: 'Planifier un rendez-vous',
+                        message: "Vous devez d'abord créer au moins un bénéficiaire avant de pouvoir planifier un rendez-vous.",
+                        icon: Calendar,
+                      });
+                    } else {
+                      setIsCreateAppointmentOpen(true);
+                    }
+                  }}
+                  title="Planifier un rendez-vous pour ce jour"
+                  className="size-5 rounded hover:bg-slate-100 text-slate-400 hover:text-[#23c3b1] flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <Plus className="size-3.5" />
+                </button>
               </div>
-              <div className="p-2.5 bg-slate-50/80 rounded border border-slate-200/80 text-[11px] text-slate-600 flex items-start gap-2">
-                <Info className="size-3.5 text-slate-600 shrink-0 mt-0.5" />
-                <span>Aucun événement le Lundi {selectedDay} Octobre 2026</span>
-              </div>
+
+              {selectedDayAppointments.length === 0 ? (
+                <div className="p-2.5 bg-slate-50/80 rounded border border-slate-200/80 text-[11px] text-slate-600 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <Info className="size-3.5 text-slate-500 shrink-0 mt-0.5" />
+                    <span>Aucun événement le {selectedFullDate}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (beneficiaryCount === 0) {
+                        handleActionClick({
+                          title: 'Planifier un rendez-vous',
+                          message: "Vous devez d'abord créer au moins un bénéficiaire avant de pouvoir planifier un rendez-vous.",
+                          icon: Calendar,
+                        });
+                      } else {
+                        setIsCreateAppointmentOpen(true);
+                      }
+                    }}
+                    className="w-full py-1 text-[11px] font-medium text-[#23c3b1] hover:text-[#1b9a8c] hover:bg-[#23c3b1]/10 rounded border border-dashed border-[#23c3b1]/40 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Plus className="size-3" />
+                    Planifier un rendez-vous
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {selectedDayAppointments.map((app: any) => {
+                    const timeStr = app.datetime
+                      ? new Date(app.datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                      : '';
+                    return (
+                      <div
+                        key={app.id}
+                        className="p-2 rounded border border-slate-200/80 bg-slate-50 hover:bg-white transition-colors text-[11px] space-y-1"
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-semibold text-slate-800 truncate">
+                            {app.beneficiary ? `${app.beneficiary.firstName} ${app.beneficiary.lastName}` : 'Rendez-vous'}
+                          </span>
+                          <span className="font-mono text-slate-500 text-[10px] shrink-0">
+                            {timeStr}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-500">
+                          <span className="truncate">{app.location || (app.duration ? `${app.duration} min` : 'Session')}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-50 text-blue-700">
+                            {app.status || 'PLANIFIE'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => navigate('/agendas')}
+                    className="w-full py-1 text-[11px] text-slate-500 hover:text-slate-800 text-center block transition-colors"
+                  >
+                    Voir dans l'agenda complet →
+                  </button>
+                </div>
+              )}
             </div>
 
           </div>
@@ -598,6 +881,7 @@ export default function DashboardPage() {
       <CreateAppointmentWizardModal
         isOpen={isCreateAppointmentOpen}
         onClose={() => setIsCreateAppointmentOpen(false)}
+        defaultDate={formatYearMonthDay(selectedDate)}
       />
 
       {/* MODALE ENREGISTREMENT D'UNE PRESTATION */}

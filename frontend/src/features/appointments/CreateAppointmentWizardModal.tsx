@@ -15,6 +15,7 @@ interface CreateAppointmentWizardModalProps {
   onClose: () => void;
   onSuccess?: () => void;
   defaultBeneficiaryId?: string;
+  defaultDate?: string;
 }
 
 interface ParticipantItem {
@@ -28,7 +29,8 @@ export default function CreateAppointmentWizardModal({
   isOpen,
   onClose,
   onSuccess,
-  defaultBeneficiaryId
+  defaultBeneficiaryId,
+  defaultDate
 }: CreateAppointmentWizardModalProps) {
   const queryClient = useQueryClient();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -44,9 +46,19 @@ export default function CreateAppointmentWizardModal({
   
   // Date du jour par défaut au format YYYY-MM-DD
   const todayStr = new Date().toISOString().split('T')[0];
-  const [sessionDate, setSessionDate] = useState<string>(todayStr);
+  const [sessionDate, setSessionDate] = useState<string>(defaultDate || todayStr);
   const [startTime, setStartTime] = useState<string>('09:00');
   const [endTime, setEndTime] = useState<string>('10:00');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (defaultDate) {
+        setSessionDate(defaultDate);
+      } else {
+        setSessionDate(new Date().toISOString().split('T')[0]);
+      }
+    }
+  }, [isOpen, defaultDate]);
 
   // Champ Description (présent pour les DEUX modes)
   const [description, setDescription] = useState<string>('');
@@ -191,7 +203,7 @@ export default function CreateAppointmentWizardModal({
     setStep(1);
     setSessionType('video');
     setSessionName('');
-    setSessionDate(todayStr);
+    setSessionDate(defaultDate || todayStr);
     setStartTime('09:00');
     setEndTime('10:00');
     setDescription('');
