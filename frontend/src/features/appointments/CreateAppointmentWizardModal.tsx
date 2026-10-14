@@ -65,7 +65,7 @@ export default function CreateAppointmentWizardModal({
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Présentiel : Lieu précis
-  const [inPersonPlace, setInPersonPlace] = useState<string>('Siège IML Digit - Espace PME, Bâtiment B2, Libreville, Gabon');
+  const [inPersonPlace, setInPersonPlace] = useState<string>('Siège IML Digit - Espace PME, Quartier B2, Libreville, Gabon');
 
   // Notifications automatiques vers le candidat
   const [sendEmailNotification, setSendEmailNotification] = useState<boolean>(true);
@@ -460,7 +460,7 @@ export default function CreateAppointmentWizardModal({
                       type="text"
                       value={inPersonPlace}
                       onChange={(e) => setInPersonPlace(e.target.value)}
-                      placeholder="Ex: Siège IML Digit - Espace PME, Bâtiment B2, Libreville"
+                      placeholder="Ex: Siège IML Digit - Espace PME, Quartier B2, Libreville"
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1] shadow-2xs"
                     />
                   </div>
