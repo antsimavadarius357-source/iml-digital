@@ -73,8 +73,8 @@ export default function DashboardPage() {
     }
   };
 
-  // Nom affiché : DARUS comme sur les captures d'écran de référence
-  const displayName = user?.firstName?.toUpperCase() === 'ALEXANDRE' ? 'DARUS' : (user?.firstName?.toUpperCase() || 'DARUS');
+  // Nom affiché de l'utilisateur connecté
+  const displayName = user ? (user.firstName || `${user.lastName}` || 'Utilisateur') : 'Utilisateur';
 
   // Jours du calendrier Octobre 2026 (le 1er octobre est un jeudi)
   const calendarDays = [
@@ -119,7 +119,7 @@ export default function DashboardPage() {
     <div className="w-full pb-36 sm:pb-44 relative font-sans text-slate-800">
       
       {/* =========================================================================
-          LIGNE DU HAUT : Bonjour DARUS
+          LIGNE DU HAUT : Bonjour {displayName}
          ========================================================================= */}
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-[26px] sm:text-[30px] font-normal text-slate-800 tracking-tight">

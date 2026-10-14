@@ -358,7 +358,7 @@ export default function AppLayout() {
             </div>
           </div>
 
-          {/* Droite : Calendrier, Cloche & Profil DARUS */}
+          {/* Droite : Calendrier, Cloche & Profil Utilisateur */}
           <div className="flex items-center gap-3 sm:gap-4">
             <Link 
               to="/agendas" 

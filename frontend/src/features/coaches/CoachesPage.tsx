@@ -35,12 +35,12 @@ export default function CoachesPage() {
   const navigate = useNavigate();
 
   // Liste des coachs (avec le compte courant par défaut et persistance locale)
-  const defaultCoachName = user ? `${user.firstName} ${user.lastName}`.trim().toUpperCase() : 'DARUS ANTSIMAVA';
-  const defaultCoachEmail = user?.email || 'antsimavadarius357@gmail.com';
+  const defaultCoachName = user ? `${user.firstName} ${user.lastName}`.trim().toUpperCase() : 'ALEXANDRE AGENT IML';
+  const defaultCoachEmail = user?.email || 'agent@imldigit.com';
 
   const [coaches, setCoaches] = useState<CoachItem[]>(() => {
     try {
-      const saved = localStorage.getItem('iml_coaches_list_v2');
+      const saved = localStorage.getItem('iml_coaches_list_v3');
       if (saved) {
         return JSON.parse(saved);
       }
@@ -50,10 +50,10 @@ export default function CoachesPage() {
     return [
       {
         id: 'coach-owner-1',
-        name: defaultCoachName || 'DARUS ANTSIMAVA',
+        name: defaultCoachName || 'ALEXANDRE AGENT IML',
         email: defaultCoachEmail,
-        role: 'ADMIN',
-        roleLabel: 'Direction & Coach principal',
+        role: 'AGENT',
+        roleLabel: 'Agent d\'accompagnement IML',
         language: 'Français',
         createdAt: '09/10/2026',
         activeBeneficiariesCount: 1,

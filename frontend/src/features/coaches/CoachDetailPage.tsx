@@ -62,8 +62,8 @@ export default function CoachDetailPage() {
   const [emailSentNotice, setEmailSentNotice] = useState(false);
 
   // Données du coach
-  const initialCoachName = user ? `${user.firstName} ${user.lastName}`.trim().toUpperCase() : 'DARUS ANTSIMAVA';
-  const initialCoachEmail = user?.email || 'antsimavadarius357@gmail.com';
+  const initialCoachName = user ? `${user.firstName} ${user.lastName}`.trim().toUpperCase() : 'ALEXANDRE AGENT IML';
+  const initialCoachEmail = user?.email || 'agent@imldigit.com';
 
   const [coachName, setCoachName] = useState(initialCoachName);
   const [coachEmail, setCoachEmail] = useState(initialCoachEmail);
