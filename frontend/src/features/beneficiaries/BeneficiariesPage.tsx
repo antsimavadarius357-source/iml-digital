@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -16,10 +16,12 @@ import {
   BarChart2, 
   Archive, 
   Trash2, 
-  Loader2 
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import CreateBeneficiaryModal from './CreateBeneficiaryModal';
+import BatchActionModals, { type BatchActionType } from './BatchActionModals';
 
 interface BeneficiaryItem {
   id: string;
@@ -76,6 +78,15 @@ export default function BeneficiariesPage() {
 
   // Sélection de lignes (Batch actions)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchAction, setBatchAction] = useState<BatchActionType>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toastMsg) {
+      const timer = setTimeout(() => setToastMsg(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMsg]);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -107,6 +118,72 @@ export default function BeneficiariesPage() {
   };
 
   const isAllSelected = beneficiaries.length > 0 && selectedIds.length === beneficiaries.length;
+
+  // Export CSV direct
+  const handleExportCsv = () => {
+    const listToExport = selectedIds.length > 0 
+      ? beneficiaries.filter(b => selectedIds.includes(b.id))
+      : beneficiaries;
+
+    if (listToExport.length === 0) {
+      setToastMsg('Aucune donnée à exporter.');
+      return;
+    }
+
+    const headers = [
+      'N° Dossier',
+      'Nom',
+      'Prénom',
+      'Structure / Type',
+      'Email',
+      'Téléphone',
+      'Ville',
+      'Statut',
+      'Langue',
+      'Parcours',
+      'Heures Réalisées',
+      'Heures Totales',
+      'Progression (%)',
+      'Dernière Activité'
+    ];
+
+    const escape = (val: unknown) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+    const rows = listToExport.map(b => {
+      const typeLabel = b.type === 'ENTREPRISE' ? 'PME / Entreprise' : b.type === 'STARTUP' ? 'Start-up' : 'Porteur de projet';
+      const fileNum = b.fileNumber || `DOS-${b.fileSeq}`;
+      return [
+        escape(fileNum),
+        escape(b.lastName),
+        escape(b.firstName),
+        escape(typeLabel),
+        escape(b.email),
+        escape(b.phone || ''),
+        escape(b.city || 'Libreville (B2)'),
+        escape(b.status),
+        escape(b.language || 'Français'),
+        escape(b.pathway || 'Création d’entreprise'),
+        escape(b.hoursSpent || 0),
+        escape(b.hoursTotal || 20),
+        escape(b.progressPercent || 0),
+        escape(b.lastActivityAt ? new Date(b.lastActivityAt).toLocaleDateString('fr-FR') : '')
+      ].join(';');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.download = `export_beneficiaires_${dateStr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setToastMsg(`Export CSV réussi : ${listToExport.length} dossier(s) exporté(s).`);
+  };
 
   // Réinitialiser les filtres
   const handleResetFilters = () => {
@@ -251,13 +328,14 @@ export default function BeneficiariesPage() {
         <div className="flex items-center gap-2.5">
           
           {/* Bouton Exporter la liste */}
-          <a
-            href={`/api/v1/beneficiaries/export.csv`}
+          <button
+            type="button"
+            onClick={handleExportCsv}
             className="px-3.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
           >
             <Download className="size-3.5" />
             <span>Exporter la liste</span>
-          </a>
+          </button>
 
           {/* Bouton Créer un bénéficiaire */}
           <button
@@ -398,7 +476,8 @@ export default function BeneficiariesPage() {
             {/* 1. Assigner un ou plusieurs */}
             <button
               type="button"
-              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer leading-tight"
+              onClick={() => setBatchAction('assign')}
+              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer leading-tight active:scale-95"
             >
               <UserCheck className="size-3.5" />
               <span>un ou plusieurs</span>
@@ -407,7 +486,8 @@ export default function BeneficiariesPage() {
             {/* 2. Ajouter à un groupe */}
             <button
               type="button"
-              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer leading-tight"
+              onClick={() => setBatchAction('group')}
+              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer leading-tight active:scale-95"
             >
               <Users className="size-3.5" />
               <span>Ajouter à un groupe</span>
@@ -416,7 +496,8 @@ export default function BeneficiariesPage() {
             {/* 3. Lier à une organisation */}
             <button
               type="button"
-              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer leading-tight"
+              onClick={() => setBatchAction('org')}
+              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer leading-tight active:scale-95"
             >
               <Building2 className="size-3.5" />
               <span>Lier à une organisation</span>
@@ -425,7 +506,8 @@ export default function BeneficiariesPage() {
             {/* 4. Envoi d'un message */}
             <button
               type="button"
-              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer leading-tight"
+              onClick={() => setBatchAction('message')}
+              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer leading-tight active:scale-95"
             >
               <MessageSquare className="size-3.5" />
               <span>Envoi d'un message</span>
@@ -434,7 +516,8 @@ export default function BeneficiariesPage() {
             {/* 5. Exporter */}
             <button
               type="button"
-              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer leading-tight"
+              onClick={handleExportCsv}
+              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer leading-tight active:scale-95"
             >
               <Download className="size-3.5" />
               <span>Exporter</span>
@@ -443,7 +526,8 @@ export default function BeneficiariesPage() {
             {/* 6. Reporting */}
             <button
               type="button"
-              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer leading-tight"
+              onClick={() => setBatchAction('reporting')}
+              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer leading-tight active:scale-95"
             >
               <BarChart2 className="size-3.5" />
               <span>Reporting</span>
@@ -452,7 +536,8 @@ export default function BeneficiariesPage() {
             {/* 7. Archiver */}
             <button
               type="button"
-              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer leading-tight"
+              onClick={() => setBatchAction('archive')}
+              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer leading-tight active:scale-95"
             >
               <Archive className="size-3.5" />
               <span>Archiver</span>
@@ -461,7 +546,8 @@ export default function BeneficiariesPage() {
             {/* 8. Supprimer */}
             <button
               type="button"
-              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer leading-tight"
+              onClick={() => setBatchAction('delete')}
+              className="px-2.5 py-1.5 rounded-md bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-normal flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer leading-tight active:scale-95"
             >
               <Trash2 className="size-3.5" />
               <span>Supprimer</span>
@@ -693,6 +779,40 @@ export default function BeneficiariesPage() {
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={() => void refetch()}
       />
+
+      {/* =========================================================================
+          8. MODALES D'ACTIONS GROUPÉES (ASSIGNER, GROUPE, ORG, MESSAGE, REPORTING, ARCHIVER, SUPPRIMER)
+         ========================================================================= */}
+      <BatchActionModals
+        action={batchAction}
+        onClose={() => setBatchAction(null)}
+        selectedIds={selectedIds}
+        selectedBeneficiaries={beneficiaries.filter((b) => selectedIds.includes(b.id))}
+        onSuccess={(msg) => {
+          setToastMsg(msg);
+          setSelectedIds([]);
+          void refetch();
+        }}
+      />
+
+      {/* =========================================================================
+          9. TOAST DE CONFIRMATION DES ACTIONS (FEEDBACK VISUEL ÉLÉGANT)
+         ========================================================================= */}
+      {toastMsg && (
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-[#14233c] text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 animate-in slide-in-from-top-4 fade-in duration-200">
+          <div className="size-6 rounded-full bg-[#23c3b1]/20 text-[#23c3b1] flex items-center justify-center shrink-0">
+            <CheckCircle2 className="size-4" />
+          </div>
+          <span className="text-xs font-semibold">{toastMsg}</span>
+          <button 
+            type="button"
+            onClick={() => setToastMsg(null)} 
+            className="text-slate-400 hover:text-white ml-2 transition-colors cursor-pointer"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
 
     </div>
   );
