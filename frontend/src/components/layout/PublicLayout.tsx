@@ -225,14 +225,22 @@ export default function PublicLayout() {
                 Blog
               </Link>
 
-              {/* Déposer un projet (Entrepreneur) */}
+              {/* Suivi de candidature en ligne */}
+              <Link 
+                to="/suivi-candidature" 
+                className="text-[14px] font-semibold text-slate-700 hover:text-[#23c3b1] transition-colors flex items-center gap-1"
+              >
+                <span>Suivre mon dossier</span>
+              </Link>
+
+              {/* Déposer une candidature (PME, Startups, Porteurs) */}
               <Link 
                 to="/candidater" 
-                className="text-[15px] font-semibold text-[#f06553] hover:text-[#e05341] transition-colors flex items-center gap-1.5"
+                className="text-[14px] font-bold text-[#f06553] hover:text-[#e05341] transition-colors flex items-center gap-1.5 bg-orange-50/80 hover:bg-orange-100 px-3.5 py-1.5 rounded-full border border-orange-200"
               >
-                <span>Déposer un projet</span>
-                <span className="px-1.5 py-0.5 text-[10px] uppercase font-extrabold tracking-wider bg-orange-100 text-[#f06553] rounded-md">
-                  Porteurs
+                <span>Candidater</span>
+                <span className="px-1.5 py-0.5 text-[9px] uppercase font-black tracking-wider bg-[#f06553] text-white rounded">
+                  PME & Startups
                 </span>
               </Link>
             </nav>

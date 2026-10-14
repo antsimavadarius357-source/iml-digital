@@ -9,7 +9,8 @@ import {
   XCircle,
   Video,
   FileText,
-  ExternalLink
+  ExternalLink,
+  Printer
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -17,6 +18,7 @@ import CreateBeneficiaryModal from '../beneficiaries/CreateBeneficiaryModal';
 import BeneficiaryRequiredModal from '../beneficiaries/BeneficiaryRequiredModal';
 import CreateAppointmentWizardModal from './CreateAppointmentWizardModal';
 import OfficialConvocationModal, { type ConvocationData } from './OfficialConvocationModal';
+import AttendanceSheetModal, { type AttendanceSheetData } from './AttendanceSheetModal';
 
 const STATUS_LABELS: Record<string, string> = {
   PLANIFIE: 'Planifié',
@@ -41,6 +43,8 @@ export default function AppointmentsPage() {
   const [showRequiredModal, setShowRequiredModal] = useState(false);
   const [convocationData, setConvocationData] = useState<ConvocationData | null>(null);
   const [isConvocationOpen, setIsConvocationOpen] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<AttendanceSheetData | null>(null);
+  const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['appointments'],
@@ -205,6 +209,33 @@ export default function AppointmentsPage() {
                       <span>Convocation</span>
                     </button>
 
+                    {/* Bouton Feuille d'Émargement Officielle de Séance */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttendanceData({
+                          appointmentId: app.id,
+                          datetime: app.datetime,
+                          durationMinutes: app.duration || 60,
+                          beneficiaryName: `${app.beneficiary.firstName} ${app.beneficiary.lastName}`,
+                          beneficiaryType: app.beneficiary.type,
+                          representativeName: `${app.beneficiary.firstName} ${app.beneficiary.lastName}`,
+                          representativeEmail: app.beneficiary.email,
+                          representativePhone: app.beneficiary.phone,
+                          coachName: user ? `${user.firstName} ${user.lastName}` : 'Agent IML Digit',
+                          location: app.location || 'Espace PME, Quartier B2, Libreville',
+                          summary: app.session?.summary,
+                          nextActions: app.session?.nextActions,
+                        });
+                        setIsAttendanceOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                      title="Générer la feuille d'émargement officielle de présence"
+                    >
+                      <Printer className="size-3.5" />
+                      <span>Émargement</span>
+                    </button>
+
                     {app.status === 'PLANIFIE' && (
                       <>
                         <button onClick={() => setShowSessionModal(app.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md text-sm font-medium transition-colors">
@@ -301,6 +332,13 @@ export default function AppointmentsPage() {
         isOpen={isConvocationOpen}
         onClose={() => setIsConvocationOpen(false)}
         data={convocationData}
+      />
+
+      {/* Modale d'attestation et feuille d'émargement officielle de séance */}
+      <AttendanceSheetModal
+        isOpen={isAttendanceOpen}
+        onClose={() => setIsAttendanceOpen(false)}
+        data={attendanceData}
       />
     </div>
   );

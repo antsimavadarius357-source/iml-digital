@@ -95,3 +95,64 @@ export async function updateApplication(id: string, data: z.infer<typeof updateA
 
   return updated;
 }
+
+export async function trackApplicationPublic(searchQuery: string) {
+  const clean = searchQuery.trim();
+  if (!clean) {
+    throw new AppError(400, 'PARAMETRE_MANQUANT', 'Veuillez saisir votre numéro de dossier ou adresse email');
+  }
+
+  let app: any = null;
+
+  // 1. Recherche par numéro de séquence ou code (ex: "4", "IML-2026-0004", "CAND-04")
+  const seqMatch = clean.match(/(\d+)/);
+  if (seqMatch && seqMatch[1]) {
+    const seq = parseInt(seqMatch[1], 10);
+    app = await prisma.application.findUnique({
+      where: { seqNumber: seq }
+    });
+  }
+
+  // 2. Recherche par UUID direct
+  if (!app && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean)) {
+    app = await prisma.application.findUnique({
+      where: { id: clean }
+    });
+  }
+
+  // 3. Recherche par email dans applicantData
+  if (!app && clean.includes('@')) {
+    const apps = await prisma.application.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    app = apps.find(a => {
+      const applicant = a.applicantData as any;
+      return applicant?.email && applicant.email.toLowerCase() === clean.toLowerCase();
+    }) || null;
+  }
+
+  if (!app) {
+    throw new AppError(404, 'NON_TROUVE', 'Aucun dossier correspondant à ce numéro ou cet email');
+  }
+
+  const applicant = (app.applicantData as any) || {};
+  const project = (app.projectData as any) || {};
+
+  return {
+    id: app.id,
+    seqNumber: app.seqNumber,
+    referenceCode: `IML-2026-${String(app.seqNumber).padStart(4, '0')}`,
+    status: app.status,
+    submittedAt: app.submittedAt,
+    applicantName: `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() || 'Porteur / Entreprise',
+    structureType: applicant.structureType || 'PORTEUR_IDEE',
+    companyName: applicant.companyName || project.title || 'Projet / Entreprise',
+    rccm: applicant.rccm,
+    nif: applicant.nif,
+    interviewPreference: applicant.interviewPreference || 'PRESENTIEL',
+    hasVideoEquipment: applicant.hasVideoEquipment,
+    needs: project.needs || [],
+    stage: project.stage || 'IDEE'
+  };
+}

@@ -18,6 +18,7 @@ import WebinairesPage from '../features/public/WebinairesPage';
 import SolutionsDetailPage from '../features/public/SolutionsDetailPage';
 import ContactPage from '../features/public/ContactPage';
 import PublicApplicationPage from '../features/public/PublicApplicationPage';
+import SuiviCandidaturePage from '../features/public/SuiviCandidaturePage';
 import BeneficiariesPage from '../features/beneficiaries/BeneficiariesPage';
 import BeneficiaryFormPage from '../features/beneficiaries/BeneficiaryFormPage';
 import BeneficiaryDetailPage from '../features/beneficiaries/BeneficiaryDetailPage';
@@ -71,6 +72,7 @@ export default function AppRoutes() {
       <Route element={<PublicLayout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/candidater" element={<PublicApplicationPage />} />
+        <Route path="/suivi-candidature" element={<SuiviCandidaturePage />} />
         <Route path="/offres" element={<OffresPage />} />
         <Route path="/tarifs" element={<TarifsPage />} />
         <Route path="/ressources/outils" element={<OutilsGratuitsPage />} />

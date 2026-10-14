@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Sparkles } from 'lucide-react';
 import { TYPE_LABELS, STATUS_LABELS, PRIORITY_LABELS, STAGE_LABELS, SIZE_LABELS, type Options } from './types';
 
 // Matching backend validation schema
@@ -50,12 +50,45 @@ const inp = "mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:borde
 
 export default function BeneficiaryFormPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const options = useQuery({ queryKey: ['beneficiary-options'], queryFn: () => api<Options>('/beneficiaries/options'), staleTime: 300_000 });
 
+  const fromState = location.state as { fromApp?: string | number; applicant?: any; project?: any } | undefined;
+  const applicant = fromState?.applicant;
+  const project = fromState?.project;
+
+  const defaultType = applicant?.structureType === 'PME' || applicant?.structureType === 'ORGANISATION' 
+    ? 'ENTREPRISE' 
+    : applicant?.structureType === 'STARTUP' 
+      ? 'STARTUP' 
+      : 'PORTEUR_IDEE';
+
+  const defaultStage = project?.stage === 'COMMERCIAL' 
+    ? 'LANCEMENT' 
+    : (['IDEE', 'PROTOTYPE', 'LANCEMENT', 'CROISSANCE', 'MATURITE'].includes(project?.stage) ? project.stage : 'IDEE');
+
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { type: 'PORTEUR_IDEE', status: 'EN_ATTENTE', priority: 'NORMALE', project: { stage: 'IDEE' } },
+    defaultValues: { 
+      type: defaultType, 
+      status: 'ACTIF', 
+      priority: 'NORMALE',
+      firstName: applicant?.firstName || '',
+      lastName: applicant?.lastName || '',
+      email: applicant?.email || '',
+      phone: applicant?.phone || '',
+      city: applicant?.city || 'Libreville',
+      project: { 
+        name: applicant?.companyName || project?.title || '',
+        description: project?.description || '',
+        stage: defaultStage,
+        legalStatus: applicant?.legalStatus || (defaultType === 'ENTREPRISE' ? 'SARL' : ''),
+        companyCreatedAt: applicant?.creationYear ? `${applicant.creationYear}-01-01` : (defaultType === 'ENTREPRISE' ? `${new Date().getFullYear()}-01-01` : ''),
+        companySize: applicant?.companySize || (defaultType === 'ENTREPRISE' ? 'MICRO' : ''),
+        priorityNeeds: Array.isArray(project?.needs) ? project.needs.join(', ') : (project?.needs || '')
+      }
+    },
   });
 
   const [apiError, setApiError] = useState('');
@@ -90,6 +123,18 @@ export default function BeneficiaryFormPage() {
           <p className="text-sm text-slate-500">Ajouter un nouveau porteur de projet ou une entreprise.</p>
         </div>
       </div>
+
+      {fromState?.fromApp && (
+        <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-3 shadow-2xs">
+          <Sparkles className="size-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="text-xs sm:text-sm">
+            <strong className="block font-bold mb-0.5">Dossier pré-rempli depuis la Candidature #{fromState.fromApp}</strong>
+            <span>
+              Les données soumises par <strong>{applicant?.firstName} {applicant?.lastName}</strong> ({applicant?.companyName || project?.title || 'Structure'}) ont été importées automatiquement. Vous pouvez ajuster ou compléter les informations avant d'enregistrer le dossier officiel.
+            </span>
+          </div>
+        </div>
+      )}
 
       {apiError && <div className="mb-6 p-4 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{apiError}</div>}
 

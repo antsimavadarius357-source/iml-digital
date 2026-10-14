@@ -10,12 +10,16 @@ import {
   Target, 
   Users,
   Video,
-  Building2
+  Building2,
+  Briefcase,
+  Layers,
+  Search
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
 export default function PublicApplicationPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [structureType, setStructureType] = useState<'PORTEUR_IDEE' | 'STARTUP' | 'PME' | 'ORGANISATION'>('PORTEUR_IDEE');
   const [stage, setStage] = useState('PROTOTYPE');
   const [needs, setNeeds] = useState<string[]>(['Accompagnement méthodologique']);
   const [referenceCode, setReferenceCode] = useState('');
@@ -23,10 +27,11 @@ export default function PublicApplicationPage() {
   const [hasVideoEquipment, setHasVideoEquipment] = useState(true);
 
   const mut = useMutation({
-    mutationFn: (data: any) => api('/applications/submit', { method: 'POST', body: data }),
-    onSuccess: () => {
-      const randomCode = 'IML-' + Math.floor(100000 + Math.random() * 900000);
-      setReferenceCode(randomCode);
+    mutationFn: (data: any) => api<{ application: any }>('/applications/submit', { method: 'POST', body: data }),
+    onSuccess: (res: any) => {
+      const seq = res?.application?.seqNumber;
+      const code = seq ? `IML-2026-${String(seq).padStart(4, '0')}` : 'IML-' + Math.floor(100000 + Math.random() * 900000);
+      setReferenceCode(code);
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -41,18 +46,28 @@ export default function PublicApplicationPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const compName = (fd.get('companyName') as string) || (fd.get('title') as string) || 'Entreprise sans nom';
+
     mut.mutate({
       applicantData: {
         firstName: fd.get('firstName'),
         lastName: fd.get('lastName'),
         email: fd.get('email'),
         phone: fd.get('phone'),
-        city: fd.get('city') || 'Non spécifié',
+        city: fd.get('city') || 'Libreville',
+        structureType,
+        companyName: compName,
+        rccm: fd.get('rccm') || undefined,
+        nif: fd.get('nif') || undefined,
+        legalStatus: fd.get('legalStatus') || undefined,
+        companySize: fd.get('companySize') || undefined,
+        annualRevenue: fd.get('annualRevenue') || undefined,
+        creationYear: fd.get('creationYear') || undefined,
         interviewPreference,
         hasVideoEquipment: interviewPreference === 'VIDEO' ? hasVideoEquipment : false,
       },
       projectData: {
-        title: fd.get('title'),
+        title: compName,
         description: fd.get('description'),
         sector: fd.get('sector'),
         stage: stage,
@@ -62,19 +77,31 @@ export default function PublicApplicationPage() {
     });
   };
 
-  const stagesList = [
+  const stagesList = structureType === 'PME' ? [
+    { id: 'DEMARRAGE', label: '1 à 3 ans', desc: 'Consolidation & premiers bilans' },
+    { id: 'CROISSANCE', label: 'En développement', desc: 'Expansion commerciale & recrutements' },
+    { id: 'RESTRUCTURATION', label: 'Mise à niveau', desc: 'Digitalisation & restructuration' },
+    { id: 'MATURITE', label: 'Maturité (> 5 ans)', desc: 'Diversification & investissements' },
+  ] : [
     { id: 'IDEE', label: 'Idée & Cadrage', desc: 'Concept en cours de réflexion' },
     { id: 'PROTOTYPE', label: 'Prototype / MVP', desc: 'Première version en test' },
     { id: 'COMMERCIAL', label: 'Lancement marché', desc: 'Premiers clients & ventes' },
     { id: 'CROISSANCE', label: 'En développement', desc: 'Recherche d’échelle & fonds' },
   ];
 
-  const availableNeeds = [
+  const availableNeeds = structureType === 'PME' ? [
+    'Diagnostic stratégique & Financier',
+    'Mise à niveau organisationnelle & RH',
+    'Transition numérique & Outils digitaux',
+    'Accès aux financements & Banques',
+    'Conformité fiscale & Juridique',
+    'Accès aux marchés & Partenariats'
+  ] : [
     'Diagnostic & Stratégie',
     'Accompagnement méthodologique',
     'Mentorat & Coaching individuel',
-    'Recherche de financements',
-    'Développement commercial',
+    'Recherche de financements & Subventions',
+    'Développement commercial & Pitch',
     'Réseau & Partenariats'
   ];
 
@@ -83,12 +110,19 @@ export default function PublicApplicationPage() {
       <div className="max-w-3xl mx-auto">
         
         {/* Navigation retour */}
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <Link 
             to="/" 
             className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#f06553] transition-colors"
           >
             <ArrowLeft className="size-4" /> Retour au site iml digit.
+          </Link>
+          <Link 
+            to="/suivi-candidature" 
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-[#f06553] transition-colors bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-2xs"
+          >
+            <Search className="size-3.5 text-[#23c3b1]" />
+            <span>Suivre une candidature existante</span>
           </Link>
         </div>
 
@@ -102,14 +136,14 @@ export default function PublicApplicationPage() {
             </div>
 
             <div className="space-y-2">
-              <span className="inline-block px-3 py-1 rounded-full bg-orange-100 text-[#f06553] text-xs font-bold uppercase tracking-wider">
-                Dossier n° {referenceCode}
+              <span className="inline-block px-3.5 py-1 rounded-full bg-orange-100 text-[#f06553] text-xs font-bold uppercase tracking-wider">
+                Numéro de dossier : {referenceCode}
               </span>
               <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
                 Candidature enregistrée avec succès !
               </h1>
               <p className="text-slate-600 text-sm sm:text-base max-w-lg mx-auto leading-relaxed">
-                Félicitations pour votre démarche entrepreneuriale ! Votre projet a bien été transmis aux comités et équipes d'accompagnement <strong>iml digit</strong>.
+                Votre dossier a bien été transmis aux conseillers et experts d'<strong>IML Digit - Espace PME (Quartier B2, Libreville)</strong>.
               </p>
             </div>
 
@@ -119,37 +153,38 @@ export default function PublicApplicationPage() {
               <ul className="text-xs sm:text-sm text-slate-700 space-y-2.5">
                 <li className="flex items-start gap-2.5">
                   <span className="size-5 rounded-full bg-[#14233c] text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</span>
-                  <span>Examen de votre dossier d'opportunité sous <strong>48 à 72 heures</strong>.</span>
+                  <span>Examen de recevabilité de votre dossier sous <strong>48 à 72 heures</strong>.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="size-5 rounded-full bg-[#14233c] text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</span>
-                  <span>Prise de contact par email ou téléphone pour un premier entretien de cadrage.</span>
+                  <span>Envoi automatique d'une convocation officielle pour votre entretien d'évaluation (Présentiel à B2 ou Visioconférence).</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="size-5 rounded-full bg-[#14233c] text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</span>
-                  <span>Attribution d'un coach référent et ouverture de votre espace de suivi iml digit.</span>
+                  <span>Restitution du diagnostic de maturité et intégration dans la cohorte d'accompagnement.</span>
                 </li>
               </ul>
             </div>
 
             <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link 
+                to={`/suivi-candidature?code=${referenceCode}`}
+                className="w-full sm:w-auto px-7 py-3 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white font-bold text-sm transition-all shadow-lg shadow-[#f06553]/25 flex items-center justify-center gap-2"
+              >
+                <Search className="size-4" />
+                <span>Suivre mon dossier en direct</span>
+              </Link>
+              <Link 
                 to="/" 
                 className="w-full sm:w-auto px-7 py-3 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-colors shadow-md"
               >
                 Retour à l'accueil
               </Link>
-              <Link 
-                to="/connexion" 
-                className="w-full sm:w-auto px-7 py-3 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white font-bold text-sm transition-colors shadow-lg shadow-[#f06553]/25"
-              >
-                Espace Connexion
-              </Link>
             </div>
           </div>
         ) : (
           /* =========================================================================
-              FORMULAIRE COMPLET DE DÉPÔT DE CANDIDATURE ENTREPRENEUR
+              FORMULAIRE COMPLET DE DÉPÔT DE CANDIDATURE
              ========================================================= */
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
             
@@ -159,13 +194,13 @@ export default function PublicApplicationPage() {
               <div className="relative z-10 space-y-2">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-xs font-semibold text-[#38d9a9] backdrop-blur-sm">
                   <Rocket className="size-3.5 text-[#38d9a9]" />
-                  Portail Entrepreneur & Porteurs de Projet
+                  Portail Candidature • Startups, PME & Porteurs de Projet
                 </div>
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight">
                   Postulez à l'accompagnement <span className="text-[#f06553]">iml digit.</span>
                 </h1>
                 <p className="text-slate-300 text-xs sm:text-sm max-w-xl leading-relaxed">
-                  Que vous soyez au stade de l'idée, du prototype ou en plein lancement, présentez votre projet pour bénéficier d'un coaching sur-mesure et d'outils de pilotage professionnels.
+                  Que vous soyez une PME établie cherchant à structurer sa croissance, une startup innovante ou un porteur d'idée, bénéficiez de notre expertise à l'Espace PME (Quartier B2, Libreville).
                 </p>
               </div>
             </div>
@@ -173,11 +208,48 @@ export default function PublicApplicationPage() {
             {/* Formulaire */}
             <form onSubmit={handleSubmit} className="p-8 sm:p-10 space-y-8">
               
+              {/* SECTION 0 : PROFIL DE LA STRUCTURE */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Briefcase className="size-5 text-[#f06553]" />
+                  <h2 className="text-base font-bold text-slate-900">1. Profil de votre structure</h2>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {[
+                    { id: 'PORTEUR_IDEE', label: "Porteur d'Idée", desc: "Création / Idéation", icon: Lightbulb },
+                    { id: 'STARTUP', label: "Startup Tech", desc: "Produit innovant / Scale", icon: Rocket },
+                    { id: 'PME', label: "TPE / PME", desc: "Entreprise en activité", icon: Building2 },
+                    { id: 'ORGANISATION', label: "Organisation / Coop", desc: "Groupement / GIE", icon: Layers }
+                  ].map((type) => {
+                    const IconComp = type.icon;
+                    return (
+                      <button
+                        key={type.id}
+                        type="button"
+                        onClick={() => setStructureType(type.id as any)}
+                        className={`p-3.5 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                          structureType === type.id
+                            ? 'border-[#23c3b1] bg-[#23c3b1]/10 text-slate-900 ring-2 ring-[#23c3b1]/30 shadow-2xs'
+                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        <IconComp className={`size-4 mb-2 ${structureType === type.id ? 'text-[#23c3b1]' : 'text-slate-500'}`} />
+                        <div>
+                          <div className="text-xs font-bold leading-tight">{type.label}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">{type.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* SECTION 1 : VOS COORDONNÉES */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Users className="size-5 text-[#f06553]" />
-                  <h2 className="text-base font-bold text-slate-900">1. Vos coordonnées</h2>
+                  <h2 className="text-base font-bold text-slate-900">2. Dirigeant ou Représentant</h2>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -188,7 +260,7 @@ export default function PublicApplicationPage() {
                     <input 
                       name="firstName" 
                       required 
-                      placeholder="Ex: Alexandre"
+                      placeholder="Ex: Jean-Marc"
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                     />
                   </div>
@@ -199,13 +271,13 @@ export default function PublicApplicationPage() {
                     <input 
                       name="lastName" 
                       required 
-                      placeholder="Ex: Martin"
+                      placeholder="Ex: Ondo"
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                     />
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Adresse e-mail <span className="text-[#f06553]">*</span>
@@ -214,7 +286,7 @@ export default function PublicApplicationPage() {
                       type="email" 
                       name="email" 
                       required 
-                      placeholder="Ex: monprojet@gmail.com"
+                      placeholder="Ex: contact@entreprise.ga"
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                     />
                   </div>
@@ -226,29 +298,42 @@ export default function PublicApplicationPage() {
                       type="tel" 
                       name="phone" 
                       required 
-                      placeholder="Ex: +33 6 12 34 56 78"
+                      placeholder="Ex: +241 77 00 00 00"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Ville / Localisation
+                    </label>
+                    <input 
+                      name="city" 
+                      defaultValue="Libreville"
+                      placeholder="Ex: Libreville, Port-Gentil, Franceville..."
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                     />
                   </div>
                 </div>
               </div>
 
-              {/* SECTION 2 : PRÉSENTATION DU PROJET */}
+              {/* SECTION 2 : ENTREPRISE OU PROJET */}
               <div className="space-y-4 pt-2">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Lightbulb className="size-5 text-[#f06553]" />
-                  <h2 className="text-base font-bold text-slate-900">2. Votre projet d'entreprise</h2>
+                  <Building2 className="size-5 text-[#f06553]" />
+                  <h2 className="text-base font-bold text-slate-900">
+                    3. {structureType === 'PME' ? "Votre Entreprise" : structureType === 'STARTUP' ? "Votre Startup" : "Votre Projet"}
+                  </h2>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Nom du projet ou de l'entreprise <span className="text-[#f06553]">*</span>
+                      {structureType === 'PME' ? "Raison sociale / Nom commercial" : "Nom du projet ou de la structure"} <span className="text-[#f06553]">*</span>
                     </label>
                     <input 
-                      name="title" 
+                      name="companyName" 
                       required 
-                      placeholder="Ex: SolarTech Solutions"
+                      placeholder={structureType === 'PME' ? "Ex: Gabon Services & Logistique SARL" : "Ex: PayGabon Tech"}
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                     />
                   </div>
@@ -259,16 +344,104 @@ export default function PublicApplicationPage() {
                     <input 
                       name="sector" 
                       required 
-                      placeholder="Ex: Numérique, Santé, Transition écologique, Commerce..."
+                      placeholder="Ex: Agro-industrie, Numérique, Services aux entreprises, Transport..."
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                     />
                   </div>
                 </div>
 
+                {/* Champs spécifiques PME / STARTUP (Forme juridique, RCCM, NIF, Effectif) */}
+                {(structureType === 'PME' || structureType === 'STARTUP') && (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4 animate-in fade-in duration-150">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Renseignements administratifs & juridiques
+                    </span>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Forme juridique
+                        </label>
+                        <select 
+                          name="legalStatus" 
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                        >
+                          <option value="SARL">SARL / SARLU</option>
+                          <option value="SAS">SAS / SASU</option>
+                          <option value="ETS">Établissement (ETS)</option>
+                          <option value="COOPERATIVE">Coopérative / GIE</option>
+                          <option value="EN_COURS">En cours d'immatriculation</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          N° RCCM (facultatif)
+                        </label>
+                        <input 
+                          name="rccm" 
+                          placeholder="Ex: RG/LIB/2021/B/1234"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          NIF (facultatif)
+                        </label>
+                        <input 
+                          name="nif" 
+                          placeholder="Ex: 123456 A"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Taille de l'effectif
+                        </label>
+                        <select 
+                          name="companySize" 
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                        >
+                          <option value="MICRO">Micro-entreprise (1 à 5 salariés)</option>
+                          <option value="PETITE">Petite entreprise (6 à 20 salariés)</option>
+                          <option value="MOYENNE">Moyenne entreprise (21 à 100 salariés)</option>
+                          <option value="GRANDE">Grande entreprise (&gt; 100 salariés)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Année de création
+                        </label>
+                        <input 
+                          type="number" 
+                          name="creationYear" 
+                          defaultValue={new Date().getFullYear()}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Tranche de CA annuel
+                        </label>
+                        <select 
+                          name="annualRevenue" 
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                        >
+                          <option value="MOINS_10M">&lt; 10 Millions FCFA</option>
+                          <option value="10M_50M">10M à 50 Millions FCFA</option>
+                          <option value="50M_250M">50M à 250 Millions FCFA</option>
+                          <option value="PLUS_250M">&gt; 250 Millions FCFA</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Stade d'avancement */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-2">
-                    Stade d'avancement actuel <span className="text-[#f06553]">*</span>
+                    Stade de développement actuel <span className="text-[#f06553]">*</span>
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {stagesList.map((item) => (
@@ -289,26 +462,26 @@ export default function PublicApplicationPage() {
                   </div>
                 </div>
 
-                {/* Description du projet */}
+                {/* Description de l'activité */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Description du projet & proposition de valeur <span className="text-[#f06553]">*</span>
+                    Présentation des activités & défis actuels <span className="text-[#f06553]">*</span>
                   </label>
                   <textarea 
                     name="description" 
                     required 
                     rows={4} 
-                    placeholder="Expliquez en quelques lignes votre produit/service, vos clients cibles et le problème que vous résolvez..."
+                    placeholder="Présentez brièvement vos activités, vos produits ou services, et vos principaux défis (marché, financement, structuration, etc.)..."
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all resize-none" 
                   />
                 </div>
               </div>
 
-              {/* SECTION 3 : VOS BESOINS EN ACCOMPAGNEMENT */}
+              {/* SECTION 3 : BESOINS EN ACCOMPAGNEMENT */}
               <div className="space-y-4 pt-2">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Target className="size-5 text-[#f06553]" />
-                  <h2 className="text-base font-bold text-slate-900">3. Vos besoins prioritaires</h2>
+                  <h2 className="text-base font-bold text-slate-900">4. Vos besoins prioritaires en accompagnement</h2>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-2.5">
@@ -338,7 +511,7 @@ export default function PublicApplicationPage() {
               <div className="space-y-4 pt-2">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Video className="size-5 text-[#f06553]" />
-                  <h2 className="text-base font-bold text-slate-900">4. Modalités de vos futurs entretiens</h2>
+                  <h2 className="text-base font-bold text-slate-900">5. Modalités de vos futurs entretiens</h2>
                 </div>
 
                 <p className="text-xs text-slate-500">
@@ -368,7 +541,7 @@ export default function PublicApplicationPage() {
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Dans les locaux d'IML Digit (Siège Libreville). Idéal si vous pouvez vous déplacer facilement.
+                      Dans les locaux d'<strong>IML Digit - Espace PME (Quartier B2, Libreville)</strong>. Recommandé pour les échanges de fond.
                     </p>
                   </div>
 
@@ -435,7 +608,7 @@ export default function PublicApplicationPage() {
                   )}
                 </button>
                 <p className="text-center text-[11px] text-slate-400 mt-3">
-                  En soumettant ce formulaire, vos informations sont traitées de manière strictement confidentielle conformément à nos engagements RGPD.
+                  En soumettant ce formulaire, vos données d'entreprise sont traitées en toute confidentialité par les conseillers agréés d'IML Digit.
                 </p>
               </div>
 

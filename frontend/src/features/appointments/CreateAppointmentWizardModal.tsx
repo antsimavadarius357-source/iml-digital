@@ -22,6 +22,7 @@ interface CreateAppointmentWizardModalProps {
   onSuccess?: () => void;
   defaultBeneficiaryId?: string;
   defaultDate?: string;
+  defaultCandidate?: { name: string; email?: string; phone?: string; mode?: 'video' | 'in_person' };
 }
 
 interface ParticipantItem {
@@ -36,7 +37,8 @@ export default function CreateAppointmentWizardModal({
   onClose,
   onSuccess,
   defaultBeneficiaryId,
-  defaultDate
+  defaultDate,
+  defaultCandidate
 }: CreateAppointmentWizardModalProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -82,8 +84,21 @@ export default function CreateAppointmentWizardModal({
       } else {
         setSessionDate(new Date().toISOString().split('T')[0]);
       }
+      if (defaultCandidate) {
+        if (defaultCandidate.mode) {
+          setSessionType(defaultCandidate.mode);
+        }
+        setSessionName(`Entretien d'évaluation - ${defaultCandidate.name}`);
+        setDescription(`Entretien d'évaluation pour ${defaultCandidate.name}`);
+        setSelectedRecipients([{
+          id: 'cand-direct',
+          name: defaultCandidate.name,
+          type: 'Bénéficiaire',
+          email: defaultCandidate.email
+        }]);
+      }
     }
-  }, [isOpen, defaultDate]);
+  }, [isOpen, defaultDate, defaultCandidate]);
 
   // Champ Description (présent pour les DEUX modes)
   const [description, setDescription] = useState<string>('');
