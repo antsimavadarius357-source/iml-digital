@@ -52,6 +52,11 @@ model User {
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
   sessions            Session[]
+  assignedBeneficiaries Beneficiary[] @relation("AssignedAgent")
+  assignments         Assignment[]
+  applications        Application[]
+  appointments        Appointment[]
+  documents           Document[]
   auditLogs           AuditLog[]
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -104,19 +109,285 @@ model AuditLog {
 // ============ Référentiels de base ============
 
 model Program {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  description String?
-  objectives  String?
-  startDate   DateTime?
-  endDate     DateTime?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String        @id @default(uuid())
+  name          String        @unique
+  description   String?
+  objectives    String?
+  startDate     DateTime?
+  endDate       DateTime?
+  isActive      Boolean       @default(true)
+  beneficiaries Beneficiary[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }
 
 model Sector {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
+  id        String    @id @default(uuid())
+  name      String    @unique
+  projects  Project[]
+  createdAt DateTime  @default(now())
+}
+
+// ============ Bénéficiaires et projets ============
+
+enum BeneficiaryType {
+  PORTEUR_IDEE
+  STARTUP
+  ENTREPRISE
+}
+
+enum PathwayStatus {
+  EN_ATTENTE
+  ACTIF
+  EN_PAUSE
+  TERMINE
+  ABANDONNE
+}
+
+enum Priority {
+  BASSE
+  NORMALE
+  HAUTE
+  URGENTE
+}
+
+enum ProjectStage {
+  IDEE
+  PROTOTYPE
+  LANCEMENT
+  CROISSANCE
+  MATURITE
+}
+
+enum CompanySize {
+  MICRO
+  PETITE
+  MOYENNE
+  GRANDE
+}
+
+enum ApplicationStatus {
+  BROUILLON
+  SOUMISE
+  EN_COURS_EXAMEN
+  ACCEPTEE
+  REFUSEE
+}
+
+enum AppointmentStatus {
+  PLANIFIE
+  REALISE
+  ANNULE
+  ABSENT
+}
+
+enum StepStatus {
+  A_FAIRE
+  EN_COURS
+  TERMINE
+  ANNULE
+}
+
+model Beneficiary {
+  id               String          @id @default(uuid())
+  // Numéro séquentiel sûr (pas de collision en concurrence) ; l'identifiant lisible IML-AAAA-NNNN en est dérivé.
+  fileSeq          Int             @unique @default(autoincrement())
+  type             BeneficiaryType
+  firstName        String
+  lastName         String
+  email            String          @unique
+  phone            String?
+  city             String?
+  userId           String?         @unique // compte du portail bénéficiaire (optionnel)
+  status           PathwayStatus   @default(EN_ATTENTE)
+  priority         Priority        @default(NORMALE)
+  assignedAgentId  String?
+  assignedAgent    User?           @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  programId        String?
+  program          Program?        @relation(fields: [programId], references: [id], onDelete: SetNull)
+  startDate        DateTime?       @db.Date
+  initialObjectives String?
+  projects         Project[]
+  assignments      Assignment[]
+  application      Application?
+  appointments     Appointment[]
+  pathway          Pathway?
+  lastActivityAt   DateTime        @default(now())
+  archivedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([assignedAgentId])
+  @@index([programId])
+  @@index([status])
+  @@index([lastName, firstName])
+}
+
+model Project {
+  id               String        @id @default(uuid())
+  beneficiaryId    String
+  beneficiary      Beneficiary   @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  sectorId         String?
+  sector           Sector?       @relation(fields: [sectorId], references: [id], onDelete: SetNull)
+  projectType      String?
+  stage            ProjectStage  @default(IDEE)
+  companyCreatedAt DateTime?     @db.Date
+  legalStatus      String?
+  companySize      CompanySize?
+  priorityNeeds    String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([beneficiaryId])
+  @@index([sectorId])
+}
+
+/// Affectation d'un coach, mentor ou expert à un dossier : base du contrôle d'accès « par dossier ».
+model Assignment {
+  id            String      @id @default(uuid())
+  beneficiaryId String
+  beneficiary   Beneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([beneficiaryId, userId])
+  @@index([userId])
+}
+
+model Application {
+  id              String            @id @default(uuid())
+  seqNumber       Int               @unique @default(autoincrement())
+  status          ApplicationStatus @default(BROUILLON)
+  applicantData   Json
+  projectData     Json
+  evaluationNotes String?
+  assignedAgentId String?
+  assignedAgent   User?             @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  beneficiaryId   String?           @unique
+  beneficiary     Beneficiary?      @relation(fields: [beneficiaryId], references: [id], onDelete: SetNull)
+  submittedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status])
+  @@index([assignedAgentId])
+}
+
+model Appointment {
+  id            String            @id @default(uuid())
+  beneficiaryId String
+  beneficiary   Beneficiary       @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  datetime      DateTime
+  duration      Int               // durée en minutes
+  location      String?
+  status        AppointmentStatus @default(PLANIFIE)
+  session       ServiceSession?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([beneficiaryId])
+  @@index([userId])
+  @@index([datetime])
+}
+
+model ServiceSession {
+  id            String      @id @default(uuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  durationHours Float       // pointage précis (ex: 1.5 pour 1h30)
+  summary       String
+  nextActions   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model PathwayTemplate {
+  id          String                @id @default(uuid())
+  name        String                @unique
+  description String?
+  steps       PathwayTemplateStep[]
+  pathways    Pathway[]
+  isActive    Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+}
+
+model PathwayTemplateStep {
+  id          String          @id @default(uuid())
+  templateId  String
+  template    PathwayTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  orderIndex  Int
+  dayOffset   Int?            // jour de déclenchement après création
+  isRequired  Boolean         @default(true)
+  
+  @@index([templateId])
+  @@index([orderIndex])
+}
+
+model Pathway {
+  id             String          @id @default(uuid())
+  beneficiaryId  String          @unique
+  beneficiary    Beneficiary     @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  templateId     String
+  template       PathwayTemplate @relation(fields: [templateId], references: [id])
+  status         PathwayStatus   @default(ACTIF)
+  progress       Int             @default(0) // pourcentage
+  steps          PathwayStep[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model PathwayStep {
+  id             String          @id @default(uuid())
+  pathwayId      String
+  pathway        Pathway         @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  orderIndex     Int
+  status         StepStatus      @default(A_FAIRE)
+  dueDate        DateTime?
+  completedAt    DateTime?
+  isRequired     Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([pathwayId])
+  @@index([orderIndex])
+}
+
+enum AccessLevel {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+}
+
+enum DocumentStatus {
+  EN_ATTENTE
+  VALIDE
+  REJETE
+}
+
+model Document {
+  id          String        @id @default(uuid())
+  title       String
+  category    String        // ex: 'BUSINESS_PLAN', 'ID_CARD', 'STATUTS'
+  filePath    String
+  ownerId     String        // ID du bénéficiaire ou du projet
+  ownerType   String        // 'BENEFICIARY', 'PROJECT'
+  accessLevel AccessLevel   @default(INTERNAL)
+  status      DocumentStatus @default(EN_ATTENTE)
+  uploadedById String
+  uploadedBy  User          @relation(fields: [uploadedById], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([ownerType, ownerId])
+  @@index([uploadedById])
 }

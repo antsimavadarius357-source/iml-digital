@@ -3,15 +3,50 @@
 @theme {
   --color-iml-900: #0b2447;
   --color-iml-700: #134074;
+  --color-iml-600: #1e528b;
   --color-iml-500: #1b7f9e;
   --color-iml-400: #14b8a6;
   --color-iml-50: #f1f7fb;
+  --color-coral-500: #f06553;
+  --color-coral-600: #e05341;
+  --color-coral-400: #f87d6d;
+  --color-navy-950: #0d1929;
+  --color-navy-900: #14233c;
+  --color-navy-850: #162640;
+  --color-navy-800: #1c3152;
+  --color-ivory-50: #faf7f2;
+  --color-ivory-100: #f5f0e8;
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
+}
+
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@utility glass {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px rgba(11, 36, 71, 0.05);
+}
+
+@utility card-hover {
+  transition: all 0.3s ease;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(11, 36, 71, 0.08);
+    border-color: var(--color-iml-400);
+  }
 }
 
 body {
   margin: 0;
-  background: var(--color-iml-50);
+  background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
   color: #0f172a;
   font-family: var(--font-sans);
+  min-height: 100vh;
+  background-attachment: fixed;
 }

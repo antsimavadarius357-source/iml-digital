@@ -12,6 +12,7 @@ export const PERMISSIONS = [
   'audit:read',
   'beneficiaries:read',
   'beneficiaries:write',
+  'beneficiaries:export',
   'applications:review',
   'pathways:manage',
   'appointments:manage',
@@ -27,11 +28,11 @@ export type Permission = (typeof PERMISSIONS)[number];
 export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
   ADMIN: ['dashboard:read', 'users:manage', 'audit:read', 'settings:manage'],
   DIRECTION: [
-    'dashboard:read', 'dashboard:global', 'beneficiaries:read', 'applications:review', 'pathways:manage',
+    'dashboard:read', 'dashboard:global', 'beneficiaries:read', 'beneficiaries:export', 'applications:review', 'pathways:manage',
     'appointments:manage', 'documents:read', 'training:manage', 'contacts:read', 'reports:read', 'audit:read',
   ],
   AGENT: [
-    'dashboard:read', 'beneficiaries:read', 'beneficiaries:write', 'applications:review', 'pathways:manage',
+    'dashboard:read', 'beneficiaries:read', 'beneficiaries:write', 'beneficiaries:export', 'applications:review', 'pathways:manage',
     'appointments:manage', 'documents:read', 'contacts:read',
   ],
   COACH: ['dashboard:read', 'beneficiaries:read', 'appointments:manage', 'documents:read', 'contacts:read'],

@@ -16,7 +16,7 @@ export interface User {
 interface AuthState {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   can: (permission: string) => boolean;
 }
@@ -57,7 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthState = {
     user,
     isLoading: me.isLoading,
-    login: async (email, password) => void (await loginMutation.mutateAsync({ email, password })),
+    login: async (email, password) => {
+      const res = await loginMutation.mutateAsync({ email, password });
+      return res.user;
+    },
     logout: async () => void (await logoutMutation.mutateAsync()),
     can: (p) => !!user?.permissions.includes(p),
   };

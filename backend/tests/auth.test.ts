@@ -15,6 +15,8 @@ const db = vi.hoisted(() => ({
   session: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   auditLog: { create: vi.fn() },
   program: { count: vi.fn() },
+  beneficiary: { count: vi.fn() },
+  application: { count: vi.fn() },
   $transaction: vi.fn(),
   $queryRaw: vi.fn(),
 }));
@@ -99,17 +101,24 @@ describe('Authentification', () => {
 describe('Autorisations', () => {
   it('le tableau de bord ne révèle pas les indicateurs globaux à un bénéficiaire', async () => {
     sessionFor('BENEFICIAIRE');
+    db.beneficiary.count.mockResolvedValue(0);
+    db.application.count.mockResolvedValue(0);
     const res = await request(await app()).get('/api/v1/dashboard/summary').set('Cookie', 'iml_session=abc');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ activePrograms: null, activeUsers: null });
+    expect(res.body.activePrograms).toBeNull();
+    expect(res.body.activeUsers).toBeNull();
   });
 
   it('la direction obtient les indicateurs globaux', async () => {
     sessionFor('DIRECTION');
     db.program.count.mockResolvedValue(3);
+    db.beneficiary.count.mockResolvedValue(10);
+    db.application.count.mockResolvedValue(2);
     const res = await request(await app()).get('/api/v1/dashboard/summary').set('Cookie', 'iml_session=abc');
+    expect(res.status).toBe(200);
     expect(res.body.activePrograms).toBe(3);
     expect(res.body.activeUsers).toBeNull();
+    expect(res.body.activeBeneficiaries).toBe(10);
   });
 
   it('requirePermission renvoie 403 pour un rôle sans la permission', async () => {

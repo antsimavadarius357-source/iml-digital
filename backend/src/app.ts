@@ -7,6 +7,13 @@ import { env } from './config/env';
 import { csrfGuard } from './middleware/auth';
 import { errorHandler, notFound } from './middleware/error';
 import { authRouter } from './modules/auth/auth.routes';
+import { beneficiariesRouter } from './modules/beneficiaries/beneficiaries.routes';
+import { applicationsRouter } from './modules/applications/applications.routes';
+import { appointmentsRouter } from './modules/appointments/appointments.routes';
+import { pathwaysRouter } from './modules/pathways/pathways.routes';
+import { documentsRouter } from './modules/documents/documents.routes';
+import { auditRouter } from './modules/audit/audit.routes';
+import { settingsRouter } from './modules/settings/settings.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
 import { healthRouter } from './modules/health/health.routes';
 import { usersRouter } from './modules/users/users.routes';
@@ -29,6 +36,13 @@ export function createApp(): express.Express {
   v1.use('/auth', authRouter);
   v1.use('/dashboard', dashboardRouter);
   v1.use('/users', usersRouter);
+  v1.use('/beneficiaries', beneficiariesRouter);
+  v1.use('/applications', applicationsRouter);
+  v1.use('/appointments', appointmentsRouter);
+  v1.use('/pathways', pathwaysRouter);
+  v1.use('/documents', documentsRouter);
+  v1.use('/audit', auditRouter);
+  v1.use('/settings', settingsRouter);
   app.use('/api/v1', v1);
 
   app.use(notFound);

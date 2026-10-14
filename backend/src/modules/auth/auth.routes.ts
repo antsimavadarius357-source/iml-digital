@@ -5,6 +5,7 @@ import { env, isProduction } from '../../config/env';
 import { requireAuthAllowPending, SESSION_COOKIE } from '../../middleware/auth';
 import { changePassword, getUser, login, logout, SESSION_DAYS } from './auth.service';
 import { passwordSchema } from '../users/users.schemas';
+import { generateAndSendOtp, verifyOtp } from './otp.service';
 
 export const authRouter = Router();
 
@@ -69,3 +70,36 @@ authRouter.post('/change-password', requireAuthAllowPending, async (req, res, ne
     next(e);
   }
 });
+
+const sendOtpSchema = z.object({
+  email: z.string().trim().email('Adresse e-mail invalide'),
+});
+
+const verifyOtpSchema = z.object({
+  email: z.string().trim().email('Adresse e-mail invalide'),
+  code: z.string().trim().length(6, 'Le code doit contenir 6 chiffres'),
+});
+
+authRouter.post('/send-otp', async (req, res, next) => {
+  try {
+    const { email } = sendOtpSchema.parse(req.body);
+    const result = await generateAndSendOtp(email);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.post('/verify-otp', async (req, res, next) => {
+  try {
+    const { email, code } = verifyOtpSchema.parse(req.body);
+    const result = verifyOtp(email, code);
+    if (!result.valid) {
+      return res.status(400).json({ error: { message: result.error || 'Code invalide' } });
+    }
+    res.json({ success: true, verified: true });
+  } catch (e) {
+    next(e);
+  }
+});
+

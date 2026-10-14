@@ -1,57 +1,120 @@
-import { useQuery } from '@tanstack/react-query';
-import { Briefcase, Loader2, UsersRound } from 'lucide-react';
-import { api } from '../../lib/api';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-
-interface Summary {
-  activePrograms: number | null;
-  activeUsers: number | null;
-}
-
-function Card({ label, value, icon: Icon }: { label: string; value: number; icon: typeof Briefcase }) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
-      <div className="size-11 rounded-lg bg-iml-50 text-iml-500 grid place-items-center"><Icon className="size-5" /></div>
-      <div>
-        <div className="text-2xl font-bold text-iml-900">{value}</div>
-        <div className="text-sm text-slate-500">{label}</div>
-      </div>
-    </div>
-  );
-}
+import CoachDashboardView from './CoachDashboardView';
+import AgentDashboardView from './AgentDashboardView';
+import DirectionDashboardView from './DirectionDashboardView';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['dashboard-summary'],
-    queryFn: () => api<Summary>('/dashboard/summary'),
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { roleParam } = useParams<{ roleParam?: string }>();
+
+  const isCoach = user?.role === 'COACH';
+
+  // Déterminer le rôle par défaut selon l'utilisateur connecté
+  const userDefaultRole: 'coach' | 'agent' | 'direction' = (() => {
+    if (isCoach) return 'coach';
+    if (user?.role === 'AGENT') return 'agent';
+    return 'direction';
+  })();
+
+  // Paramètre dans l'URL (?vue=... ou ?role=...)
+  const urlRole = (searchParams.get('vue') || searchParams.get('role') || roleParam)?.toLowerCase();
+
+  const activeRole: 'coach' | 'agent' | 'direction' = (() => {
+    if (isCoach) return 'coach'; // Le coach ne peut JAMAIS basculer sur une autre vue
+    if (urlRole === 'coach') return 'coach';
+    if (urlRole === 'agent') return 'agent';
+    if (urlRole === 'direction' || urlRole === 'admin') return 'direction';
+    return userDefaultRole;
+  })();
+
+  const handleSwitchRole = (role: 'coach' | 'agent' | 'direction') => {
+    if (isCoach) return;
+    setSearchParams({ vue: role });
+  };
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <div>
-        <h2 className="text-2xl font-bold text-iml-900">Bonjour {user?.firstName}</h2>
-        <p className="text-slate-500 text-sm">{user?.roleLabel}</p>
-      </div>
+    <div className="w-full space-y-4 font-sans text-slate-800">
+      
+      {/* =========================================================================
+          BARRE D'EN-TÊTE : EXCLUSIVE POUR COACH OU ONGLETS POUR DIRECTION/ADMIN
+         ========================================================================= */}
+      {isCoach ? (
+        <div className="bg-white rounded-lg border border-slate-200 px-4 py-2.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-[#23c3b1] animate-pulse"></span>
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+              Espace Coach • Session personnelle de suivi
+            </span>
+          </div>
 
-      {isLoading && <div className="flex items-center gap-2 text-slate-500"><Loader2 className="size-4 animate-spin" /> Chargement…</div>}
-      {isError && (
-        <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-sm p-4">
-          Impossible de charger les indicateurs.{' '}
-          <button className="underline" onClick={() => void refetch()}>Réessayer</button>
+          <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+            <span>Connecté en tant que : <strong>{user?.firstName} {user?.lastName}</strong> (Coach d'accompagnement)</span>
+          </div>
         </div>
-      )}
-      {data && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {data.activePrograms !== null && <Card label="Programmes actifs" value={data.activePrograms} icon={Briefcase} />}
-          {data.activeUsers !== null && <Card label="Utilisateurs actifs" value={data.activeUsers} icon={UsersRound} />}
+      ) : (
+        <div className="bg-white rounded-lg border border-slate-200 p-2 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider px-2">
+              Tableau de bord :
+            </span>
+
+          {/* Onglet 1 : Coach */}
+          <button
+            type="button"
+            onClick={() => handleSwitchRole('coach')}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              activeRole === 'coach'
+                ? 'bg-[#23c3b1] text-white shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            Coach
+          </button>
+
+          {/* Onglet 2 : Agent IML */}
+          <button
+            type="button"
+            onClick={() => handleSwitchRole('agent')}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              activeRole === 'agent'
+                ? 'bg-[#38d9a9] text-slate-900 shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            Agent IML
+          </button>
+
+          {/* Onglet 3 : Direction */}
+          <button
+            type="button"
+            onClick={() => handleSwitchRole('direction')}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              activeRole === 'direction'
+                ? 'bg-[#1e3347] text-white shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            Direction
+          </button>
         </div>
+
+        {/* Indicateur contextuel du compte connecté */}
+        <div className="text-[11px] text-slate-500 px-2 flex items-center gap-1.5">
+          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Connecté en tant que : <strong>{user?.firstName} {user?.lastName}</strong> ({user?.roleLabel || user?.role})</span>
+        </div>
+      </div>
       )}
-      {data && data.activePrograms === null && data.activeUsers === null && (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-          Vos indicateurs apparaîtront ici dès que les modules de suivi seront disponibles.
-        </p>
-      )}
+
+      {/* =========================================================================
+          CONTENU DU DASHBOARD RESPECTIF
+         ========================================================================= */}
+      {activeRole === 'coach' && <CoachDashboardView />}
+      {activeRole === 'agent' && <AgentDashboardView />}
+      {activeRole === 'direction' && <DirectionDashboardView />}
+
     </div>
   );
 }
