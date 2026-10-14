@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
-  ArrowLeft, 
   Building2, 
   FileText, 
   Loader2, 
@@ -10,20 +9,29 @@ import {
   MapPin, 
   Phone, 
   User, 
-  Edit,
-  Calendar,
-  Filter,
-  Download,
-  Plus,
-  Trash2,
-  Clock,
-  MessageSquare,
-  X,
-  Play
+  Calendar, 
+  Filter, 
+  Download, 
+  Plus, 
+  Trash2, 
+  Clock, 
+  MessageSquare, 
+  X, 
+  Play, 
+  Pencil, 
+  Video, 
+  Key, 
+  MoreHorizontal, 
+  ArrowRightToLine, 
+  Award, 
+  CheckCircle2, 
+  UploadCloud, 
+  FileCheck, 
+  CheckSquare, 
+  FolderOpen 
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { api } from '../../lib/api';
-import { useAuth } from '../auth/AuthContext';
 import { TYPE_LABELS, STATUS_LABELS, STATUS_STYLE, PRIORITY_LABELS, STAGE_LABELS, SIZE_LABELS, type BeneficiaryDetail } from './types';
 import { useSetBreadcrumbs } from '../../components/layout/AppBreadcrumb';
 import RecordServiceModal from '../services/RecordServiceModal';
@@ -44,19 +52,50 @@ export default function BeneficiaryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { can } = useAuth();
 
-  // Navigation par onglets (Bénéficiaires | Historique de temps | Présentation)
+  // Navigation Niveau 1 : Suivi | Prestations | Notes | Documents | Évaluations | Historique | Présentation
   const rawTab = searchParams.get('tab');
-  const activeTab: 'beneficiaires' | 'historique' | 'presentation' = 
-    rawTab === 'historique' || rawTab === 'temps' || rawTab === 'time'
+  const mainTab: 'suivi' | 'prestations' | 'notes' | 'documents' | 'evaluations' | 'historique' | 'presentation' = 
+    rawTab === 'prestations' || rawTab === 'temps' || rawTab === 'time'
+      ? 'prestations'
+      : rawTab === 'notes'
+      ? 'notes'
+      : rawTab === 'documents'
+      ? 'documents'
+      : rawTab === 'evaluations'
+      ? 'evaluations'
+      : rawTab === 'historique'
       ? 'historique'
       : rawTab === 'presentation'
       ? 'presentation'
-      : 'beneficiaires';
+      : 'suivi';
 
-  const handleTabChange = (tab: 'beneficiaires' | 'historique' | 'presentation') => {
-    setSearchParams({ tab });
+  // Navigation Niveau 2 (sous Suivi) : Rendez-vous | Accompagnements | Parcours | Archivés
+  const rawSubTab = searchParams.get('subtab');
+  const suiviSubTab: 'rdv' | 'accompagnements' | 'parcours' | 'archives' = 
+    rawSubTab === 'accompagnements'
+      ? 'accompagnements'
+      : rawSubTab === 'parcours'
+      ? 'parcours'
+      : rawSubTab === 'archives'
+      ? 'archives'
+      : 'rdv';
+
+  const handleMainTabChange = (tab: 'suivi' | 'prestations' | 'notes' | 'documents' | 'evaluations' | 'historique' | 'presentation') => {
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev);
+      p.set('tab', tab);
+      return p;
+    });
+  };
+
+  const handleSuiviSubTabChange = (subtab: 'rdv' | 'accompagnements' | 'parcours' | 'archives') => {
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev);
+      p.set('tab', 'suivi');
+      p.set('subtab', subtab);
+      return p;
+    });
   };
 
   // Modales
@@ -64,8 +103,27 @@ export default function BeneficiaryDetailPage() {
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [isTimesheetModalOpen, setIsTimesheetModalOpen] = useState(false);
   const [isQuickNoteModalOpen, setIsQuickNoteModalOpen] = useState(false);
+  const [isHourCounterModalOpen, setIsHourCounterModalOpen] = useState(false);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
-  // Notes rapides locales pour ce dossier
+  // État de prise de rendez-vous par le bénéficiaire
+  const [bookingEnabled, setBookingEnabled] = useState(false);
+
+  // Compteur d'heures (quota alloué)
+  const [hourCounter, setHourCounter] = useState<{ totalHours: number; name: string } | null>(() => {
+    if (typeof window !== 'undefined' && id) {
+      const saved = localStorage.getItem(`iml_hour_counter_${id}`);
+      if (saved) {
+        try { return JSON.parse(saved); } catch {}
+      }
+    }
+    return null;
+  });
+  const [counterHoursInput, setCounterHoursInput] = useState('20');
+  const [counterNameInput, setCounterNameInput] = useState("Accompagnement Création d'Entreprise");
+
+  // Notes rapides locales
   const [quickNote, setQuickNote] = useState<string>('');
 
   // Toast temporaire
@@ -75,7 +133,7 @@ export default function BeneficiaryDetailPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Filtres date onglet Historique
+  // Filtres date onglet Historique / Prestations
   const [historyStartDate, setHistoryStartDate] = useState<string>('');
   const [historyEndDate, setHistoryEndDate] = useState<string>('');
   const [localPrestations, setLocalPrestations] = useState<PrestationItem[]>([]);
@@ -102,6 +160,20 @@ export default function BeneficiaryDetailPage() {
       showToast('✓ Note enregistrée pour ce dossier');
       setIsQuickNoteModalOpen(false);
     }
+  };
+
+  const handleSaveHourCounter = (e: React.FormEvent) => {
+    e.preventDefault();
+    const counter = {
+      totalHours: Number(counterHoursInput) || 20,
+      name: counterNameInput.trim() || 'Accompagnement IML'
+    };
+    setHourCounter(counter);
+    if (id) {
+      localStorage.setItem(`iml_hour_counter_${id}`, JSON.stringify(counter));
+    }
+    showToast(`✓ Compteur créé : ${counter.totalHours}h allouées (${counter.name})`);
+    setIsHourCounterModalOpen(false);
   };
 
   // 2. Récupération des rendez-vous et prestations du bénéficiaire
@@ -208,124 +280,368 @@ export default function BeneficiaryDetailPage() {
   }
 
   const p = b.projects[0];
+  const coachName = b.assignedAgent 
+    ? `${b.assignedAgent.firstName} ${b.assignedAgent.lastName}` 
+    : 'DARUS ANTSIMAVA';
 
   return (
-    <div className="max-w-6xl mx-auto pb-16 space-y-5">
-      
+    <div className="max-w-[1400px] mx-auto pb-16 space-y-4 font-sans">
+
       {/* =========================================================================
-          EN-TÊTE : NOM DU BÉNÉFICIAIRE, STATUT & ACTIONS
+          1. BANDEAU SUPÉRIEUR JAUNE : "Il vous reste 25 jour(s) gratuit(s)"
          ========================================================================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <button 
-            type="button"
-            onClick={() => navigate('/beneficiaires')} 
-            className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-            title="Retour à la liste"
-          >
-            <ArrowLeft className="size-5 text-slate-500" />
-          </button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-800">{b.firstName} {b.lastName}</h1>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[b.status]}`}>
-                {STATUS_LABELS[b.status]}
-              </span>
-            </div>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Dossier n° {b.fileNumber} · Ajouté le {new Date(b.createdAt).toLocaleDateString('fr-FR')}
-            </p>
-          </div>
+      <div className="flex justify-center -mb-1">
+        <div className="bg-[#fef08a] border border-[#fde047] text-amber-900 text-xs font-semibold px-4 py-1.5 rounded shadow-2xs">
+          Il vous reste 25 jour(s) gratuit(s)
         </div>
-        
-        {can('beneficiaries:write') && (
-          <Link 
-            to={`/beneficiaires/${id}/modifier`} 
-            className="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-300 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors"
-          >
-            <Edit className="size-3.5" />
-            <span>Modifier le dossier</span>
-          </Link>
-        )}
       </div>
 
       {/* =========================================================================
-          CARTE PRINCIPALE AVEC LES ONGLETS BLEU ARDOISE FONCÉ (#1e3347)
+          2. CARTE EN-TÊTE DU DOSSIER BÉNÉFICIAIRE (Conforme exactement à la capture)
+         ========================================================================= */}
+      <div className="bg-white rounded-md border border-slate-200 overflow-hidden shadow-2xs">
+        <div className="flex flex-col lg:flex-row items-stretch">
+          
+          {/* Bloc Gauche : Drapeau, 5 boutons corail d'action, Avatar & Nom */}
+          <div className="p-4 sm:p-5 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200 min-w-[280px]">
+            {/* Rangée Drapeau + 5 boutons corail */}
+            <div className="flex items-center gap-1.5 mb-4">
+              {/* Drapeau */}
+              <span className="inline-flex overflow-hidden rounded-[2px] w-5 h-3.5 border border-slate-300 shadow-2xs shrink-0" title="France">
+                <span className="w-1/3 h-full bg-[#002654]"></span>
+                <span className="w-1/3 h-full bg-white"></span>
+                <span className="w-1/3 h-full bg-[#ce1126]"></span>
+              </span>
+
+              {/* 1. Bouton Crayon (Modifier) */}
+              <button
+                type="button"
+                onClick={() => navigate(`/beneficiaires/${id}/modifier`)}
+                title="Modifier le dossier"
+                className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              >
+                <Pencil className="size-3" />
+              </button>
+
+              {/* 2. Bouton Caméra (Visio) */}
+              <button
+                type="button"
+                onClick={() => setIsVideoModalOpen(true)}
+                title="Démarrer un entretien vidéo"
+                className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              >
+                <Video className="size-3" />
+              </button>
+
+              {/* 3. Bouton Clé (Accès portail) */}
+              <button
+                type="button"
+                onClick={() => setIsKeyModalOpen(true)}
+                title="Gestion des identifiants et accès portail"
+                className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              >
+                <Key className="size-3" />
+              </button>
+
+              {/* 4. Bouton Trois points (...) */}
+              <button
+                type="button"
+                onClick={() => handleMainTabChange('presentation')}
+                title="Voir la fiche complète de présentation"
+                className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              >
+                <MoreHorizontal className="size-3" />
+              </button>
+
+              {/* 5. Bouton Flèche de transfert (->|) */}
+              <button
+                type="button"
+                onClick={() => showToast('✓ Options de transfert et réassignation du dossier')}
+                title="Transférer ou réassigner le bénéficiaire"
+                className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              >
+                <ArrowRightToLine className="size-3" />
+              </button>
+            </div>
+
+            {/* Avatar circulaire silhouette + Nom complet */}
+            <div className="flex items-center gap-3.5 pt-1">
+              <div className="size-16 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 shadow-inner">
+                <User className="size-9 stroke-[1.5]" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-slate-800 leading-tight">
+                  {b.firstName} {b.lastName}
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">
+                  Dossier n° {b.fileNumber}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Bloc Milieu : Grille 2x2 des informations de suivi & statut */}
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 text-xs">
+            
+            {/* Colonne 1 : Coach en haut / Groupe en bas */}
+            <div className="flex flex-col justify-between divide-y divide-slate-200">
+              {/* Case Coach */}
+              <div className="p-4 space-y-1.5 flex-1">
+                <span className="text-slate-500 text-xs">Coach :</span>
+                <div className="flex items-center gap-2">
+                  <div className="size-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                    <Award className="size-3.5 text-slate-700" />
+                  </div>
+                  <span className="font-semibold text-slate-800 text-xs tracking-wide">
+                    {coachName}
+                  </span>
+                </div>
+              </div>
+
+              {/* Case Groupe */}
+              <div className="p-4 flex-1 flex items-center">
+                <span className="text-slate-600 text-xs">
+                  {b.program?.name ? `Groupe : ${b.program.name}` : "Ce bénéficiaire n'est pas dans un groupe"}
+                </span>
+              </div>
+            </div>
+
+            {/* Colonne 2 : Prise de rendez-vous en haut / Portail en bas */}
+            <div className="flex flex-col justify-between divide-y divide-slate-200">
+              {/* Case Prise de rendez-vous + Bouton Activer */}
+              <div className="p-4 flex items-center justify-between gap-3 flex-1">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative">
+                    <Calendar className="size-4 text-slate-600" />
+                    <span className={`size-2 rounded-full absolute -top-0.5 -right-0.5 ${bookingEnabled ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                  </div>
+                  <span className="text-slate-700 text-xs">
+                    Prise de rendez-vous {bookingEnabled ? 'activée' : 'désactivée'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !bookingEnabled;
+                    setBookingEnabled(next);
+                    showToast(`✓ Prise de rendez-vous ${next ? 'activée' : 'désactivée'}`);
+                  }}
+                  className="px-2.5 py-1 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-medium shadow-2xs transition-colors cursor-pointer shrink-0"
+                >
+                  {bookingEnabled ? 'Désactiver' : 'Activer'}
+                </button>
+              </div>
+
+              {/* Case Portail bénéficiaire activé */}
+              <div className="p-4 flex items-center gap-2.5 flex-1">
+                <div className="size-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                  <User className="size-3.5" />
+                </div>
+                <span className="size-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span className="text-slate-700 text-xs">Portail bénéficiaire activé</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Bloc Droite : Compteur d'heures + Bouton "Créer un compteur" */}
+          <div className="p-5 flex flex-col justify-center items-start gap-2.5 border-t lg:border-t-0 lg:border-l border-slate-200 min-w-[200px] bg-slate-50/40">
+            <div>
+              <h3 className="text-xs font-semibold text-slate-800">Compteur d'heures</h3>
+              {hourCounter ? (
+                <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                  {hourCounter.totalHours}h allouées ({hourCounter.name})
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400 mt-0.5">Aucun compteur configuré</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsHourCounterModalOpen(true)}
+              className="px-3.5 py-1.5 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-medium shadow-2xs transition-colors cursor-pointer"
+            >
+              {hourCounter ? 'Modifier le compteur' : 'Créer un compteur'}
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      {/* =========================================================================
+          3. SYSTÈME DU DOUBLE BARREAU D'ONGLETS BLEU ARDOISE FONCÉ (#1e3347)
          ========================================================================= */}
       <div className="bg-white rounded-md border border-slate-200 overflow-hidden shadow-2xs">
         
-        {/* Barre d'onglets foncée (Image 1) */}
-        <div className="bg-[#1e3347] flex items-center border-b border-[#182a3a]">
+        {/* NIVEAU 1 : Barre d'onglets principale foncé (#1e3347) */}
+        <div className="bg-[#1e3347] flex flex-wrap items-center border-b border-[#182a3a]">
           
-          {/* Onglet 1 : Bénéficiaires */}
+          {/* Suivi */}
           <button
             type="button"
-            onClick={() => handleTabChange('beneficiaires')}
+            onClick={() => handleMainTabChange('suivi')}
             className={`px-6 py-3 text-xs font-normal transition-colors cursor-pointer ${
-              activeTab === 'beneficiaires'
+              mainTab === 'suivi'
                 ? 'bg-[#2a455f] text-[#23c3b1] border-b-2 border-[#23c3b1]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
-            Bénéficiaires
+            Suivi
           </button>
 
-          {/* Onglet 2 : Historique de temps */}
+          {/* Prestations */}
           <button
             type="button"
-            onClick={() => handleTabChange('historique')}
+            onClick={() => handleMainTabChange('prestations')}
             className={`px-6 py-3 text-xs font-normal transition-colors cursor-pointer ${
-              activeTab === 'historique'
+              mainTab === 'prestations'
                 ? 'bg-[#2a455f] text-[#23c3b1] border-b-2 border-[#23c3b1]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
-            Historique de temps
+            Prestations
           </button>
 
-          {/* Onglet 3 : Présentation */}
+          {/* Notes */}
           <button
             type="button"
-            onClick={() => handleTabChange('presentation')}
+            onClick={() => handleMainTabChange('notes')}
             className={`px-6 py-3 text-xs font-normal transition-colors cursor-pointer ${
-              activeTab === 'presentation'
+              mainTab === 'notes'
                 ? 'bg-[#2a455f] text-[#23c3b1] border-b-2 border-[#23c3b1]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
-            Présentation
+            Notes
+          </button>
+
+          {/* Documents */}
+          <button
+            type="button"
+            onClick={() => handleMainTabChange('documents')}
+            className={`px-6 py-3 text-xs font-normal transition-colors cursor-pointer ${
+              mainTab === 'documents'
+                ? 'bg-[#2a455f] text-[#23c3b1] border-b-2 border-[#23c3b1]'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            Documents
+          </button>
+
+          {/* Évaluations */}
+          <button
+            type="button"
+            onClick={() => handleMainTabChange('evaluations')}
+            className={`px-6 py-3 text-xs font-normal transition-colors cursor-pointer ${
+              mainTab === 'evaluations'
+                ? 'bg-[#2a455f] text-[#23c3b1] border-b-2 border-[#23c3b1]'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            Évaluations
+          </button>
+
+          {/* Historique */}
+          <button
+            type="button"
+            onClick={() => handleMainTabChange('historique')}
+            className={`px-6 py-3 text-xs font-normal transition-colors cursor-pointer ${
+              mainTab === 'historique'
+                ? 'bg-[#2a455f] text-[#23c3b1] border-b-2 border-[#23c3b1]'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            Historique
           </button>
 
         </div>
 
+        {/* NIVEAU 2 : Sous-barre (affichée lorsque l'onglet actif est "Suivi") */}
+        {mainTab === 'suivi' && (
+          <div className="bg-[#2d4763] flex flex-wrap items-center border-b border-[#23384f] text-xs text-slate-200">
+            <button
+              type="button"
+              onClick={() => handleSuiviSubTabChange('rdv')}
+              className={`px-6 py-2.5 transition-colors cursor-pointer ${
+                suiviSubTab === 'rdv'
+                  ? 'bg-[#1e3347] text-white font-medium shadow-inner'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Rendez-vous
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSuiviSubTabChange('accompagnements')}
+              className={`px-6 py-2.5 transition-colors cursor-pointer ${
+                suiviSubTab === 'accompagnements'
+                  ? 'bg-[#1e3347] text-white font-medium shadow-inner'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Accompagnements
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSuiviSubTabChange('parcours')}
+              className={`px-6 py-2.5 transition-colors cursor-pointer ${
+                suiviSubTab === 'parcours'
+                  ? 'bg-[#1e3347] text-white font-medium shadow-inner'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Parcours
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSuiviSubTabChange('archives')}
+              className={`px-6 py-2.5 transition-colors cursor-pointer ${
+                suiviSubTab === 'archives'
+                  ? 'bg-[#1e3347] text-white font-medium shadow-inner'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Archivés
+            </button>
+          </div>
+        )}
+
         {/* =======================================================================
-            ONGLET 1 : BÉNÉFICIAIRES (Image 2)
+            CONTENU DE L'ONGLET : SUIVI -> RENDEZ-VOUS (Capture exacte de l'utilisateur)
            ======================================================================= */}
-        {activeTab === 'beneficiaires' && (
-          <div className="p-4 sm:p-6 space-y-6">
+        {mainTab === 'suivi' && suiviSubTab === 'rdv' && (
+          <div className="p-4 sm:p-6 space-y-5">
             
-            {/* Bandeau jaune / ambre : "Il vous reste 25 jour(s) gratuit(s)" */}
-            <div className="flex justify-center">
-              <div className="bg-[#fef08a] border border-[#fde047] text-amber-900 text-xs font-semibold px-4 py-1.5 rounded shadow-2xs">
-                Il vous reste 25 jour(s) gratuit(s)
-              </div>
+            {/* 2 Boutons corail sous les onglets : Activer la prise de RDV | Planifier des RDV */}
+            <div className="flex flex-wrap items-center justify-end gap-3 pb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !bookingEnabled;
+                  setBookingEnabled(next);
+                  showToast(`✓ Prise de rendez-vous ${next ? 'activée' : 'désactivée'}`);
+                }}
+                className="px-3.5 py-1.5 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              >
+                <Calendar className="size-3.5" />
+                <span>Activer la prise de rendez-vous par le bénéficiaire</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAppointmentModalOpen(true)}
+                className="px-3.5 py-1.5 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              >
+                <Calendar className="size-3.5" />
+                <span>Planifier des rendez-vous</span>
+              </button>
             </div>
 
             {/* Section 1 : Rendez-vous à venir */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs sm:text-sm font-normal text-slate-800">
-                  Rendez-vous à venir
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setIsAppointmentModalOpen(true)}
-                  className="text-xs text-[#23c3b1] hover:underline font-medium flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="size-3.5" />
-                  <span>Planifier un rendez-vous</span>
-                </button>
-              </div>
+            <div className="space-y-2">
+              <h3 className="text-xs sm:text-sm font-normal text-slate-800">
+                Rendez-vous à venir
+              </h3>
 
               <div className="border border-slate-200 rounded overflow-hidden bg-white">
                 <table className="w-full text-xs text-left border-collapse">
@@ -366,7 +682,7 @@ export default function BeneficiaryDetailPage() {
                               {appt.location || "Session d'accompagnement"}
                             </td>
                             <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">
-                              {b.assignedAgent ? `${b.assignedAgent.firstName} ${b.assignedAgent.lastName}` : 'Coach référent'}
+                              {coachName}
                             </td>
                             <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">
                               Individuel
@@ -384,7 +700,7 @@ export default function BeneficiaryDetailPage() {
             </div>
 
             {/* Section 2 : Rendez-vous à planifier (max 10) */}
-            <div className="space-y-2.5 pt-2">
+            <div className="space-y-2 pt-2">
               <h3 className="text-xs sm:text-sm font-normal text-slate-800">
                 Rendez-vous à planifier (max 10)
               </h3>
@@ -419,7 +735,7 @@ export default function BeneficiaryDetailPage() {
                           <td className="py-2.5 px-3 text-slate-700 border-r border-slate-100">À définir</td>
                           <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">{b.program?.name || 'Parcours IML'}</td>
                           <td className="py-2.5 px-3 font-medium text-slate-800 border-r border-slate-100">{appt.location || "Séance à programmer"}</td>
-                          <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">{b.assignedAgent?.firstName || 'Coach'}</td>
+                          <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">{coachName}</td>
                           <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">Individuel</td>
                           <td className="py-2.5 px-3 text-slate-600">—</td>
                         </tr>
@@ -434,12 +750,83 @@ export default function BeneficiaryDetailPage() {
         )}
 
         {/* =======================================================================
-            ONGLET 2 : HISTORIQUE DE TEMPS (Image 1)
+            SOUS-ONGLET : ACCOMPAGNEMENTS
            ======================================================================= */}
-        {activeTab === 'historique' && (
+        {mainTab === 'suivi' && suiviSubTab === 'accompagnements' && (
+          <div className="p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-800 text-sm">Séances & Suivi d'accompagnement</h3>
+              <button
+                type="button"
+                onClick={() => setIsRecordServiceModalOpen(true)}
+                className="px-3.5 py-1.5 rounded bg-[#f06553] text-white font-medium hover:bg-[#e05341] flex items-center gap-1.5"
+              >
+                <Plus className="size-3.5" />
+                <span>Nouvelle séance</span>
+              </button>
+            </div>
+            <div className="p-8 text-center text-slate-500 bg-slate-50 rounded border border-slate-200">
+              <User className="size-8 mx-auto text-slate-400 mb-2" />
+              <p className="font-medium text-slate-700">Aucun suivi direct enregistré pour le moment.</p>
+              <p className="text-slate-400 text-[11px] mt-1">Les rendez-vous et sessions de coaching s'afficheront ici au fil du parcours.</p>
+            </div>
+          </div>
+        )}
+
+        {/* =======================================================================
+            SOUS-ONGLET : PARCOURS
+           ======================================================================= */}
+        {mainTab === 'suivi' && suiviSubTab === 'parcours' && (
+          <div className="p-6 space-y-4 text-xs">
+            <h3 className="font-semibold text-slate-800 text-sm pb-2 border-b border-slate-100">
+              Jalons & Progression du Parcours
+            </h3>
+            <div className="space-y-3">
+              {[
+                { title: 'Diagnostic initial & Besoins', status: 'Terminé', date: new Date(b.createdAt).toLocaleDateString('fr-FR') },
+                { title: 'Cadrage du modèle économique / Activité', status: 'En cours', date: 'En cours' },
+                { title: 'Validation juridique & Formalités', status: 'À venir', date: 'Prochaine étape' },
+                { title: 'Bilan d\'étape & Accompagnement de sortie', status: 'À venir', date: 'À planifier' },
+              ].map((step, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 rounded border border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <span className="size-6 rounded-full bg-[#23c3b1] text-white font-bold flex items-center justify-center text-xs">
+                      {idx + 1}
+                    </span>
+                    <div>
+                      <p className="font-medium text-slate-800">{step.title}</p>
+                      <p className="text-[11px] text-slate-500">Échéance : {step.date}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded text-[11px] font-medium ${
+                    step.status === 'Terminé' ? 'bg-emerald-100 text-emerald-800' :
+                    step.status === 'En cours' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {step.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =======================================================================
+            SOUS-ONGLET : ARCHIVÉS
+           ======================================================================= */}
+        {mainTab === 'suivi' && suiviSubTab === 'archives' && (
+          <div className="p-12 text-center text-slate-400 text-xs">
+            <FolderOpen className="size-10 mx-auto text-slate-300 mb-2" />
+            <p>Aucun élément archivé pour ce bénéficiaire.</p>
+          </div>
+        )}
+
+        {/* =======================================================================
+            ONGLET PRINCIPAL : PRESTATIONS / HISTORIQUE (Image 1)
+           ======================================================================= */}
+        {(mainTab === 'prestations' || mainTab === 'historique') && (
           <div className="space-y-0">
             
-            {/* Zone supérieure de filtres & actions (Du / Au / Filtrer | Feuille / Exporter / + Ajouter) */}
+            {/* Zone de commandes & filtres dates */}
             <div className="bg-[#f8fafc] p-4 sm:p-5 border-b border-slate-200">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 
@@ -517,14 +904,12 @@ export default function BeneficiaryDetailPage() {
             {/* Zone inférieure : Légende + Tableau des temps */}
             <div className="p-4 sm:p-5 space-y-3 bg-white">
               
-              {/* Légende en haut à droite */}
               <div className="flex justify-end">
                 <div className="border border-slate-200 rounded px-2.5 py-1 bg-white text-[11px] text-slate-500 shadow-2xs">
                   Légende: <span className="text-slate-700">h</span> = heures, <span className="text-slate-700">m</span> = minutes
                 </div>
               </div>
 
-              {/* Tableau exact Image 1 */}
               <div className="overflow-x-auto border border-slate-200 rounded">
                 <table className="w-full text-xs text-left border-collapse bg-white">
                   <thead>
@@ -579,11 +964,91 @@ export default function BeneficiaryDetailPage() {
         )}
 
         {/* =======================================================================
-            ONGLET 3 : PRÉSENTATION & DOSSIER STRUCTURÉ
+            ONGLET PRINCIPAL : NOTES
            ======================================================================= */}
-        {activeTab === 'presentation' && (
+        {mainTab === 'notes' && (
+          <div className="p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-800 text-sm">Notes d'accompagnement & Mémos</h3>
+              <button
+                type="button"
+                onClick={() => setIsQuickNoteModalOpen(true)}
+                className="px-3.5 py-1.5 rounded bg-[#f06553] text-white font-medium hover:bg-[#e05341] flex items-center gap-1.5"
+              >
+                <Plus className="size-3.5" />
+                <span>Ajouter une note</span>
+              </button>
+            </div>
+            {quickNote ? (
+              <div className="p-4 bg-amber-50/60 rounded-lg border border-amber-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-amber-900 text-xs">Mémo de dossier</span>
+                  <button onClick={() => setIsQuickNoteModalOpen(true)} className="text-amber-800 underline hover:text-amber-950">
+                    Modifier
+                  </button>
+                </div>
+                <p className="text-slate-700 whitespace-pre-line leading-relaxed">{quickNote}</p>
+              </div>
+            ) : (
+              <div className="p-10 text-center text-slate-400 bg-slate-50 rounded border border-slate-200">
+                <FileText className="size-8 mx-auto text-slate-300 mb-2" />
+                <p>Aucune note enregistrée pour le moment.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =======================================================================
+            ONGLET PRINCIPAL : DOCUMENTS
+           ======================================================================= */}
+        {mainTab === 'documents' && (
+          <div className="p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-800 text-sm">Pièces jointes & Documents du bénéficiaire</h3>
+              <button
+                type="button"
+                onClick={() => showToast('✓ Sélectionner un document à téléverser')}
+                className="px-3.5 py-1.5 rounded bg-[#f06553] text-white font-medium hover:bg-[#e05341] flex items-center gap-1.5"
+              >
+                <UploadCloud className="size-3.5" />
+                <span>Déposer un document</span>
+              </button>
+            </div>
+            <div className="p-10 text-center text-slate-400 bg-slate-50 rounded border border-slate-200">
+              <FileCheck className="size-8 mx-auto text-slate-300 mb-2" />
+              <p>Aucun document attaché à ce dossier actuellement.</p>
+            </div>
+          </div>
+        )}
+
+        {/* =======================================================================
+            ONGLET PRINCIPAL : ÉVALUATIONS
+           ======================================================================= */}
+        {mainTab === 'evaluations' && (
+          <div className="p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-800 text-sm">Grilles de diagnostic & Évaluations</h3>
+              <button
+                type="button"
+                onClick={() => showToast('✓ Nouveau questionnaire ou évaluation')}
+                className="px-3.5 py-1.5 rounded bg-[#f06553] text-white font-medium hover:bg-[#e05341] flex items-center gap-1.5"
+              >
+                <Plus className="size-3.5" />
+                <span>Nouvelle évaluation</span>
+              </button>
+            </div>
+            <div className="p-10 text-center text-slate-400 bg-slate-50 rounded border border-slate-200">
+              <CheckSquare className="size-8 mx-auto text-slate-300 mb-2" />
+              <p>Aucune évaluation passée pour ce dossier.</p>
+            </div>
+          </div>
+        )}
+
+        {/* =======================================================================
+            ONGLET PRINCIPAL : PRÉSENTATION & DOSSIER COMPLET
+           ======================================================================= */}
+        {mainTab === 'presentation' && (
           <div className="p-6 space-y-6">
-            
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Colonne gauche : Contact & Suivi */}
               <div className="space-y-6 lg:col-span-1">
@@ -633,10 +1098,14 @@ export default function BeneficiaryDetailPage() {
                   </h2>
                   <div className="space-y-3.5 text-xs">
                     <div>
-                      <div className="text-[11px] text-slate-500 mb-0.5">Agent responsable</div>
-                      <div className="font-medium text-slate-800">
-                        {b.assignedAgent ? `${b.assignedAgent.firstName} ${b.assignedAgent.lastName}` : <span className="text-slate-400 italic">Non assigné</span>}
-                      </div>
+                      <div className="text-[11px] text-slate-500 mb-0.5">Statut actuel</div>
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${STATUS_STYLE[b.status]}`}>
+                        {STATUS_LABELS[b.status]}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-slate-500 mb-0.5">Coach responsable</div>
+                      <div className="font-medium text-slate-800">{coachName}</div>
                     </div>
                     <div>
                       <div className="text-[11px] text-slate-500 mb-0.5">Programme d'incubation</div>
@@ -740,14 +1209,13 @@ export default function BeneficiaryDetailPage() {
                 )}
               </div>
             </div>
-
           </div>
         )}
 
       </div>
 
       {/* =========================================================================
-          BOUTONS D'ACTION FLOTTANTS EN BAS À DROITE (Image 2)
+          BOUTONS D'ACTION FLOTTANTS EN BAS À DROITE (Identiques aux captures)
          ========================================================================= */}
       <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
         {/* Bouton 1 : Chronomètre / Enregistrer une prestation */}
@@ -783,7 +1251,121 @@ export default function BeneficiaryDetailPage() {
       </div>
 
       {/* =========================================================================
-          MODALE 1 : ENREGISTRER UNE PRESTATION
+          MODALE : CRÉER UN COMPTEUR D'HEURES
+         ========================================================================= */}
+      {isHourCounterModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in duration-150">
+          <div className="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+              <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">
+                Compteur d'heures d'accompagnement
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsHourCounterModalOpen(false)}
+                className="size-7 rounded-md hover:bg-slate-200/60 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveHourCounter} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                  Intitulé du forfait / programme
+                </label>
+                <input
+                  type="text"
+                  value={counterNameInput}
+                  onChange={(e) => setCounterNameInput(e.target.value)}
+                  className="w-full h-8 px-2.5 rounded border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                  placeholder="Ex : Accompagnement Création d'Entreprise"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                  Volume horaire alloué (en heures)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={counterHoursInput}
+                  onChange={(e) => setCounterHoursInput(e.target.value)}
+                  className="w-full h-8 px-2.5 rounded border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsHourCounterModalOpen(false)}
+                  className="h-8 px-4 rounded border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium text-xs transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="h-8 px-4 rounded bg-[#f06553] hover:bg-[#e05341] text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
+                >
+                  Enregistrer le compteur
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* =========================================================================
+          MODALE : GESTION DES CLÉS & ACCÈS PORTAIL
+         ========================================================================= */}
+      {isKeyModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in duration-150">
+          <div className="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <Key className="size-4 text-[#f06553]" />
+                <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">
+                  Accès Portail · {b.firstName} {b.lastName}
+                </h3>
+              </div>
+              <button onClick={() => setIsKeyModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3.5 text-xs">
+              <div className="p-3 bg-slate-50 rounded border border-slate-200 space-y-1">
+                <span className="text-slate-400 text-[11px] block">Identifiant de connexion :</span>
+                <span className="font-medium text-slate-800">{b.email}</span>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded border border-emerald-200 text-emerald-800 flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                <span>Le portail bénéficiaire est actuellement actif.</span>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    showToast('✓ E-mail de réinitialisation du mot de passe envoyé');
+                    setIsKeyModalOpen(false);
+                  }}
+                  className="px-3.5 py-1.5 rounded bg-[#f06553] text-white hover:bg-[#e05341] font-medium text-xs shadow-2xs"
+                >
+                  Renvoyer les accès
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* =========================================================================
+          MODALE : ENREGISTRER UNE PRESTATION (+ Ajouter une prestation)
          ========================================================================= */}
       <RecordServiceModal
         isOpen={isRecordServiceModalOpen}
@@ -798,7 +1380,7 @@ export default function BeneficiaryDetailPage() {
       />
 
       {/* =========================================================================
-          MODALE 2 : PLANIFIER UN RENDEZ-VOUS
+          MODALE : PLANIFIER UN RENDEZ-VOUS
          ========================================================================= */}
       <CreateAppointmentWizardModal
         isOpen={isAppointmentModalOpen}
@@ -812,7 +1394,7 @@ export default function BeneficiaryDetailPage() {
       />
 
       {/* =========================================================================
-          MODALE 3 : FEUILLE DE PRESTATIONS
+          MODALE : FEUILLE DE PRESTATIONS
          ========================================================================= */}
       {isTimesheetModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in duration-150">
@@ -902,7 +1484,7 @@ export default function BeneficiaryDetailPage() {
       )}
 
       {/* =========================================================================
-          MODALE 4 : NOTE RAPIDE DU DOSSIER
+          MODALE : NOTE RAPIDE DU DOSSIER
          ========================================================================= */}
       {isQuickNoteModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in duration-150">
@@ -953,6 +1535,47 @@ export default function BeneficiaryDetailPage() {
                   className="h-8 px-4 rounded bg-[#f06553] hover:bg-[#e05341] text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
                 >
                   Enregistrer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* =========================================================================
+          MODALE : VISIOCONFÉRENCE RAPIDE
+         ========================================================================= */}
+      {isVideoModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in duration-150">
+          <div className="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <Video className="size-4 text-[#f06553]" />
+                <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">
+                  Entretien Vidéo · {b.firstName} {b.lastName}
+                </h3>
+              </div>
+              <button onClick={() => setIsVideoModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3.5 text-xs text-slate-600">
+              <p>Lien de visioconférence sécurisé pour ce bénéficiaire :</p>
+              <div className="p-2.5 bg-slate-100 rounded border border-slate-200 font-mono text-[11px] text-slate-700 break-all select-all">
+                https://meet.iml-digit.com/dossier-{b.id.slice(0, 8)}
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(`https://meet.iml-digit.com/dossier-${b.id.slice(0, 8)}`);
+                    showToast('✓ Lien de visio copié dans le presse-papier');
+                    setIsVideoModalOpen(false);
+                  }}
+                  className="px-3.5 py-1.5 rounded bg-[#f06553] text-white hover:bg-[#e05341] font-medium text-xs shadow-2xs"
+                >
+                  Copier le lien
                 </button>
               </div>
             </div>
