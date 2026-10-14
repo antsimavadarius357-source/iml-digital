@@ -16,6 +16,7 @@ export const fileNumber = (b: { fileSeq: number; createdAt: Date }): string =>
 export function scopeWhere(auth: Auth): Prisma.BeneficiaryWhereInput {
   const base: Prisma.BeneficiaryWhereInput = { archivedAt: null };
   switch (auth.role) {
+    case 'ADMIN':
     case 'DIRECTION':
       return base;
     case 'AGENT':
