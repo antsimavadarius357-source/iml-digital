@@ -4,7 +4,11 @@ import {
   Send, 
   CheckCheck, 
   Inbox,
-  CheckCircle2
+  CheckCircle2,
+  Mail,
+  Smartphone,
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
@@ -19,7 +23,7 @@ export interface MessageItem {
   createdAt: string;
   timeAgo: string;
   isRead: boolean;
-  replies?: { author: string; text: string; date: string }[];
+  replies?: { author: string; text: string; date: string; channel?: string }[];
 }
 
 const DEFAULT_MESSAGES: MessageItem[] = [
@@ -77,7 +81,8 @@ const DEFAULT_MESSAGES: MessageItem[] = [
       {
         author: 'Darius Coach IML',
         text: 'C\'est bien noté pour 09h30 mercredi. Rendez-vous confirmé !',
-        date: '08/10/2026 à 18h12'
+        date: '08/10/2026 à 18h12',
+        channel: 'Email direct'
       }
     ]
   }
@@ -99,7 +104,8 @@ export default function CoachMessagesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'UNREAD' | 'BENEFICIARIES' | 'ADMIN'>('ALL');
   const [replyText, setReplyText] = useState('');
-  const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+  const [sendChannel, setSendChannel] = useState<'EMAIL' | 'SMS' | 'BOTH'>('EMAIL');
 
   const selectedMessage = messages.find(m => m.id === selectedId) || messages[0];
 
@@ -121,10 +127,17 @@ export default function CoachMessagesPage() {
     e.preventDefault();
     if (!replyText.trim() || !selectedMessage) return;
 
+    const channelLabel = sendChannel === 'EMAIL' 
+      ? `Email direct vers ${selectedMessage.senderEmail}` 
+      : sendChannel === 'SMS' 
+      ? 'SMS direct' 
+      : `Email & SMS vers ${selectedMessage.senderEmail}`;
+
     const newReply = {
       author: user ? `${user.firstName} ${user.lastName}`.trim() : 'Darius Coach IML',
       text: replyText.trim(),
-      date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      channel: channelLabel
     };
 
     setMessages(prev => {
@@ -145,9 +158,56 @@ export default function CoachMessagesPage() {
       return updated;
     });
 
+    const successMsg = sendChannel === 'EMAIL' 
+      ? `Message transmis via passerelle Email vers ${selectedMessage.senderEmail}`
+      : sendChannel === 'SMS'
+      ? 'Alerte SMS transmise au mobile du candidat'
+      : `Message transmis simultanément par Email (${selectedMessage.senderEmail}) et SMS`;
+
     setReplyText('');
-    setSendSuccess(true);
-    setTimeout(() => setSendSuccess(false), 3000);
+    setSendSuccess(successMsg);
+    setTimeout(() => setSendSuccess(null), 4000);
+  };
+
+  // Simulation d'une réponse reçue du bénéficiaire par retour d'email (Logique B validée)
+  const handleSimulateBeneficiaryReply = () => {
+    if (!selectedMessage) return;
+
+    const simulatedResponses = [
+      "Merci Coach pour ces précisions, c'est parfaitement clair ! Je vous transmets les pièces complémentaires d'ici demain matin.",
+      "C'est bien noté, nous serons présents à l'heure indiquée avec toute l'équipe. Merci pour votre réactivité par email !",
+      "Bien reçu ! J'ai pu tester le lien de visioconférence et ma caméra fonctionne bien. À très bientôt pour l'entretien."
+    ];
+    const randomReply = simulatedResponses[Math.floor(Math.random() * simulatedResponses.length)];
+
+    const incomingReply = {
+      author: `${selectedMessage.senderName} (Retour Email)`,
+      text: randomReply,
+      date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      channel: `Reçu par retour d'email depuis ${selectedMessage.senderEmail}`
+    };
+
+    setMessages(prev => {
+      const updated = prev.map(m => {
+        if (m.id === selectedMessage.id) {
+          return {
+            ...m,
+            isRead: false,
+            replies: [...(m.replies || []), incomingReply]
+          };
+        }
+        return m;
+      });
+      try {
+        localStorage.setItem('iml_coach_messages_v1', JSON.stringify(updated));
+      } catch (err) {
+        console.error(err);
+      }
+      return updated;
+    });
+
+    setSendSuccess(`Nouvelle réponse de ${selectedMessage.senderName} synchronisée depuis sa boîte email !`);
+    setTimeout(() => setSendSuccess(null), 4000);
   };
 
   const filteredMessages = messages.filter(m => {
@@ -377,9 +437,16 @@ export default function CoachMessagesPage() {
                       <div key={idx} className="p-3.5 rounded-xl bg-teal-50/50 border border-teal-100 text-xs text-slate-800 ml-4 space-y-1">
                         <div className="flex items-center justify-between text-[11px] text-teal-800 font-semibold">
                           <span>{reply.author}</span>
-                          <span className="text-slate-400 font-normal">{reply.date}</span>
+                          <div className="flex items-center gap-2">
+                            {reply.channel && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-teal-200 text-teal-700 font-medium shadow-2xs">
+                                {reply.channel}
+                              </span>
+                            )}
+                            <span className="text-slate-400 font-normal">{reply.date}</span>
+                          </div>
                         </div>
-                        <p className="leading-relaxed">{reply.text}</p>
+                        <p className="leading-relaxed whitespace-pre-line">{reply.text}</p>
                       </div>
                     ))}
                   </div>
@@ -387,34 +454,89 @@ export default function CoachMessagesPage() {
 
               </div>
 
-              {/* Formulaire de réponse rapide en bas */}
-              <div className="p-3.5 border-t border-slate-100 bg-slate-50/60">
+              {/* Formulaire de réponse rapide via la passerelle Email / SMS */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50/70 space-y-3">
                 {sendSuccess && (
-                  <div className="mb-2 p-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-1.5 animate-in fade-in">
-                    <CheckCircle2 className="size-4 shrink-0" />
-                    <span>Votre réponse a bien été envoyée à {selectedMessage.senderName} !</span>
+                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center justify-between gap-2 animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                      <span className="font-medium">{sendSuccess}</span>
+                    </div>
                   </div>
                 )}
+
+                {/* Sélecteur de canal de transmission */}
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">Canal d'envoi :</span>
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('EMAIL')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        sendChannel === 'EMAIL'
+                          ? 'bg-[#1a3348] text-white shadow-xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Mail className="size-3" />
+                      <span>Email direct ({selectedMessage.senderEmail})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('SMS')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        sendChannel === 'SMS'
+                          ? 'bg-[#1a3348] text-white shadow-xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Smartphone className="size-3" />
+                      <span>SMS direct</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSendChannel('BOTH')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        sendChannel === 'BOTH'
+                          ? 'bg-[#f06553] text-white shadow-xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <RefreshCw className="size-3" />
+                      <span>Email + SMS</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSimulateBeneficiaryReply}
+                    className="px-2.5 py-1 rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    title="Simule la réception d'un email de réponse envoyé par le bénéficiaire depuis sa boîte personnelle"
+                  >
+                    <Sparkles className="size-3 text-amber-600" />
+                    <span>Simuler un retour d'email du candidat</span>
+                  </button>
+                </div>
                 
                 <form onSubmit={handleSendReply} className="space-y-2">
                   <textarea
                     rows={3}
-                    placeholder={`Répondre à ${selectedMessage.senderName}...`}
+                    placeholder={`Rédigez votre message à destination de ${selectedMessage.senderName} (${sendChannel === 'EMAIL' ? 'reçu directement par email' : sendChannel === 'SMS' ? 'reçu par SMS' : 'reçu par email & SMS'})...`}
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#23c3b1] resize-none"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#23c3b1] resize-none shadow-2xs"
                   />
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400">
-                      Entrée pour sauter une ligne
+                    <span className="text-[10px] text-slate-400">
+                      ✓ Acheminé automatiquement vers la boîte personnelle du candidat
                     </span>
                     <button
                       type="submit"
                       disabled={!replyText.trim()}
-                      className="px-4 py-1.5 rounded-lg bg-[#23c3b1] hover:bg-[#1db09e] disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      className="px-4 py-2 rounded-lg bg-[#23c3b1] hover:bg-[#1db09e] disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
                     >
                       <Send className="size-3.5" />
-                      <span>Répondre</span>
+                      <span>Transmettre {sendChannel === 'EMAIL' ? 'par Email' : sendChannel === 'SMS' ? 'par SMS' : 'par Email & SMS'}</span>
                     </button>
                   </div>
                 </form>

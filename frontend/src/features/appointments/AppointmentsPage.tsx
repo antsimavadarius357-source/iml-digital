@@ -1,11 +1,22 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Calendar as CalendarIcon, Clock, MapPin, Plus, CheckCircle2, XCircle } from 'lucide-react';
+import { 
+  Calendar as CalendarIcon, 
+  Clock, 
+  MapPin, 
+  Plus, 
+  CheckCircle2, 
+  XCircle,
+  Video,
+  FileText,
+  ExternalLink
+} from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
 import CreateBeneficiaryModal from '../beneficiaries/CreateBeneficiaryModal';
 import BeneficiaryRequiredModal from '../beneficiaries/BeneficiaryRequiredModal';
 import CreateAppointmentWizardModal from './CreateAppointmentWizardModal';
+import OfficialConvocationModal, { type ConvocationData } from './OfficialConvocationModal';
 
 const STATUS_LABELS: Record<string, string> = {
   PLANIFIE: 'Planifié',
@@ -22,12 +33,14 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default function AppointmentsPage() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState<string | null>(null);
   const [isCreateBeneficiaryOpen, setIsCreateBeneficiaryOpen] = useState(false);
   const [showRequiredModal, setShowRequiredModal] = useState(false);
+  const [convocationData, setConvocationData] = useState<ConvocationData | null>(null);
+  const [isConvocationOpen, setIsConvocationOpen] = useState(false);
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['appointments'],
@@ -145,7 +158,53 @@ export default function AppointmentsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Lien Visio en 1 clic si présent */}
+                    {app.location && (app.location.includes('http') || app.location.toLowerCase().includes('visio')) && (
+                      (() => {
+                        const match = app.location.match(/https?:\/\/[^\s\]]+/);
+                        const url = match ? match[0] : null;
+                        if (!url) return null;
+                        return (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f06553] hover:bg-[#e05341] text-white rounded-md text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                            title="Rejoindre la salle de visioconférence en 1 clic"
+                          >
+                            <Video className="size-3.5" />
+                            <span>Rejoindre la visio</span>
+                            <ExternalLink className="size-3" />
+                          </a>
+                        );
+                      })()
+                    )}
+
+                    {/* Bouton Lettre de Convocation Officielle */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const isVideo = app.location && (app.location.includes('http') || app.location.toLowerCase().includes('visio'));
+                        setConvocationData({
+                          appointmentId: app.id,
+                          recipientName: `${app.beneficiary.firstName} ${app.beneficiary.lastName}`,
+                          recipientEmail: app.beneficiary.email,
+                          datetime: app.datetime,
+                          durationMinutes: app.duration || 60,
+                          sessionType: isVideo ? 'video' : 'in_person',
+                          locationOrUrl: app.location || 'Siège IML Digit, Libreville',
+                          coachName: user ? `${user.firstName} ${user.lastName}` : 'Agent IML Digit',
+                        });
+                        setIsConvocationOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                      title="Visualiser et imprimer la lettre de convocation officielle"
+                    >
+                      <FileText className="size-3.5 text-slate-500" />
+                      <span>Convocation</span>
+                    </button>
+
                     {app.status === 'PLANIFIE' && (
                       <>
                         <button onClick={() => setShowSessionModal(app.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md text-sm font-medium transition-colors">
@@ -227,14 +286,21 @@ export default function AppointmentsPage() {
         icon={CalendarIcon}
       />
 
-      {/* Modale de création d'un bénéficiaire */}
+      {/* Création directe de bénéficiaire */}
       <CreateBeneficiaryModal
         isOpen={isCreateBeneficiaryOpen}
         onClose={() => setIsCreateBeneficiaryOpen(false)}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['beneficiaries-list'] });
-          queryClient.invalidateQueries({ queryKey: ['beneficiaries-count'] });
+          setIsCreateBeneficiaryOpen(false);
+          setShowModal(true);
         }}
+      />
+
+      {/* Modale de visualisation et impression de la convocation officielle */}
+      <OfficialConvocationModal
+        isOpen={isConvocationOpen}
+        onClose={() => setIsConvocationOpen(false)}
+        data={convocationData}
       />
     </div>
   );

@@ -5,10 +5,16 @@ import {
   Video, 
   Handshake, 
   Loader2, 
-  ChevronDown
+  ExternalLink,
+  Copy,
+  Mail,
+  MapPin,
+  Check
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { useAuth } from '../auth/AuthContext';
+import OfficialConvocationModal, { type ConvocationData } from './OfficialConvocationModal';
 
 interface CreateAppointmentWizardModalProps {
   isOpen: boolean;
@@ -32,6 +38,7 @@ export default function CreateAppointmentWizardModal({
   defaultBeneficiaryId,
   defaultDate
 }: CreateAppointmentWizardModalProps) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +57,24 @@ export default function CreateAppointmentWizardModal({
   const [startTime, setStartTime] = useState<string>('09:00');
   const [endTime, setEndTime] = useState<string>('10:00');
 
+  // Visioconférence : lien généré automatiquement (modèle Jitsi Meet chiffré en 1 clic sans compte)
+  const [videoUrl, setVideoUrl] = useState<string>(() => {
+    const slug = Math.random().toString(36).substring(2, 9);
+    return `https://meet.jit.si/imldigit-entretien-${slug}`;
+  });
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Présentiel : Lieu précis
+  const [inPersonPlace, setInPersonPlace] = useState<string>('Siège IML Digit - Boulevard Triomphal, Libreville, Gabon (Salle B)');
+
+  // Notifications automatiques vers le candidat
+  const [sendEmailNotification, setSendEmailNotification] = useState<boolean>(true);
+  const [sendSmsNotification, setSendSmsNotification] = useState<boolean>(true);
+
+  // Convocation officielle
+  const [createdConvocationData, setCreatedConvocationData] = useState<ConvocationData | null>(null);
+  const [isConvocationOpen, setIsConvocationOpen] = useState<boolean>(false);
+
   useEffect(() => {
     if (isOpen) {
       if (defaultDate) {
@@ -63,9 +88,8 @@ export default function CreateAppointmentWizardModal({
   // Champ Description (présent pour les DEUX modes)
   const [description, setDescription] = useState<string>('');
 
-  // Champs spécifiques présentiel
-  const [address, setAddress] = useState<string>('Non communiqué');
-  const [city, setCity] = useState<string>('Non communiqué');
+  // Localisation présentielle
+  const [city, setCity] = useState<string>('Libreville');
   const [country, setCountry] = useState<string>('Gabon');
 
   // Étape 2 : Participants à la session (Nombre libre de participants)
@@ -172,17 +196,15 @@ export default function CreateAppointmentWizardModal({
       const durationMinutes = calculateDuration();
       const combinedDateTime = new Date(`${sessionDate}T${startTime}:00`).toISOString();
 
-      const participantsSummary = selectedRecipients.map(r => `${r.name} (${r.type})`).join(', ');
-
       let locationString = '';
       if (sessionType === 'video') {
-        locationString = `Visioconférence (${sessionName || 'Entretien'}) [${participantsSummary}]${description ? ` - ${description}` : ''}`;
+        locationString = `Visioconférence [${videoUrl}]${description ? ` - ${description}` : ''}`;
       } else {
-        const place = [address !== 'Non communiqué' ? address : '', city !== 'Non communiqué' ? city : '', country].filter(Boolean).join(', ');
-        locationString = `${place || 'Présentiel'} [${participantsSummary}]${description ? ` - ${description}` : ''}`;
+        const place = inPersonPlace ? `${inPersonPlace}${city ? `, ${city}` : ''}${country ? `, ${country}` : ''}` : `Siège IML Digit, ${city}, ${country}`;
+        locationString = `${place}${description ? ` - ${description}` : ''}`;
       }
 
-      return api('/appointments', {
+      const res = await api<any>('/appointments', {
         method: 'POST',
         body: {
           beneficiaryId,
@@ -191,11 +213,36 @@ export default function CreateAppointmentWizardModal({
           location: locationString.slice(0, 255)
         }
       });
+
+      return {
+        res,
+        primaryBeneficiary,
+        combinedDateTime,
+        durationMinutes,
+        locationString
+      };
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       onSuccess?.();
-      handleClose();
+
+      const apptId = data?.res?.id || data?.res?.appointment?.id || Math.random().toString(36).substring(2, 8);
+      const ben = data?.primaryBeneficiary;
+
+      setCreatedConvocationData({
+        appointmentId: apptId,
+        recipientName: ben?.name || 'Candidat / Bénéficiaire',
+        recipientEmail: ben?.email,
+        projectName: ben?.name ? `Dossier ${ben.name}` : undefined,
+        datetime: data?.combinedDateTime,
+        durationMinutes: data?.durationMinutes || 60,
+        sessionType,
+        locationOrUrl: sessionType === 'video' ? videoUrl : (inPersonPlace || `Siège IML Digit, ${city}`),
+        coachName: user ? `${user.firstName} ${user.lastName}` : 'Agent IML Digit',
+        notes: description
+      });
+
+      setIsConvocationOpen(true);
     }
   });
 
@@ -207,9 +254,6 @@ export default function CreateAppointmentWizardModal({
     setStartTime('09:00');
     setEndTime('10:00');
     setDescription('');
-    setAddress('Non communiqué');
-    setCity('Non communiqué');
-    setCountry('Gabon');
     setRecipientType('beneficiaires');
     setRecipientSearch('');
     setSelectedRecipients([]);
@@ -353,52 +397,92 @@ export default function CreateAppointmentWizardModal({
                 </div>
               </div>
 
-              {/* Champs spécifiques au présentiel : Adresse * | Ville | Pays * */}
+              {/* Champs spécifiques à la VISIOCONFÉRENCE : Lien sécurisé en 1 clic */}
+              {sessionType === 'video' && (
+                <div className="space-y-2 p-3.5 rounded-xl bg-orange-50/50 border border-orange-200/70 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-800">
+                      Lien direct de visioconférence <span className="text-[#f06553]">*</span>
+                    </label>
+                    <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <Check className="size-3" /> Salle sécurisée prête (sans inscription)
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={videoUrl}
+                      onChange={(e) => setVideoUrl(e.target.value)}
+                      placeholder="https://meet.jit.si/imldigit-..."
+                      className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-[#f06553] focus:ring-1 focus:ring-[#f06553] text-slate-800 font-mono shadow-2xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(videoUrl);
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      }}
+                      className="px-3 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs"
+                      title="Copier le lien"
+                    >
+                      {copiedLink ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                      <span>{copiedLink ? 'Copié' : 'Copier'}</span>
+                    </button>
+                    <a
+                      href={videoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-2 bg-[#f06553] hover:bg-[#e05341] text-white rounded-lg text-xs font-semibold shrink-0 flex items-center gap-1 cursor-pointer shadow-2xs"
+                      title="Tester la visio dans un nouvel onglet"
+                    >
+                      <span>Tester</span>
+                      <ExternalLink className="size-3" />
+                    </a>
+                  </div>
+
+                  <p className="text-[10px] text-slate-500">
+                    💡 Ce lien d'accès direct sera automatiquement inséré dans la convocation envoyée au candidat. Vous pouvez aussi coller votre propre lien Google Meet ou Zoom.
+                  </p>
+                </div>
+              )}
+
+              {/* Champs spécifiques au PRÉSENTIEL : Lieu physique */}
               {sessionType === 'in_person' && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in duration-150">
+                <div className="space-y-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 animate-in fade-in duration-150">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Adresse <span className="text-[#f06553]">*</span>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                      <MapPin className="size-3.5 text-[#23c3b1]" />
+                      <span>Lieu physique de l'entretien <span className="text-[#f06553]">*</span></span>
                     </label>
                     <input
                       type="text"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Non communiqué"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1] shadow-2xs"
+                      value={inPersonPlace}
+                      onChange={(e) => setInPersonPlace(e.target.value)}
+                      placeholder="Ex: Siège IML Digit - Boulevard Triomphal, Libreville (Salle B)"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1] shadow-2xs"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Ville
-                    </label>
-                    <input
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="Non communiqué"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1] shadow-2xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Pays <span className="text-[#f06553]">*</span>
-                    </label>
-                    <div className="relative">
-                      <select
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">Ville</label>
+                      <input
+                        type="text"
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:border-[#23c3b1]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">Pays</label>
+                      <input
+                        type="text"
                         value={country}
                         onChange={(e) => setCountry(e.target.value)}
-                        className="w-full appearance-none px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1] shadow-2xs pr-8"
-                      >
-                        <option value="Gabon">Gabon</option>
-                        <option value="Cameroun">Cameroun</option>
-                        <option value="Congo">Congo</option>
-                        <option value="France">France</option>
-                        <option value="Autre">Autre</option>
-                      </select>
-                      <ChevronDown className="size-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:border-[#23c3b1]"
+                      />
                     </div>
                   </div>
                 </div>
@@ -407,7 +491,7 @@ export default function CreateAppointmentWizardModal({
               {/* Champ Description présent pour les DEUX modes */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Description
+                  Description / Ordre du jour
                 </label>
                 <textarea
                   rows={2}
@@ -416,6 +500,34 @@ export default function CreateAppointmentWizardModal({
                   placeholder="Ordre du jour, consignes ou précisions sur l'entretien..."
                   className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs sm:text-sm text-slate-800 focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1] placeholder-slate-400 shadow-2xs resize-none"
                 />
+              </div>
+
+              {/* Envoi automatique de la convocation au candidat */}
+              <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200 space-y-2">
+                <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Mail className="size-3.5 text-[#f06553]" />
+                  <span>Convocations & alertes automatiques vers le candidat</span>
+                </div>
+                <div className="space-y-1.5 pt-0.5">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={sendEmailNotification}
+                      onChange={(e) => setSendEmailNotification(e.target.checked)}
+                      className="accent-[#f06553] size-3.5 cursor-pointer"
+                    />
+                    <span>Envoyer la convocation officielle par Email au candidat avec les instructions d'accès</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={sendSmsNotification}
+                      onChange={(e) => setSendSmsNotification(e.target.checked)}
+                      className="accent-[#f06553] size-3.5 cursor-pointer"
+                    />
+                    <span>Envoyer un rappel par SMS 48h avant l'entretien</span>
+                  </label>
+                </div>
               </div>
 
             </div>
@@ -748,6 +860,16 @@ export default function CreateAppointmentWizardModal({
         </div>
 
       </div>
+
+      {/* MODALE DE VISUALISATION & IMPRESSION DE LA CONVOCATION OFFICIELLE */}
+      <OfficialConvocationModal
+        isOpen={isConvocationOpen}
+        onClose={() => {
+          setIsConvocationOpen(false);
+          handleClose();
+        }}
+        data={createdConvocationData}
+      />
     </div>,
     document.body
   );

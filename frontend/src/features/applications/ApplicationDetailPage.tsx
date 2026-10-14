@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, Save, User, Building2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, User, Building2, Video } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
 import { APP_STATUS_LABELS, APP_STATUS_STYLE } from './ApplicationsPage';
@@ -114,6 +114,20 @@ export default function ApplicationDetailPage() {
                 <div className="text-xs text-slate-500">Ville / Localisation</div>
                 <div className="font-medium text-slate-800">{c.city || '—'}</div>
               </div>
+            </div>
+
+            {/* Modalité d'entretien souhaitée par le candidat */}
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-500">Préférence d'entretien :</span>
+              {c.interviewPreference === 'VIDEO' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-[#f06553] border border-orange-200/80">
+                  <Video className="size-3.5" /> Visioconférence {c.hasVideoEquipment ? '(Équipement validé)' : ''}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                  <Building2 className="size-3.5" /> Présentiel (Siège IML Digit)
+                </span>
+              )}
             </div>
           </section>
 

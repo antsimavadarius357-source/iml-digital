@@ -8,7 +8,9 @@ import {
   CheckCircle2, 
   Lightbulb, 
   Target, 
-  Users
+  Users,
+  Video,
+  Building2
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -17,6 +19,8 @@ export default function PublicApplicationPage() {
   const [stage, setStage] = useState('PROTOTYPE');
   const [needs, setNeeds] = useState<string[]>(['Accompagnement méthodologique']);
   const [referenceCode, setReferenceCode] = useState('');
+  const [interviewPreference, setInterviewPreference] = useState<'PRESENTIEL' | 'VIDEO'>('PRESENTIEL');
+  const [hasVideoEquipment, setHasVideoEquipment] = useState(true);
 
   const mut = useMutation({
     mutationFn: (data: any) => api('/applications/submit', { method: 'POST', body: data }),
@@ -44,6 +48,8 @@ export default function PublicApplicationPage() {
         email: fd.get('email'),
         phone: fd.get('phone'),
         city: fd.get('city') || 'Non spécifié',
+        interviewPreference,
+        hasVideoEquipment: interviewPreference === 'VIDEO' ? hasVideoEquipment : false,
       },
       projectData: {
         title: fd.get('title'),
@@ -326,6 +332,87 @@ export default function PublicApplicationPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* SECTION 4 : MODALITÉS SOUHAITÉES POUR LES ENTRETIENS */}
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Video className="size-5 text-[#f06553]" />
+                  <h2 className="text-base font-bold text-slate-900">4. Modalités de vos futurs entretiens</h2>
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  Comment préférez-vous échanger avec l'équipe IML Digit pour l'évaluation de votre dossier et les sessions d'accompagnement ?
+                </p>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div
+                    onClick={() => setInterviewPreference('PRESENTIEL')}
+                    className={`p-4 rounded-xl border flex flex-col gap-2 transition-all cursor-pointer ${
+                      interviewPreference === 'PRESENTIEL'
+                        ? 'border-[#23c3b1] bg-[#23c3b1]/5 shadow-2xs'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Building2 className={`size-4.5 ${interviewPreference === 'PRESENTIEL' ? 'text-[#23c3b1]' : 'text-slate-500'}`} />
+                        <span className="font-semibold text-xs sm:text-sm text-slate-800">En présentiel</span>
+                      </div>
+                      <input
+                        type="radio"
+                        name="interviewModeRadio"
+                        checked={interviewPreference === 'PRESENTIEL'}
+                        onChange={() => setInterviewPreference('PRESENTIEL')}
+                        className="accent-[#23c3b1] size-4"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Dans les locaux d'IML Digit (Siège Libreville). Idéal si vous pouvez vous déplacer facilement.
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => setInterviewPreference('VIDEO')}
+                    className={`p-4 rounded-xl border flex flex-col gap-2 transition-all cursor-pointer ${
+                      interviewPreference === 'VIDEO'
+                        ? 'border-[#f06553] bg-orange-50/50 shadow-2xs'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Video className={`size-4.5 ${interviewPreference === 'VIDEO' ? 'text-[#f06553]' : 'text-slate-500'}`} />
+                        <span className="font-semibold text-xs sm:text-sm text-slate-800">En visioconférence</span>
+                      </div>
+                      <input
+                        type="radio"
+                        name="interviewModeRadio"
+                        checked={interviewPreference === 'VIDEO'}
+                        onChange={() => setInterviewPreference('VIDEO')}
+                        className="accent-[#f06553] size-4"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Entretien vidéo en ligne via un lien direct sécurisé en 1 clic (aucun logiciel à installer).
+                    </p>
+                  </div>
+                </div>
+
+                {interviewPreference === 'VIDEO' && (
+                  <div className="p-3.5 rounded-xl bg-orange-50/80 border border-orange-200/80 animate-in fade-in duration-200 flex items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="hasVideoEquipment"
+                      checked={hasVideoEquipment}
+                      onChange={(e) => setHasVideoEquipment(e.target.checked)}
+                      className="accent-[#f06553] size-4 mt-0.5 shrink-0 cursor-pointer"
+                    />
+                    <label htmlFor="hasVideoEquipment" className="text-xs text-slate-700 leading-relaxed cursor-pointer select-none">
+                      <strong>Confirmation technique</strong> : Je confirme disposer d'un smartphone ou d'un ordinateur équipé d'une caméra, d'un microphone et d'une connexion Internet stable.
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Bouton de validation */}
