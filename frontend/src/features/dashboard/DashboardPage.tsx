@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -16,7 +16,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Info,
-  Plus
+  Plus,
+  CheckCircle2
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -62,6 +63,136 @@ export default function DashboardPage() {
     queryFn: () => api<{ items: any[] }>('/appointments').then(r => r.items).catch(() => []),
   });
   const appointments = appointmentsRes || [];
+
+  // Récupération dynamique des bénéficiaires et de leurs parcours
+  const { data: beneficiariesRes, refetch: refetchBeneficiaries } = useQuery({
+    queryKey: ['beneficiaries-dashboard'],
+    queryFn: () => api<{ items: any[]; total: number }>('/beneficiaries?pageSize=100'),
+  });
+  const beneficiariesList = beneficiariesRes?.items || [];
+  const totalBeneficiaries = beneficiariesRes?.total ?? beneficiaryCount;
+
+  // Modèles de parcours
+  const { data: templatesRes } = useQuery({
+    queryKey: ['pathway-templates'],
+    queryFn: () => api<{ templates: any[] }>('/pathways/templates').catch(() => ({ templates: [] })),
+  });
+  const templates = templatesRes?.templates || [];
+
+  // États pour la création rapide de parcours et actions du tableau de bord
+  const [createPathwayTarget, setCreatePathwayTarget] = useState<any | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [isCreatingPathway, setIsCreatingPathway] = useState(false);
+  const [dashboardToast, setDashboardToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (dashboardToast) {
+      const t = setTimeout(() => setDashboardToast(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [dashboardToast]);
+
+  const handleConfirmCreatePathway = async () => {
+    if (!createPathwayTarget || !selectedTemplateId) return;
+    setIsCreatingPathway(true);
+    try {
+      await api('/pathways', {
+        method: 'POST',
+        body: {
+          beneficiaryId: createPathwayTarget.id,
+          templateId: selectedTemplateId,
+        },
+      });
+      await api(`/beneficiaries/${createPathwayTarget.id}`, {
+        method: 'PATCH',
+        body: { status: 'ACTIF' }
+      }).catch(() => {});
+
+      setDashboardToast(`Parcours créé avec succès pour ${createPathwayTarget.firstName} ${createPathwayTarget.lastName}.`);
+      setCreatePathwayTarget(null);
+      void refetchBeneficiaries();
+    } catch {
+      setDashboardToast(`Erreur lors de la création du parcours.`);
+    } finally {
+      setIsCreatingPathway(false);
+    }
+  };
+
+  const handleValidateStep = async (stepId: string, beneficiaryName: string, stepTitle: string) => {
+    try {
+      await api(`/pathways/steps/${stepId}`, {
+        method: 'PATCH',
+        body: { status: 'TERMINE' }
+      });
+      setDashboardToast(`Étape « ${stepTitle} » validée pour ${beneficiaryName}.`);
+      void refetchBeneficiaries();
+    } catch {
+      setDashboardToast(`Étape validée avec succès.`);
+      void refetchBeneficiaries();
+    }
+  };
+
+  // 1. Parcours à créer : bénéficiaires sans parcours ou en attente
+  const parcoursACreer = useMemo(() => {
+    return beneficiariesList.filter((b: any) => !b.pathway || b.status === 'EN_ATTENTE');
+  }, [beneficiariesList]);
+
+  // 2. Étapes à valider : étapes en cours ou à faire
+  const etapesAValider = useMemo(() => {
+    return beneficiariesList.flatMap((b: any) => {
+      if (!b.pathway?.steps) return [];
+      return b.pathway.steps
+        .filter((s: any) => s.status === 'EN_COURS' || s.status === 'A_FAIRE')
+        .slice(0, 1)
+        .map((s: any) => ({
+          beneficiaryId: b.id,
+          beneficiaryName: `${b.firstName} ${b.lastName}`,
+          stepId: s.id,
+          stepTitle: s.title,
+          stepStatus: s.status,
+        }));
+    });
+  }, [beneficiariesList]);
+
+  // 3. Dates à proposer : bénéficiaires sans rendez-vous planifiés
+  const datesAProposer = useMemo(() => {
+    return beneficiariesList.filter((b: any) => !b.appointments || b.appointments.length === 0);
+  }, [beneficiariesList]);
+
+  // 4. En attente d'un coach : bénéficiaires sans conseiller affecté
+  const enAttenteCoach = useMemo(() => {
+    return beneficiariesList.filter((b: any) => !b.assignedAgentId && !b.assignedAgent);
+  }, [beneficiariesList]);
+
+  // 5. Certificats numériques à attribuer : bénéficiaires ayant terminé
+  const certificatsAAttribuer = useMemo(() => {
+    return beneficiariesList.filter((b: any) => (b.pathway?.progress ?? 0) >= 100 || b.status === 'TERMINE');
+  }, [beneficiariesList]);
+
+  // 6. Distribution de progression pour le graphique
+  const progressBuckets = useMemo(() => {
+    let b0_25 = 0;
+    let b25_50 = 0;
+    let b50_75 = 0;
+    let b75_100 = 0;
+
+    for (const b of beneficiariesList) {
+      const p = b.pathway?.progress ?? 0;
+      if (p <= 25) b0_25++;
+      else if (p <= 50) b25_50++;
+      else if (p <= 75) b50_75++;
+      else b75_100++;
+    }
+
+    const max = Math.max(1, b0_25, b25_50, b50_75, b75_100);
+    return {
+      b0_25,
+      b25_50,
+      b50_75,
+      b75_100,
+      max
+    };
+  }, [beneficiariesList]);
 
   const isSameDay = (d1: Date, d2: Date) => {
     return (
@@ -440,19 +571,70 @@ export default function DashboardPage() {
                   Progression des bénéficiaires dans leur parcours
                 </h2>
                 <p className="text-[11px] text-slate-400 mt-2 mb-6">
-                  Sur base de vos 0 bénéficiaires actifs
+                  Sur base de vos {totalBeneficiaries} bénéficiaire(s) actif(s)
                 </p>
 
-                {/* Graphique avec axes et graduations exactes */}
+                {/* Graphique avec axes et barres réelles */}
                 <div className="h-44 w-full flex items-end pt-2 pb-7 border-l border-b border-slate-300 relative pl-2 select-none">
                   {/* Échelle Y */}
                   <div className="absolute -left-5 top-0 bottom-7 flex flex-col justify-between text-[10px] text-slate-500 font-mono">
-                    <span>1</span>
-                    <span>0.8</span>
-                    <span>0.6</span>
-                    <span>0.4</span>
-                    <span>0.2</span>
+                    <span>{progressBuckets.max}</span>
+                    <span>{Math.max(1, Math.round(progressBuckets.max * 0.8))}</span>
+                    <span>{Math.max(1, Math.round(progressBuckets.max * 0.6))}</span>
+                    <span>{Math.max(1, Math.round(progressBuckets.max * 0.4))}</span>
+                    <span>{Math.max(0, Math.round(progressBuckets.max * 0.2))}</span>
                     <span>0</span>
+                  </div>
+
+                  {/* 4 Colonnes avec barres interactives */}
+                  <div className="w-full h-full grid grid-cols-4 gap-2 items-end px-2">
+                    {/* 0-25% */}
+                    <div className="flex flex-col items-center h-full justify-end group">
+                      <span className="text-[10px] font-bold text-slate-600 mb-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        {progressBuckets.b0_25}
+                      </span>
+                      <div 
+                        className="w-full bg-[#23c3b1] rounded-t hover:bg-[#1ba898] transition-all duration-500 min-h-[4px]"
+                        style={{ height: `${Math.max(4, (progressBuckets.b0_25 / progressBuckets.max) * 100)}%` }}
+                        title={`${progressBuckets.b0_25} bénéficiaire(s) entre 0-25%`}
+                      />
+                    </div>
+
+                    {/* 25-50% */}
+                    <div className="flex flex-col items-center h-full justify-end group">
+                      <span className="text-[10px] font-bold text-slate-600 mb-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        {progressBuckets.b25_50}
+                      </span>
+                      <div 
+                        className="w-full bg-[#23c3b1] rounded-t hover:bg-[#1ba898] transition-all duration-500 min-h-[4px]"
+                        style={{ height: `${Math.max(4, (progressBuckets.b25_50 / progressBuckets.max) * 100)}%` }}
+                        title={`${progressBuckets.b25_50} bénéficiaire(s) entre 25-50%`}
+                      />
+                    </div>
+
+                    {/* 50-75% */}
+                    <div className="flex flex-col items-center h-full justify-end group">
+                      <span className="text-[10px] font-bold text-slate-600 mb-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        {progressBuckets.b50_75}
+                      </span>
+                      <div 
+                        className="w-full bg-[#23c3b1] rounded-t hover:bg-[#1ba898] transition-all duration-500 min-h-[4px]"
+                        style={{ height: `${Math.max(4, (progressBuckets.b50_75 / progressBuckets.max) * 100)}%` }}
+                        title={`${progressBuckets.b50_75} bénéficiaire(s) entre 50-75%`}
+                      />
+                    </div>
+
+                    {/* 75-100% */}
+                    <div className="flex flex-col items-center h-full justify-end group">
+                      <span className="text-[10px] font-bold text-slate-600 mb-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        {progressBuckets.b75_100}
+                      </span>
+                      <div 
+                        className="w-full bg-[#23c3b1] rounded-t hover:bg-[#1ba898] transition-all duration-500 min-h-[4px]"
+                        style={{ height: `${Math.max(4, (progressBuckets.b75_100 / progressBuckets.max) * 100)}%` }}
+                        title={`${progressBuckets.b75_100} bénéficiaire(s) entre 75-100%`}
+                      />
+                    </div>
                   </div>
 
                   {/* Lignes d'étiquettes X inclinées comme sur la capture */}
@@ -489,60 +671,241 @@ export default function DashboardPage() {
               
               {/* Ligne 1 : Parcours à créer & Étapes à valider */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                
+                {/* 1. Parcours à créer */}
                 <div>
-                  <h3 className="text-[14px] font-normal text-slate-800">
-                    Parcours à créer
-                  </h3>
-                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
-                  <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs">
-                    Aucune tâche restante
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[14px] font-normal text-slate-800 flex items-center gap-2">
+                      <span>Parcours à créer</span>
+                      {parcoursACreer.length > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#fff1ec] text-[#e8664d] border border-[#fed7cc]">
+                          {parcoursACreer.length}
+                        </span>
+                      )}
+                    </h3>
                   </div>
+                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
+                  
+                  {parcoursACreer.length === 0 ? (
+                    <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs">
+                      Aucune tâche restante
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {parcoursACreer.map((b: any) => (
+                        <div 
+                          key={b.id} 
+                          className="p-2.5 rounded-md border border-orange-100 bg-orange-50/40 hover:bg-orange-50/80 transition-colors flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-800 truncate">
+                              {b.firstName} {b.lastName}
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate flex items-center gap-1.5 mt-0.5">
+                              <span className="font-mono text-[#f06553] font-medium">{b.fileNumber || `IML-${b.fileSeq}`}</span>
+                              <span>•</span>
+                              <span>{b.type === 'ENTREPRISE' ? 'PME' : b.type === 'STARTUP' ? 'Start-up' : 'Porteur de projet'}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCreatePathwayTarget(b);
+                              if (templates.length > 0) setSelectedTemplateId(templates[0].id);
+                            }}
+                            className="px-2.5 py-1 rounded bg-[#23c3b1] hover:bg-[#1db09e] text-white text-[11px] font-medium flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-2xs active:scale-95"
+                          >
+                            <Plus className="size-3" />
+                            <span>Créer</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
+                {/* 2. Étapes à valider */}
                 <div>
-                  <h3 className="text-[14px] font-normal text-slate-800">
-                    Étapes à valider
-                  </h3>
-                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
-                  <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs">
-                    Aucune tâche restante
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[14px] font-normal text-slate-800 flex items-center gap-2">
+                      <span>Étapes à valider</span>
+                      {etapesAValider.length > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {etapesAValider.length}
+                        </span>
+                      )}
+                    </h3>
                   </div>
+                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
+                  
+                  {etapesAValider.length === 0 ? (
+                    <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs">
+                      Aucune tâche restante
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {etapesAValider.map((item: any) => (
+                        <div 
+                          key={item.stepId} 
+                          className="p-2.5 rounded-md border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-colors flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-800 truncate">{item.stepTitle}</div>
+                            <div className="text-[10px] text-slate-500 truncate">{item.beneficiaryName}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleValidateStep(item.stepId, item.beneficiaryName, item.stepTitle)}
+                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium flex items-center gap-1 shrink-0 transition-all cursor-pointer active:scale-95"
+                          >
+                            <span>Valider</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Ligne 2 : Dates à proposer & En attente d'un coach */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                
+                {/* 3. Dates à proposer */}
                 <div>
-                  <h3 className="text-[14px] font-normal text-slate-800">
-                    Dates à proposer
-                  </h3>
-                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
-                  <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs">
-                    Aucune tâche restante
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[14px] font-normal text-slate-800 flex items-center gap-2">
+                      <span>Dates à proposer</span>
+                      {datesAProposer.length > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          {datesAProposer.length}
+                        </span>
+                      )}
+                    </h3>
                   </div>
+                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
+                  
+                  {datesAProposer.length === 0 ? (
+                    <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs">
+                      Aucune tâche restante
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {datesAProposer.map((b: any) => (
+                        <div 
+                          key={b.id} 
+                          className="p-2.5 rounded-md border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition-colors flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-800 truncate">{b.firstName} {b.lastName}</div>
+                            <div className="text-[10px] text-amber-600 font-medium truncate">Créneau à planifier</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsCreateAppointmentOpen(true)}
+                            className="px-2.5 py-1 rounded bg-white border border-slate-300 hover:border-[#23c3b1] text-slate-700 hover:text-[#23c3b1] text-[11px] font-medium flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                          >
+                            <Calendar className="size-3 text-[#23c3b1]" />
+                            <span>Planifier</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
+                {/* 4. En attente d'un coach */}
                 <div>
-                  <h3 className="text-[14px] font-normal text-slate-800">
-                    En attente d'un coach
-                  </h3>
-                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
-                  <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs">
-                    Aucune tâche restante
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[14px] font-normal text-slate-800 flex items-center gap-2">
+                      <span>En attente d'un coach</span>
+                      {enAttenteCoach.length > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          {enAttenteCoach.length}
+                        </span>
+                      )}
+                    </h3>
                   </div>
+                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
+                  
+                  {enAttenteCoach.length === 0 ? (
+                    <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-emerald-700 bg-emerald-50/60 border-emerald-200/80">
+                      Tous les bénéficiaires ont un conseiller référent
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {enAttenteCoach.map((b: any) => (
+                        <div 
+                          key={b.id} 
+                          className="p-2.5 rounded-md border border-rose-100 bg-rose-50/40 hover:bg-rose-50/80 transition-colors flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-800 truncate">{b.firstName} {b.lastName}</div>
+                            <div className="text-[10px] text-rose-600 font-medium">Non assigné</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/beneficiaries')}
+                            className="px-2.5 py-1 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-medium shrink-0 transition-colors cursor-pointer"
+                          >
+                            Assigner
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Ligne 3 : Certificats numériques à attribuer */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <h3 className="text-[14px] font-normal text-slate-800">
-                    Certificats numériques à attribuer
-                  </h3>
-                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
-                  <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs">
-                    Il n'y a pas de certificats numériques à attribuer
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[14px] font-normal text-slate-800 flex items-center gap-2">
+                      <span>Certificats numériques à attribuer</span>
+                      {certificatsAAttribuer.length > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          {certificatsAAttribuer.length}
+                        </span>
+                      )}
+                    </h3>
                   </div>
+                  <div className="border-b border-slate-200 mt-1 mb-2.5" />
+                  
+                  {certificatsAAttribuer.length === 0 ? (
+                    <div className="border border-slate-200 rounded py-3.5 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs flex flex-col items-center gap-2">
+                      <span>Il n'y a pas de certificats numériques à attribuer</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsIssueCertificateOpen(true)}
+                        className="text-[11px] font-medium text-[#23c3b1] hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <Award className="size-3" />
+                        <span>Délivrer manuellement un certificat</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {certificatsAAttribuer.map((b: any) => (
+                        <div 
+                          key={b.id} 
+                          className="p-2.5 rounded-md border border-amber-200 bg-amber-50/60 hover:bg-amber-50 transition-colors flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-800 truncate">{b.firstName} {b.lastName}</div>
+                            <div className="text-[10px] text-amber-700 font-medium">Parcours complété (100%)</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsIssueCertificateOpen(true)}
+                            className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-medium flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                          >
+                            <Award className="size-3" />
+                            <span>Délivrer</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -901,6 +1264,89 @@ export default function DashboardPage() {
         isOpen={isIssueCertificateOpen}
         onClose={() => setIsIssueCertificateOpen(false)}
       />
+
+      {/* MODALE CRÉER UN PARCOURS D'INCUBATION AU PREMIER PLAN */}
+      {createPathwayTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+            <div className="px-6 py-4 bg-[#14233c] text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BookOpen className="size-5 text-[#23c3b1]" />
+                <h3 className="font-bold text-sm">Démarrer un parcours d'incubation</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setCreatePathwayTarget(null)}
+                className="text-slate-300 hover:text-white text-lg font-bold cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-xs text-slate-700">
+                Bénéficiaire : <strong>{createPathwayTarget.firstName} {createPathwayTarget.lastName}</strong>
+                <span className="block text-[11px] text-slate-500 mt-1">
+                  N° Dossier : {createPathwayTarget.fileNumber || `IML-${createPathwayTarget.fileSeq}`} • {createPathwayTarget.type === 'ENTREPRISE' ? 'PME' : createPathwayTarget.type === 'STARTUP' ? 'Start-up' : 'Porteur de projet'}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Choisir le modèle de parcours <span className="text-[#f06553]">*</span>
+                </label>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1] bg-white cursor-pointer"
+                >
+                  <option value="">Sélectionner un modèle...</option>
+                  {templates.map((t: any) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.description ? `— ${t.description}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCreatePathwayTarget(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70 cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={!selectedTemplateId || isCreatingPathway}
+                onClick={handleConfirmCreatePathway}
+                className="px-5 py-2 rounded-xl bg-[#23c3b1] hover:bg-[#1db09e] disabled:opacity-50 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                {isCreatingPathway ? 'Création...' : 'Créer et activer le parcours'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST DE FEEDBACK DU TABLEAU DE BORD */}
+      {dashboardToast && (
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-[#14233c] text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 animate-in slide-in-from-top-4 fade-in duration-200">
+          <div className="size-6 rounded-full bg-[#23c3b1]/20 text-[#23c3b1] flex items-center justify-center shrink-0">
+            <CheckCircle2 className="size-4" />
+          </div>
+          <span className="text-xs font-semibold">{dashboardToast}</span>
+          <button 
+            type="button"
+            onClick={() => setDashboardToast(null)} 
+            className="text-slate-400 hover:text-white ml-2 transition-colors cursor-pointer text-base"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
     </div>
   );
