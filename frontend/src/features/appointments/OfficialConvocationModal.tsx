@@ -238,7 +238,7 @@ export default function OfficialConvocationModal({
                     </div>
                   ) : (
                     <div className="text-xs sm:text-sm font-semibold text-slate-900">
-                      {data.locationOrUrl || 'Siège IML Digit - Boulevard Triomphal, Libreville, Gabon (Salle de réunion B)'}
+                      {data.locationOrUrl || 'Siège IML Digit - Espace PME, Bâtiment B2, Libreville, Gabon'}
                     </div>
                   )}
                 </div>
