@@ -18,16 +18,39 @@ import {
   Contact,
   UserCheck,
   Building2,
-  ChevronRight
+  ChevronRight,
+  Timer,
+  Copy,
+  MessageSquare,
+  X
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../features/auth/AuthContext';
 import AppBreadcrumb, { BreadcrumbProvider } from './AppBreadcrumb';
+import RecordServiceModal from '../../features/services/RecordServiceModal';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Modales et actions des 3 boutons flottants globaux
+  const [isGlobalRecordServiceOpen, setIsGlobalRecordServiceOpen] = useState(false);
+  const [isGlobalNotesOpen, setIsGlobalNotesOpen] = useState(false);
+  const [globalNote, setGlobalNote] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('iml_global_quick_scratchpad') || '';
+    }
+    return '';
+  });
+
+  const handleSaveGlobalNote = (val: string) => {
+    setGlobalNote(val);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('iml_global_quick_scratchpad', val);
+    }
+  };
   
   // Sous-menus disponibles selon l'icône sélectionnée ou survolée
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
@@ -407,6 +430,112 @@ export default function AppLayout() {
             <Outlet />
           </div>
         </main>
+
+        {/* =========================================================================
+            BOUTONS D'ACTION FLOTTANTS GLOBAUX (Visibles sur toute la plateforme)
+           ========================================================================= */}
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
+          {/* Bouton 1 : Chronomètre / Enregistrer une prestation */}
+          <button
+            type="button"
+            onClick={() => setIsGlobalRecordServiceOpen(true)}
+            title="Pointer une prestation / Chrono"
+            aria-label="Pointer une prestation"
+            className="size-12 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-lg shadow-[#f06553]/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          >
+            <Timer className="size-6 text-white stroke-[2.2]" />
+          </button>
+
+          {/* Bouton 2 : Bloc-notes rapide / Mémo global */}
+          <button
+            type="button"
+            onClick={() => setIsGlobalNotesOpen(true)}
+            title="Bloc-notes & mémos rapides"
+            aria-label="Bloc-notes & mémos rapides"
+            className="size-12 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-lg shadow-[#f06553]/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          >
+            <Copy className="size-5.5 text-white stroke-[2.2]" />
+          </button>
+
+          {/* Bouton 3 : Messagerie */}
+          <button
+            type="button"
+            onClick={() => navigate('/messages')}
+            title="Messagerie instantanée"
+            aria-label="Messagerie instantanée"
+            className="size-12 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-lg shadow-[#f06553]/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          >
+            <MessageSquare className="size-5.5 text-white stroke-[2.2]" />
+          </button>
+        </div>
+
+        {/* Modale globale : Enregistrer une prestation */}
+        <RecordServiceModal
+          isOpen={isGlobalRecordServiceOpen}
+          onClose={() => setIsGlobalRecordServiceOpen(false)}
+          onSuccess={() => setIsGlobalRecordServiceOpen(false)}
+        />
+
+        {/* Modale globale : Bloc-notes rapide */}
+        {isGlobalNotesOpen && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in duration-150">
+            <div className="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <div className="size-7 rounded-full bg-[#f06553]/10 text-[#f06553] flex items-center justify-center">
+                    <Copy className="size-3.5" />
+                  </div>
+                  <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">
+                    Bloc-notes rapide (Partout sur la plateforme)
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsGlobalNotesOpen(false)}
+                  className="size-7 rounded-md hover:bg-slate-200/60 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 text-xs">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1.5">
+                    Notes, rappels et mémos opérationnels
+                  </label>
+                  <textarea
+                    value={globalNote}
+                    onChange={(e) => handleSaveGlobalNote(e.target.value)}
+                    rows={7}
+                    placeholder="Notez vos idées, comptes-rendus express ou tâches à ne pas oublier..."
+                    className="w-full text-xs p-3 rounded border border-slate-200 focus:outline-none focus:border-[#f06553] focus:ring-1 focus:ring-[#f06553] text-slate-800 placeholder:text-slate-400 leading-relaxed"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    ✓ Sauvegarde automatique en temps réel dans votre session locale.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveGlobalNote('')}
+                    className="text-slate-400 hover:text-rose-600 text-xs transition-colors cursor-pointer"
+                  >
+                    Effacer le mémo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsGlobalNotesOpen(false)}
+                    className="h-8 px-4 rounded bg-[#f06553] hover:bg-[#e05341] text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     </div>
     </BreadcrumbProvider>

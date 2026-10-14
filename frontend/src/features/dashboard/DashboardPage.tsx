@@ -14,10 +14,7 @@ import {
   Mail, 
   ChevronLeft, 
   ChevronRight, 
-  Info, 
-  MessageSquare, 
-  Copy,
-  Timer
+  Info
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import CreateBeneficiaryModal from '../beneficiaries/CreateBeneficiaryModal';
@@ -568,48 +565,6 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* =========================================================================
-          3 BOUTONS FLOTTANTS CORAIL EN BAS À DROITE (Minuteur, Notes, Messagerie)
-         ========================================================================= */}
-      <div className="fixed bottom-20 sm:bottom-24 right-6 sm:right-8 z-40 flex items-center gap-2.5 bg-white/50 p-1.5 rounded-full backdrop-blur-xs border border-white/70 shadow-lg">
-        {/* Minuteur */}
-        <button
-          type="button"
-          title="Minuteur de séance"
-          className="size-11 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-md shadow-[#f06553]/40 transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-        >
-          <Timer className="size-5" />
-        </button>
-
-        {/* Bloc-notes */}
-        <button
-          type="button"
-          title="Prise de notes rapide"
-          onClick={() => {
-            if (beneficiaryCount === 0) {
-              handleActionClick({
-                title: 'Créer une note',
-                message: "Vous devez d'abord créer au moins un bénéficiaire avant de pouvoir créer une note.",
-                icon: StickyNote
-              });
-            } else {
-              setIsCreateNoteOpen(true);
-            }
-          }}
-          className="size-11 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-md shadow-[#f06553]/40 transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-        >
-          <Copy className="size-5" />
-        </button>
-
-        {/* Messagerie */}
-        <button
-          type="button"
-          title="Messagerie & Assistance"
-          className="size-11 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-md shadow-[#f06553]/40 transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-        >
-          <MessageSquare className="size-5" />
-        </button>
-      </div>
 
       {/* MODALE D'AVERTISSEMENT : BÉNÉFICIAIRE REQUIS (Conforme à la capture de référence) */}
       <BeneficiaryRequiredModal

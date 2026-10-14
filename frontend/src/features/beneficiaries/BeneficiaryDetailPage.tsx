@@ -14,10 +14,7 @@ import {
   Download, 
   Plus, 
   Trash2, 
-  Clock, 
-  MessageSquare, 
   X, 
-  Play, 
   Pencil, 
   Video, 
   Key, 
@@ -1199,41 +1196,6 @@ export default function BeneficiaryDetailPage() {
 
       </div>
 
-      {/* =========================================================================
-          BOUTONS D'ACTION FLOTTANTS EN BAS À DROITE (Identiques aux captures)
-         ========================================================================= */}
-      <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
-        {/* Bouton 1 : Chronomètre / Enregistrer une prestation */}
-        <button
-          type="button"
-          onClick={() => setIsRecordServiceModalOpen(true)}
-          title="Pointer une prestation / Chrono"
-          className="size-11 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform cursor-pointer relative group"
-        >
-          <Clock className="size-5" />
-          <Play className="size-2.5 fill-white text-white absolute bottom-2.5 right-2.5" />
-        </button>
-
-        {/* Bouton 2 : Bloc-notes rapide du dossier */}
-        <button
-          type="button"
-          onClick={() => setIsQuickNoteModalOpen(true)}
-          title="Note rapide pour ce bénéficiaire"
-          className="size-11 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform cursor-pointer"
-        >
-          <FileText className="size-5" />
-        </button>
-
-        {/* Bouton 3 : Messagerie */}
-        <button
-          type="button"
-          onClick={() => navigate('/messages')}
-          title="Messagerie instantanée"
-          className="size-11 rounded-full bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform cursor-pointer"
-        >
-          <MessageSquare className="size-5" />
-        </button>
-      </div>
 
       {/* =========================================================================
           MODALE : CRÉER UN COMPTEUR D'HEURES
