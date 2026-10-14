@@ -304,15 +304,8 @@ export default function BeneficiaryDetailPage() {
           
           {/* Bloc Gauche : Drapeau, 5 boutons corail d'action, Avatar & Nom */}
           <div className="p-4 sm:p-5 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200 min-w-[280px]">
-            {/* Rangée Drapeau + 5 boutons corail */}
+            {/* Rangée des 5 boutons corail */}
             <div className="flex items-center gap-1.5 mb-4">
-              {/* Drapeau */}
-              <span className="inline-flex overflow-hidden rounded-[2px] w-5 h-3.5 border border-slate-300 shadow-2xs shrink-0" title="France">
-                <span className="w-1/3 h-full bg-[#002654]"></span>
-                <span className="w-1/3 h-full bg-white"></span>
-                <span className="w-1/3 h-full bg-[#ce1126]"></span>
-              </span>
-
               {/* 1. Bouton Crayon (Modifier) */}
               <button
                 type="button"
