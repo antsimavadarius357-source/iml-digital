@@ -287,14 +287,6 @@ export default function BeneficiaryDetailPage() {
   return (
     <div className="max-w-[1400px] mx-auto pb-16 space-y-4 font-sans">
 
-      {/* =========================================================================
-          1. BANDEAU SUPÉRIEUR JAUNE : "Il vous reste 25 jour(s) gratuit(s)"
-         ========================================================================= */}
-      <div className="flex justify-center -mb-1">
-        <div className="bg-[#fef08a] border border-[#fde047] text-amber-900 text-xs font-semibold px-4 py-1.5 rounded shadow-2xs">
-          Il vous reste 25 jour(s) gratuit(s)
-        </div>
-      </div>
 
       {/* =========================================================================
           2. CARTE EN-TÊTE DU DOSSIER BÉNÉFICIAIRE (Conforme exactement à la capture)
