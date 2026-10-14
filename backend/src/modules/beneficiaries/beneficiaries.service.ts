@@ -30,9 +30,20 @@ export function scopeWhere(auth: Auth): Prisma.BeneficiaryWhereInput {
 const listSelect = {
   id: true, fileSeq: true, createdAt: true, type: true, firstName: true, lastName: true, status: true,
   priority: true, lastActivityAt: true, startDate: true,
+  assignedAgentId: true,
   assignedAgent: { select: { id: true, firstName: true, lastName: true } },
   program: { select: { id: true, name: true } },
   projects: { select: { id: true, name: true, stage: true, sector: { select: { id: true, name: true } } }, take: 1, orderBy: { createdAt: 'asc' } },
+  pathway: { 
+    select: { 
+      id: true, 
+      status: true, 
+      progress: true, 
+      template: { select: { id: true, name: true } },
+      steps: { select: { id: true, title: true, status: true, orderIndex: true }, orderBy: { orderIndex: 'asc' } } 
+    } 
+  },
+  appointments: { select: { id: true, datetime: true, status: true }, take: 3, orderBy: { datetime: 'desc' } }
 } satisfies Prisma.BeneficiarySelect;
 
 function filters(q: z.infer<typeof listBeneficiariesSchema>, auth: Auth): Prisma.BeneficiaryWhereInput {
