@@ -21,6 +21,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
+import AppBreadcrumb, { BreadcrumbProvider } from './AppBreadcrumb';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -77,10 +78,10 @@ export default function AppLayout() {
       subtitle: 'Bénéficiaires & acteurs',
       items: [
         { label: 'Bénéficiaires', to: '/beneficiaires', icon: UserIcon },
-        { label: 'Groupes', to: '/beneficiaires?vue=groupes', icon: Users },
-        { label: 'Contacts', to: '/beneficiaires?vue=contacts', icon: Contact },
+        { label: 'Groupes', to: '/groupes', icon: Users },
+        { label: 'Contacts', to: '/contacts', icon: Contact },
         { label: 'Coachs & Équipe', to: '/equipe', icon: UserCheck },
-        { label: 'Organisations', to: '/beneficiaires?vue=organisations', icon: Building2 },
+        { label: 'Organisations', to: '/beneficiaires', icon: Building2 },
       ]
     },
     accompagnement: {
@@ -88,7 +89,7 @@ export default function AppLayout() {
       subtitle: 'Suivi opérationnel',
       items: [
         { label: 'Rendez-vous & Agenda', to: '/agendas', icon: Calendar },
-        { label: 'Prestations réalisées', to: '/tableau-de-bord', icon: HeartHandshake },
+        { label: 'Prestations réalisées', to: '/parcours', icon: HeartHandshake },
         { label: 'Documents & Livrables', to: '/documents', icon: FileText },
         { label: 'Notes de suivi', to: '/tableau-de-bord', icon: FileText },
       ]
@@ -124,7 +125,8 @@ export default function AppLayout() {
   const activeSubmenu = hoveredMenu || openSubmenu;
 
   return (
-    <div className="min-h-screen bg-[#fcfbf9] flex font-sans selection:bg-[#f06553] selection:text-white">
+    <BreadcrumbProvider>
+      <div className="min-h-screen bg-[#fcfbf9] flex font-sans selection:bg-[#f06553] selection:text-white">
       {/* Mobile Backdrop */}
       {mobileOpen && (
         <div 
@@ -401,10 +403,12 @@ export default function AppLayout() {
             aria-hidden="true"
           />
           <div className="relative z-10">
+            <AppBreadcrumb />
             <Outlet />
           </div>
         </main>
       </div>
     </div>
+    </BreadcrumbProvider>
   );
 }
