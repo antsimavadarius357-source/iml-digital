@@ -18,15 +18,12 @@ import {
   Contact,
   UserCheck,
   Building2,
-  ChevronRight,
-  MessageSquare
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
-import AppBreadcrumb, { BreadcrumbProvider } from './AppBreadcrumb';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
-  const isCoach = user?.role === 'COACH';
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -80,8 +77,8 @@ export default function AppLayout() {
       subtitle: 'Bénéficiaires & acteurs',
       items: [
         { label: 'Bénéficiaires', to: '/beneficiaires', icon: UserIcon },
-        { label: 'Groupes', to: '/groupes', icon: Users },
-        { label: 'Contacts', to: '/contacts', icon: Contact },
+        { label: 'Groupes', to: '/beneficiaires?vue=groupes', icon: Users },
+        { label: 'Contacts', to: '/beneficiaires?vue=contacts', icon: Contact },
         { label: 'Coachs & Équipe', to: '/equipe', icon: UserCheck },
         { label: 'Organisations', to: '/beneficiaires?vue=organisations', icon: Building2 },
       ]
@@ -116,24 +113,18 @@ export default function AppLayout() {
     }
   };
 
-  const navLinks = isCoach
-    ? [
-        { id: 'accueil', to: '/tableau-de-bord', label: 'Ma Session', icon: Home, hasSubmenu: false },
-        { id: 'messages', to: '/messages', label: 'Messages reçus', icon: MessageSquare, hasSubmenu: false },
-      ]
-    : [
-        { id: 'accueil', to: '/tableau-de-bord', label: 'Accueil', icon: Home, hasSubmenu: false },
-        { id: 'organisation', to: '/beneficiaires', label: 'Organisation', icon: Network, hasSubmenu: true },
-        { id: 'accompagnement', to: '/agendas', label: 'Accompagnement', icon: HeartHandshake, hasSubmenu: true },
-        { id: 'parcours', to: '/candidatures', label: 'Candidatures & Parcours', icon: Target, hasSubmenu: true },
-        { id: 'parametres', to: '/parametres', label: 'Paramètres', icon: Settings, hasSubmenu: true },
-      ];
+  const navLinks = [
+    { id: 'accueil', to: '/tableau-de-bord', label: 'Accueil', icon: Home, hasSubmenu: false },
+    { id: 'organisation', to: '/beneficiaires', label: 'Organisation', icon: Network, hasSubmenu: true },
+    { id: 'accompagnement', to: '/agendas', label: 'Accompagnement', icon: HeartHandshake, hasSubmenu: true },
+    { id: 'parcours', to: '/candidatures', label: 'Candidatures & Parcours', icon: Target, hasSubmenu: true },
+    { id: 'parametres', to: '/parametres', label: 'Paramètres', icon: Settings, hasSubmenu: true },
+  ];
 
-  const activeSubmenu = isCoach ? null : (hoveredMenu || openSubmenu);
+  const activeSubmenu = hoveredMenu || openSubmenu;
 
   return (
-    <BreadcrumbProvider>
-      <div className="min-h-screen bg-[#fcfbf9] flex font-sans selection:bg-[#f06553] selection:text-white">
+    <div className="min-h-screen bg-[#fcfbf9] flex font-sans selection:bg-[#f06553] selection:text-white">
       {/* Mobile Backdrop */}
       {mobileOpen && (
         <div 
@@ -353,45 +344,27 @@ export default function AppLayout() {
             </button>
           </div>
 
-          {/* Centre */}
-          {isCoach ? (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-50 border border-teal-200/80 text-teal-800 text-xs font-medium">
-              <span className="size-2 rounded-full bg-[#23c3b1] animate-pulse" />
-              <span>Session Coach active • Espace personnel de suivi</span>
+          {/* Centre : Barre de recherche blanche "Rechercher un bénéficiaire" */}
+          <div className="hidden md:flex items-center flex-1 max-w-sm mx-4">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Rechercher un bénéficiaire"
+                className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#2dd4bf] transition-all shadow-inner"
+              />
             </div>
-          ) : (
-            <div className="hidden md:flex items-center flex-1 max-w-sm mx-4">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Rechercher un bénéficiaire"
-                  className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#2dd4bf] transition-all shadow-inner"
-                />
-              </div>
-            </div>
-          )}
+          </div>
 
-          {/* Droite : Messages / Notifications & Profil */}
+          {/* Droite : Calendrier, Cloche & Profil DARUS */}
           <div className="flex items-center gap-3 sm:gap-4">
-            {isCoach ? (
-              <Link 
-                to="/messages" 
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100/80 text-teal-800 text-xs font-semibold transition-colors relative"
-                title="Consulter mes messages reçus"
-              >
-                <MessageSquare className="size-4 text-[#23c3b1]" />
-                <span className="hidden sm:inline">Messages reçus</span>
-              </Link>
-            ) : (
-              <Link 
-                to="/agendas" 
-                className="p-1.5 text-slate-600 hover:text-slate-900 transition-colors"
-                title="Mon calendrier"
-              >
-                <Calendar className="size-4" />
-              </Link>
-            )}
+            <Link 
+              to="/agendas" 
+              className="p-1.5 text-slate-600 hover:text-slate-900 transition-colors"
+              title="Mon calendrier"
+            >
+              <Calendar className="size-4" />
+            </Link>
 
             <button 
               className="p-1.5 text-slate-600 hover:text-slate-900 transition-colors relative"
@@ -400,32 +373,23 @@ export default function AppLayout() {
               <Bell className="size-4" />
             </button>
 
-            {/* Profil utilisateur */}
-            {isCoach ? (
-              <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                <div className="size-7 rounded-full bg-teal-100 border border-teal-200 flex items-center justify-center text-teal-800 font-bold text-xs shrink-0">
-                  {user?.firstName?.[0] || 'C'}
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-slate-800 leading-tight">
-                    {user ? `${user.firstName} ${user.lastName}`.trim() : 'Coach IML'}
-                  </span>
-                  <span className="text-[10px] text-teal-700 font-medium leading-none">
-                    Session Coach
-                  </span>
-                </div>
+            {/* Profil utilisateur connecté avec déconnexion */}
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+              <div className="size-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                <UserIcon className="size-3.5" />
               </div>
-            ) : (
-              <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                <div className="size-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
-                  <UserIcon className="size-3.5" />
-                </div>
-                <span className="text-amber-500 text-sm">👑</span>
-                <span className="text-xs font-normal text-slate-700 tracking-wider">
-                  {user ? `${user.firstName} ${user.lastName}`.trim() : 'DARUS'}
-                </span>
-              </div>
-            )}
+              <span className="text-xs font-semibold text-slate-700 tracking-wide">
+                {user ? `${user.firstName} ${user.lastName}`.trim() : 'Agent IML'}
+              </span>
+              <button 
+                onClick={() => void logout()}
+                title="Se déconnecter"
+                aria-label="Se déconnecter"
+                className="p-1 ml-1 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+              >
+                <LogOut className="size-3.5" />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -437,12 +401,10 @@ export default function AppLayout() {
             aria-hidden="true"
           />
           <div className="relative z-10">
-            <AppBreadcrumb />
             <Outlet />
           </div>
         </main>
       </div>
     </div>
-    </BreadcrumbProvider>
   );
 }

@@ -19,8 +19,6 @@ import SolutionsDetailPage from '../features/public/SolutionsDetailPage';
 import ContactPage from '../features/public/ContactPage';
 import PublicApplicationPage from '../features/public/PublicApplicationPage';
 import BeneficiariesPage from '../features/beneficiaries/BeneficiariesPage';
-import GroupsPage from '../features/groups/GroupsPage';
-import ContactsPage from '../features/contacts/ContactsPage';
 import BeneficiaryFormPage from '../features/beneficiaries/BeneficiaryFormPage';
 import BeneficiaryDetailPage from '../features/beneficiaries/BeneficiaryDetailPage';
 import BeneficiaryEditPage from '../features/beneficiaries/BeneficiaryEditPage';
@@ -31,11 +29,8 @@ import PathwaysPage from '../features/pathways/PathwaysPage';
 import PathwayDetailPage from '../features/pathways/PathwayDetailPage';
 import DocumentsPage from '../features/documents/DocumentsPage';
 import UsersPage from '../features/users/UsersPage';
-import CoachDetailPage from '../features/coaches/CoachDetailPage';
 import AuditPage from '../features/audit/AuditPage';
 import SettingsPage from '../features/settings/SettingsPage';
-import CoachMessagesPage from '../features/messages/CoachMessagesPage';
-
 function Protected() {
   const { user, isLoading } = useAuth();
   if (isLoading) {
@@ -50,15 +45,6 @@ function Protected() {
 function RequirePermission({ permission, children }: { permission: string; children: ReactNode }) {
   const { can } = useAuth();
   return can(permission) ? <>{children}</> : <Navigate to="/" replace />;
-}
-
-/** Garde stricte : Le rôle COACH ne consulte que sa session personnelle et ses messages */
-function RestrictCoach({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  if (user?.role === 'COACH') {
-    return <Navigate to="/tableau-de-bord" replace />;
-  }
-  return <>{children}</>;
 }
 
 export default function AppRoutes() {
@@ -80,44 +66,29 @@ export default function AppRoutes() {
       <Route path="/connexion" element={<LoginPage />} />
       
       <Route element={<Protected />}>
-        {/* Espaces accessibles au Coach */}
         <Route path="tableau-de-bord" element={<DashboardPage />} />
-        <Route path="tableau-de-bord/:roleParam" element={<DashboardPage />} />
-        <Route path="messages" element={<CoachMessagesPage />} />
-
-        {/* Modules d'administration et de gestion : inaccessibles au Coach */}
-        <Route path="equipe" element={<RestrictCoach><UsersPage /></RestrictCoach>} />
-        <Route path="equipe/:id" element={<RestrictCoach><CoachDetailPage /></RestrictCoach>} />
-        <Route path="coachs" element={<RestrictCoach><UsersPage /></RestrictCoach>} />
-        <Route path="coachs/:id" element={<RestrictCoach><CoachDetailPage /></RestrictCoach>} />
-        
+        <Route path="equipe" element={<RequirePermission permission="users:manage"><UsersPage /></RequirePermission>} />
         <Route path="beneficiaires">
-          <Route index element={<RestrictCoach><RequirePermission permission="beneficiaries:read"><BeneficiariesPage /></RequirePermission></RestrictCoach>} />
-          <Route path="nouveau" element={<RestrictCoach><RequirePermission permission="beneficiaries:write"><BeneficiaryFormPage /></RequirePermission></RestrictCoach>} />
-          <Route path=":id" element={<RestrictCoach><RequirePermission permission="beneficiaries:read"><BeneficiaryDetailPage /></RequirePermission></RestrictCoach>} />
-          <Route path=":id/modifier" element={<RestrictCoach><RequirePermission permission="beneficiaries:write"><BeneficiaryEditPage /></RequirePermission></RestrictCoach>} />
+          <Route index element={<RequirePermission permission="beneficiaries:read"><BeneficiariesPage /></RequirePermission>} />
+          <Route path="nouveau" element={<RequirePermission permission="beneficiaries:write"><BeneficiaryFormPage /></RequirePermission>} />
+          <Route path=":id" element={<RequirePermission permission="beneficiaries:read"><BeneficiaryDetailPage /></RequirePermission>} />
+          <Route path=":id/modifier" element={<RequirePermission permission="beneficiaries:write"><BeneficiaryEditPage /></RequirePermission>} />
         </Route>
-
-        <Route path="groupes" element={<RestrictCoach><RequirePermission permission="beneficiaries:read"><GroupsPage /></RequirePermission></RestrictCoach>} />
-        <Route path="contacts" element={<RestrictCoach><RequirePermission permission="beneficiaries:read"><ContactsPage /></RequirePermission></RestrictCoach>} />
-        
         <Route path="candidatures">
-          <Route index element={<RestrictCoach><RequirePermission permission="applications:review"><ApplicationsPage /></RequirePermission></RestrictCoach>} />
-          <Route path=":id" element={<RestrictCoach><RequirePermission permission="applications:review"><ApplicationDetailPage /></RequirePermission></RestrictCoach>} />
+          <Route index element={<RequirePermission permission="applications:review"><ApplicationsPage /></RequirePermission>} />
+          <Route path=":id" element={<RequirePermission permission="applications:review"><ApplicationDetailPage /></RequirePermission>} />
         </Route>
-
         <Route path="agendas">
-          <Route index element={<RestrictCoach><RequirePermission permission="appointments:manage"><AppointmentsPage /></RequirePermission></RestrictCoach>} />
+          <Route index element={<RequirePermission permission="appointments:manage"><AppointmentsPage /></RequirePermission>} />
         </Route>
-
         <Route path="parcours">
-          <Route index element={<RestrictCoach><RequirePermission permission="pathways:manage"><PathwaysPage /></RequirePermission></RestrictCoach>} />
-          <Route path=":id" element={<RestrictCoach><RequirePermission permission="pathways:manage"><PathwayDetailPage /></RequirePermission></RestrictCoach>} />
+          <Route index element={<RequirePermission permission="pathways:manage"><PathwaysPage /></RequirePermission>} />
+          <Route path=":id" element={<RequirePermission permission="pathways:manage"><PathwayDetailPage /></RequirePermission>} />
         </Route>
-
-        <Route path="documents" element={<RestrictCoach><DocumentsPage /></RestrictCoach>} />
-        <Route path="audit" element={<RestrictCoach><RequirePermission permission="audit:read"><AuditPage /></RequirePermission></RestrictCoach>} />
-        <Route path="parametres" element={<RestrictCoach><RequirePermission permission="settings:manage"><SettingsPage /></RequirePermission></RestrictCoach>} />
+        <Route path="documents" element={<DocumentsPage />} />
+        <Route path="equipe" element={<RequirePermission permission="users:manage"><UsersPage /></RequirePermission>} />
+        <Route path="audit" element={<RequirePermission permission="audit:read"><AuditPage /></RequirePermission>} />
+        <Route path="parametres" element={<RequirePermission permission="settings:manage"><SettingsPage /></RequirePermission>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
