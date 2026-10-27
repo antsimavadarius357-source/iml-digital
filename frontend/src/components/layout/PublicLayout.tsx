@@ -57,8 +57,8 @@ export default function PublicLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
           
           {/* Logo Brand */}
-          <Link to="/" className="flex items-center group">
-            <ImlLogo variant="full" theme="light" size="md" />
+          <Link to="/" className="flex items-center group py-1" title="Accueil IML Digit">
+            <ImlLogo variant="icon" theme="light" size="lg" />
           </Link>
 
           {/* Desktop Navigation Links */}
@@ -220,8 +220,8 @@ export default function PublicLayout() {
             
             {/* Colonne 1 : Présentation & Mission */}
             <div className="lg:col-span-2 space-y-4">
-              <Link to="/" className="inline-block">
-                <ImlLogo variant="full" theme="dark" size="md" />
+              <Link to="/" className="inline-block" title="Accueil IML Digit">
+                <ImlLogo variant="icon" theme="dark" size="lg" />
               </Link>
               <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
                 Dispositif national et souverain d'incubation et d'accélération. 

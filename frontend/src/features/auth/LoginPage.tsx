@@ -81,7 +81,7 @@ export default function LoginPage() {
           <div className="max-w-[360px] w-full mx-auto space-y-4 my-auto">
             {/* Logo officiel IML */}
             <div className="flex justify-center pb-2">
-              <ImlLogo variant="full" theme="dark" size="lg" />
+              <ImlLogo variant="icon" theme="dark" size="lg" />
             </div>
 
             {/* Titre épuré */}

@@ -118,19 +118,21 @@ export const ImlSymbol: React.FC<{ className?: string; size?: number }> = ({ cla
 
 export default function ImlLogo({
   className = '',
-  variant = 'full',
+  variant = 'icon',
   theme = 'light',
   size = 'md'
 }: ImlLogoProps) {
   const isDark = theme === 'dark';
 
-  // Tailles du symbole
-  const symbolSize = size === 'sm' ? 32 : size === 'lg' ? 44 : 38;
+  // Tailles du symbole (plus généreux et visible sans le texte)
+  const symbolSize = size === 'sm' ? 36 : size === 'lg' ? 52 : 44;
 
   if (variant === 'icon') {
     return (
-      <div className={`inline-flex items-center justify-center ${className}`}>
-        <ImlSymbol size={symbolSize} />
+      <div className={`inline-flex items-center justify-center select-none group ${className}`}>
+        <div className="relative shrink-0 transition-transform group-hover:scale-105 duration-200">
+          <ImlSymbol size={symbolSize} />
+        </div>
       </div>
     );
   }
