@@ -167,30 +167,6 @@ export default function LoginPage() {
               </div>
             </form>
 
-            {/* Aide pour les candidats / porteurs de projet */}
-            <div className="pt-3 border-t border-slate-700/60 text-center space-y-2 text-xs">
-              <p className="text-slate-300">
-                Vous êtes porteur de projet ou candidat ?
-              </p>
-              <div className="flex items-center justify-center gap-3 text-xs">
-                <button
-                  type="button"
-                  onClick={() => navigate('/suivi-candidature')}
-                  className="text-[#f06553] font-bold hover:underline cursor-pointer"
-                >
-                  Suivre mon dossier
-                </button>
-                <span className="text-slate-500">•</span>
-                <button
-                  type="button"
-                  onClick={() => navigate('/candidater')}
-                  className="text-white font-medium hover:underline cursor-pointer"
-                >
-                  Déposer une candidature
-                </button>
-              </div>
-            </div>
-
           </div>
           {/* Équilibreur d'alignement vertical */}
           <div className="hidden lg:block h-8" />
