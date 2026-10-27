@@ -12,6 +12,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import AuthModal from '../../features/auth/AuthModal';
+import ImlLogo from '../common/ImlLogo';
 
 export default function PublicLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -56,18 +57,8 @@ export default function PublicLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
           
           {/* Logo Brand */}
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="size-10 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center justify-center font-black text-xl shadow-md border border-slate-700/60 group-hover:scale-105 transition-transform">
-              <span className="text-[#FF5B37]">i</span>m
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
-                iml digit<span className="text-[#FF5B37]">.</span>
-              </span>
-              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider -mt-1 hidden sm:block">
-                Incubation & Accélération
-              </span>
-            </div>
+          <Link to="/" className="flex items-center group">
+            <ImlLogo variant="full" theme="light" size="md" />
           </Link>
 
           {/* Desktop Navigation Links */}
@@ -229,14 +220,9 @@ export default function PublicLayout() {
             
             {/* Colonne 1 : Présentation & Mission */}
             <div className="lg:col-span-2 space-y-4">
-              <div className="flex items-center gap-2.5">
-                <div className="size-9 rounded-xl bg-gradient-to-br from-[#FF5B37] to-[#FA4620] text-white flex items-center justify-center font-black text-lg shadow-md">
-                  i
-                </div>
-                <span className="text-2xl font-black tracking-tight text-white">
-                  iml digit<span className="text-[#FF5B37]">.</span>
-                </span>
-              </div>
+              <Link to="/" className="inline-block">
+                <ImlLogo variant="full" theme="dark" size="md" />
+              </Link>
               <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
                 Dispositif national et souverain d'incubation et d'accélération. 
                 Nous structurons l'écosystème entrepreneurial pour transformer les talents en entreprises durables, financées et génératrices d'emplois.

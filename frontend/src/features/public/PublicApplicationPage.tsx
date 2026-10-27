@@ -355,7 +355,7 @@ export default function PublicApplicationPage() {
               to="/" 
               className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#f06553] transition-colors"
             >
-              <ArrowLeft className="size-4" /> Retour au site iml digit.
+              <ArrowLeft className="size-4" /> Retour au site IML Digit
             </Link>
 
             <span className="text-slate-300">|</span>

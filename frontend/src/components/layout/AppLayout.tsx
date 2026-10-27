@@ -32,6 +32,7 @@ import { useAuth } from '../../features/auth/AuthContext';
 import AppBreadcrumb, { BreadcrumbProvider } from './AppBreadcrumb';
 import QuickWhatsAppModal, { WhatsAppSvg } from '../communication/QuickWhatsAppModal';
 import QuickEmailModal from '../communication/QuickEmailModal';
+import { ImlSymbol } from '../common/ImlLogo';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -426,14 +427,14 @@ export default function AppLayout() {
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        {/* Case supérieure blanche 60x60 avec le symbole infini noir */}
+        {/* Case supérieure blanche 60x60 avec le symbole officiel IML */}
         <div className="h-16 w-full bg-white border-b border-r border-slate-200/80 flex items-center justify-center shrink-0">
           <Link 
             to="/" 
-            className="text-2xl font-black text-slate-800 hover:text-[#f06553] transition-colors"
+            className="flex items-center justify-center hover:scale-105 transition-transform"
             title="Accueil iml digit"
           >
-            ∞
+            <ImlSymbol size={32} />
           </Link>
         </div>
 

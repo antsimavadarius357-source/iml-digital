@@ -7,6 +7,7 @@ import { Eye, EyeOff, Lock, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import AuthModal from './AuthModal';
 import Iml3DShowcaseAnimation from './Iml3DShowcaseAnimation';
+import ImlLogo from '../../components/common/ImlLogo';
 
 const schema = z.object({
   email: z.string().trim().email('Adresse e-mail invalide'),
@@ -78,6 +79,11 @@ export default function LoginPage() {
           </div>
           
           <div className="max-w-[360px] w-full mx-auto space-y-4 my-auto">
+            {/* Logo officiel IML */}
+            <div className="flex justify-center pb-2">
+              <ImlLogo variant="full" theme="dark" size="lg" />
+            </div>
+
             {/* Titre épuré */}
             <div className="text-center space-y-1.5 pb-2">
               <h1 className="text-2xl font-bold text-white tracking-tight">
