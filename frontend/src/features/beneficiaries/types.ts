@@ -1,5 +1,11 @@
 export interface Option { id: string; name: string }
-export interface AgentOption { id: string; firstName: string; lastName: string }
+export interface AgentOption { 
+  id: string; 
+  firstName: string; 
+  lastName: string; 
+  email?: string;
+  role?: { code: string; label: string };
+}
 export interface Options { sectors: Option[]; programs: Option[]; agents: AgentOption[] }
 
 export const TYPE_LABELS: Record<string, string> = {
@@ -38,4 +44,13 @@ export interface ProjectDetail {
 export interface BeneficiaryDetail extends Omit<BeneficiaryRow, 'projects'> {
   email: string; phone: string | null; city: string | null; startDate: string | null; initialObjectives: string | null;
   projects: ProjectDetail[];
+  assignments?: { id: string; user: { id: string; firstName: string; lastName: string; email?: string } }[];
+  application?: {
+    id: string;
+    seqNumber: number;
+    applicantData: any;
+    projectData: any;
+    submittedAt?: string;
+  };
+  pathway?: any;
 }

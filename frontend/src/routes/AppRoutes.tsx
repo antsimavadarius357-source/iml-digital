@@ -16,9 +16,11 @@ import GuidesPage from '../features/public/GuidesPage';
 import ModelesPage from '../features/public/ModelesPage';
 import WebinairesPage from '../features/public/WebinairesPage';
 import SolutionsDetailPage from '../features/public/SolutionsDetailPage';
+import FonctionnalitesPage from '../features/public/FonctionnalitesPage';
 import ContactPage from '../features/public/ContactPage';
 import PublicApplicationPage from '../features/public/PublicApplicationPage';
 import SuiviCandidaturePage from '../features/public/SuiviCandidaturePage';
+import PublicCertificatePage from '../features/public/PublicCertificatePage';
 import BeneficiariesPage from '../features/beneficiaries/BeneficiariesPage';
 import BeneficiaryFormPage from '../features/beneficiaries/BeneficiaryFormPage';
 import BeneficiaryDetailPage from '../features/beneficiaries/BeneficiaryDetailPage';
@@ -36,7 +38,8 @@ import GroupsPage from '../features/groups/GroupsPage';
 import ContactsPage from '../features/contacts/ContactsPage';
 import CoachMessagesPage from '../features/messages/CoachMessagesPage';
 import AuditPage from '../features/audit/AuditPage';
-import SettingsPage from '../features/settings/SettingsPage';
+import FollowUpNotesPage from '../features/notes/FollowUpNotesPage';
+import MilestoneValidationPage from '../features/pathways/MilestoneValidationPage';
 
 function Protected() {
   const { user, isLoading } = useAuth();
@@ -73,6 +76,9 @@ export default function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/candidater" element={<PublicApplicationPage />} />
         <Route path="/suivi-candidature" element={<SuiviCandidaturePage />} />
+        <Route path="/suivi" element={<SuiviCandidaturePage />} />
+        <Route path="/certificat/:id?" element={<PublicCertificatePage />} />
+        <Route path="/attestation/:id?" element={<PublicCertificatePage />} />
         <Route path="/offres" element={<OffresPage />} />
         <Route path="/tarifs" element={<TarifsPage />} />
         <Route path="/ressources/outils" element={<OutilsGratuitsPage />} />
@@ -81,6 +87,7 @@ export default function AppRoutes() {
         <Route path="/ressources/modeles" element={<ModelesPage />} />
         <Route path="/ressources/webinaires" element={<WebinairesPage />} />
         <Route path="/solutions/:slug" element={<SolutionsDetailPage />} />
+        <Route path="/fonctionnalites" element={<FonctionnalitesPage />} />
         <Route path="/contact" element={<ContactPage />} />
       </Route>
       <Route path="/connexion" element={<LoginPage />} />
@@ -102,6 +109,8 @@ export default function AppRoutes() {
         <Route path="coachs" element={<CoachesPage />} />
         <Route path="coachs/:id" element={<CoachDetailPage />} />
         <Route path="messages" element={<CoachMessagesPage />} />
+        <Route path="organisation" element={<Navigate to="/beneficiaires" replace />} />
+        <Route path="organisations" element={<Navigate to="/beneficiaires" replace />} />
 
         {/* Candidatures */}
         <Route path="candidatures">
@@ -109,22 +118,25 @@ export default function AppRoutes() {
           <Route path=":id" element={<RequirePermission permission="applications:review"><ApplicationDetailPage /></RequirePermission>} />
         </Route>
 
-        {/* Accompagnement & Rendez-vous */}
+        {/* Accompagnement & Rendez-vous & Prestations */}
         <Route path="agendas" element={<RequirePermission permission="appointments:manage"><AppointmentsPage /></RequirePermission>} />
         <Route path="rendez-vous" element={<RequirePermission permission="appointments:manage"><AppointmentsPage /></RequirePermission>} />
+        <Route path="prestations" element={<Navigate to="/rendez-vous" replace />} />
+        <Route path="notes-suivi" element={<FollowUpNotesPage />} />
 
-        {/* Parcours */}
+        {/* Parcours & Validation des étapes */}
         <Route path="parcours">
           <Route index element={<RequirePermission permission="pathways:manage"><PathwaysPage /></RequirePermission>} />
           <Route path=":id" element={<RequirePermission permission="pathways:manage"><PathwayDetailPage /></RequirePermission>} />
         </Route>
+        <Route path="validation-etapes" element={<MilestoneValidationPage />} />
 
         {/* Documents */}
         <Route path="documents" element={<DocumentsPage />} />
 
-        {/* Paramètres & Audit */}
+        {/* Journal d'Audit */}
         <Route path="audit" element={<AuditPage />} />
-        <Route path="parametres" element={<SettingsPage />} />
+        <Route path="parametres" element={<Navigate to="/tableau-de-bord" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

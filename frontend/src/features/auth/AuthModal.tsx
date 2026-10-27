@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
+import { X, ArrowRight, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
@@ -24,6 +24,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [googleNotice, setGoogleNotice] = useState<string | null>(null);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -36,6 +37,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setIsVerifying(false);
       setIsVerified(false);
       setErrorMessage(null);
+      setGoogleNotice(null);
     }
   }, [isOpen]);
 
@@ -251,11 +253,32 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               <div className="flex-1 h-px bg-slate-200" />
             </div>
 
+            {/* Notification simple et non technique */}
+            {googleNotice && (
+              <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-slate-700 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                <AlertCircle className="size-4 text-[#f06553] shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold text-slate-900">Connexion rapide par Google</p>
+                  <p className="text-[11px] leading-relaxed text-slate-600">
+                    Cette option sera active lors de la mise en ligne officielle. Pour tester dès maintenant, renseignez simplement votre e-mail ci-dessus ou utilisez vos identifiants.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Bouton Google */}
             <button
               type="button"
-              onClick={() => handleSubmitEmail({ preventDefault: () => {} } as any)}
-              className="w-full py-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm flex items-center justify-center gap-2.5 transition-colors shadow-sm"
+              onClick={() => {
+                if (email && email.includes('@')) {
+                  handleSubmitEmail({ preventDefault: () => {} } as any);
+                } else {
+                  setGoogleNotice("active");
+                  const input = document.querySelector<HTMLInputElement>('input[type="email"]');
+                  input?.focus();
+                }
+              }}
+              className="w-full py-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm flex items-center justify-center gap-2.5 transition-colors shadow-sm cursor-pointer"
             >
               <svg className="size-4" viewBox="0 0 24 24">
                 <path
@@ -275,7 +298,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>Google</span>
+              <span>Continuer avec Google</span>
             </button>
 
             {/* Conditions et mentions */}

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Users, 
@@ -20,18 +20,16 @@ import {
   CheckCircle2,
   Calendar,
   Filter,
-  Download,
-  Plus
+  Download
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import RecordServiceModal from '../services/RecordServiceModal';
 import { useSetBreadcrumbs } from '../../components/layout/AppBreadcrumb';
 
 export default function CoachDetailPage() {
-  const { id: _id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -61,24 +59,54 @@ export default function CoachDetailPage() {
   // État d'envoi d'e-mail d'accès
   const [emailSentNotice, setEmailSentNotice] = useState(false);
 
-  // Données du coach
-  const initialCoachName = user ? `${user.firstName} ${user.lastName}`.trim().toUpperCase() : 'ALEXANDRE AGENT IML';
-  const initialCoachEmail = user?.email || 'agent@imldigit.com';
+  // Données du coach résolues dynamiquement par identifiant
+  const currentCoach = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('iml_coaches_only_v2');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const found = list.find((c: any) => c.id === id || c.email === id);
+        if (found) return found;
+      }
+    } catch {}
+    return {
+      id: id || 'coach-darius',
+      name: 'DARIUS COACH IML',
+      email: 'coach@imldigit.com',
+      role: 'COACH',
+      roleLabel: "Coach Référent & Mentor",
+      language: 'Français',
+      timezone: 'Africa/Libreville (UTC 1:00)',
+      categories: 'Start-ups, PME, Entreprises & Organisations',
+      isActive: true,
+    };
+  }, [id]);
 
-  const [coachName, setCoachName] = useState(initialCoachName);
-  const [coachEmail, setCoachEmail] = useState(initialCoachEmail);
-  const [timezone, setTimezone] = useState('Africa/Libreville (UTC 1:00)');
-  const [categories, setCategories] = useState('Start-ups, PME, Entreprises & Organisations');
-
-  // 1. Bouton du milieu : Actif / Inactif
-  const [isActive, setIsActive] = useState<boolean>(true);
+  const [coachName, setCoachName] = useState(currentCoach.name);
+  const [coachEmail, setCoachEmail] = useState(currentCoach.email);
+  const [timezone, setTimezone] = useState(currentCoach.timezone || 'Africa/Libreville (UTC 1:00)');
+  const [categories, setCategories] = useState(currentCoach.categories || 'Start-ups, PME, Entreprises & Organisations');
+  const [isActive, setIsActive] = useState<boolean>(currentCoach.isActive !== false);
 
   // 2. Bouton de gauche : Modale Modifier
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editName, setEditName] = useState(coachName);
-  const [editEmail, setEditEmail] = useState(coachEmail);
-  const [editTimezone, setEditTimezone] = useState(timezone);
-  const [editCategories, setEditCategories] = useState('Start-ups, PME, Entreprises & Organisations');
+  const [editName, setEditName] = useState(currentCoach.name);
+  const [editEmail, setEditEmail] = useState(currentCoach.email);
+  const [editTimezone, setEditTimezone] = useState(currentCoach.timezone || 'Africa/Libreville (UTC 1:00)');
+  const [editCategories, setEditCategories] = useState(currentCoach.categories || 'Start-ups, PME, Entreprises & Organisations');
+
+  // Synchronisation lors du changement de coach
+  useEffect(() => {
+    setCoachName(currentCoach.name);
+    setCoachEmail(currentCoach.email);
+    setTimezone(currentCoach.timezone || 'Africa/Libreville (UTC 1:00)');
+    setCategories(currentCoach.categories || 'Start-ups, PME, Entreprises & Organisations');
+    setIsActive(currentCoach.isActive !== false);
+    setEditName(currentCoach.name);
+    setEditEmail(currentCoach.email);
+    setEditTimezone(currentCoach.timezone || 'Africa/Libreville (UTC 1:00)');
+    setEditCategories(currentCoach.categories || 'Start-ups, PME, Entreprises & Organisations');
+  }, [currentCoach]);
 
   // 3. Bouton de droite : Modale Supprimer
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -91,10 +119,21 @@ export default function CoachDetailPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Gestion de l'activation / désactivation du coach
+  // Gestion de l'activation / désactivation du coach avec persistance
   const handleToggleActive = () => {
     const nextState = !isActive;
     setIsActive(nextState);
+    try {
+      const saved = localStorage.getItem('iml_coaches_only_v2');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const idx = list.findIndex((c: any) => c.id === id || c.email === coachEmail);
+        if (idx !== -1) {
+          list[idx].isActive = nextState;
+          localStorage.setItem('iml_coaches_only_v2', JSON.stringify(list));
+        }
+      }
+    } catch {}
     if (nextState) {
       showToast('✓ Le compte du coach a été réactivé avec succès');
     } else {
@@ -106,21 +145,72 @@ export default function CoachDetailPage() {
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editName.trim() || !editEmail.trim()) return;
-    setCoachName(editName.trim().toUpperCase());
-    setCoachEmail(editEmail.trim());
-    setTimezone(editTimezone.trim());
-    setCategories(editCategories.trim());
+    const updatedName = editName.trim().toUpperCase();
+    const updatedEmail = editEmail.trim().toLowerCase();
+    const updatedTimezone = editTimezone.trim();
+    const updatedCategories = editCategories.trim();
+
+    setCoachName(updatedName);
+    setCoachEmail(updatedEmail);
+    setTimezone(updatedTimezone);
+    setCategories(updatedCategories);
+
+    try {
+      const saved = localStorage.getItem('iml_coaches_only_v2');
+      let list = saved ? JSON.parse(saved) : [];
+      const idx = list.findIndex((c: any) => c.id === id || c.email === coachEmail);
+      if (idx !== -1) {
+        list[idx] = {
+          ...list[idx],
+          name: updatedName,
+          email: updatedEmail,
+          timezone: updatedTimezone,
+          categories: updatedCategories,
+        };
+      } else {
+        list.push({
+          id: id || `coach-${Date.now()}`,
+          name: updatedName,
+          email: updatedEmail,
+          role: 'COACH',
+          roleLabel: "Coach Référent & Mentor",
+          language: 'Français',
+          createdAt: new Date().toLocaleDateString('fr-FR'),
+          activeBeneficiariesCount: 4,
+          groupsCount: 1,
+          lastLogin: "Aujourd'hui",
+          timezone: updatedTimezone,
+          categories: updatedCategories,
+          isActive: true
+        });
+      }
+      localStorage.setItem('iml_coaches_only_v2', JSON.stringify(list));
+    } catch (err) {
+      console.error(err);
+    }
+
     setIsEditModalOpen(false);
-    showToast('✓ Profil du coach mis à jour avec succès');
+    showToast('✓ Informations du coach modifiées avec succès');
   };
 
-  // Gestion de la suppression du coach
+  // Gestion de la suppression du coach avec persistance et retour à /coachs
   const handleDeleteCoach = () => {
+    try {
+      const saved = localStorage.getItem('iml_coaches_only_v2');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const filtered = list.filter((c: any) => c.id !== id && c.email !== coachEmail);
+        localStorage.setItem('iml_coaches_only_v2', JSON.stringify(filtered));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
     setIsDeleteModalOpen(false);
     showToast('✓ Le profil du coach a été supprimé');
     setTimeout(() => {
-      navigate('/equipe');
-    }, 400);
+      navigate('/coachs');
+    }, 300);
   };
 
   // -------------------------------------------------------------------------
@@ -128,8 +218,6 @@ export default function CoachDetailPage() {
   // -------------------------------------------------------------------------
   const [historyStartDate, setHistoryStartDate] = useState('');
   const [historyEndDate, setHistoryEndDate] = useState('');
-  const [isRecordServiceModalOpen, setIsRecordServiceModalOpen] = useState(false);
-  const [isTimesheetModalOpen, setIsTimesheetModalOpen] = useState(false);
 
   interface PrestationItem {
     id: string;
@@ -145,7 +233,7 @@ export default function CoachDetailPage() {
   const [localPrestations, setLocalPrestations] = useState<PrestationItem[]>([]);
 
   // Requête API pour les rendez-vous / prestations
-  const { data: appointmentsRes, refetch: refetchAppointments } = useQuery({
+  const { data: appointmentsRes } = useQuery({
     queryKey: ['appointments-coach-history', user?.id],
     queryFn: () => api<{ items: any[] }>('/appointments').catch(() => ({ items: [] })),
   });
@@ -252,19 +340,19 @@ export default function CoachDetailPage() {
 
   const [coachBeneficiaries] = useState<CoachBeneficiaryItem[]>([
     {
-      id: 'bene-1',
+      id: 'aac47994-4788-4561-9697-d5a1d9eec49c',
       name: 'Marine LOUPE',
       entityType: 'STARTUP',
       entityTypeLabel: 'Start-up',
       company: 'BioTech Solutions',
       country: 'FR',
       language: 'Français',
-      status: 'Parcours à créer',
+      status: 'En attente de parcours',
       step: '0/0',
       lastAction: 'Aucune'
     },
     {
-      id: 'bene-2',
+      id: 'b14946a3-7339-4eb9-90b2-1279e9bd9143',
       name: 'SOPHIATECH GABON',
       entityType: 'PME',
       entityTypeLabel: 'PME',
@@ -276,7 +364,7 @@ export default function CoachDetailPage() {
       lastAction: 'Diagnostic opérationnel & restructuration'
     },
     {
-      id: 'bene-3',
+      id: 'c50f48c6-1d36-4e23-b75f-e68ef3cb250b',
       name: 'COOPÉRATIVE AGRI-GABON',
       entityType: 'ORGANISATION',
       entityTypeLabel: 'Organisation',
@@ -288,7 +376,7 @@ export default function CoachDetailPage() {
       lastAction: 'Structuration gouvernance & modèle collectif'
     },
     {
-      id: 'bene-4',
+      id: 'a2303e05-8a37-4ffc-b789-8cc5b89679e5',
       name: 'LOGISTIQUE EQUATORIALE',
       entityType: 'ENTREPRISE',
       entityTypeLabel: 'Entreprise',
@@ -330,12 +418,12 @@ export default function CoachDetailPage() {
 
   // Enregistrement des miettes pour le fil d'Ariane global
   useSetBreadcrumbs([
-    { label: 'Coachs', to: '/equipe', icon: Users },
+    { label: 'Coachs', to: '/coachs', icon: Users },
     { label: coachName, icon: UserIcon }
   ]);
 
   return (
-    <div className="w-full space-y-4 font-sans text-slate-800">
+    <div className="w-full space-y-4 font-sans text-slate-800 pb-12">
 
       {/* =========================================================================
           2. CORPS PRINCIPAL : COLONNE GAUCHE (PROFIL) + COLONNE DROITE (ONGLETS)
@@ -641,7 +729,7 @@ export default function CoachDetailPage() {
                     className="appearance-none bg-white border border-slate-200 rounded px-3 py-1.5 pr-7 text-xs text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-[#23c3b1] cursor-pointer"
                   >
                     <option value="Tous les statuts (actifs)">Tous les statuts (actifs)</option>
-                    <option value="Parcours à créer">Parcours à créer</option>
+                    <option value="En attente de parcours">En attente de parcours</option>
                     <option value="En cours">En cours</option>
                     <option value="Terminé">Terminé</option>
                   </select>
@@ -729,27 +817,13 @@ export default function CoachDetailPage() {
                     {filteredBeneficiaries.map((b) => (
                       <tr 
                         key={b.id} 
-                        onClick={() => navigate('/beneficiaires')}
+                        onClick={() => navigate(`/beneficiaires/${b.id}`)}
                         className="transition-colors hover:bg-slate-50 cursor-pointer"
                       >
                         {visibleColumns.nom && (
                           <td className="py-2.5 px-3 font-normal text-slate-800 border-r border-slate-100">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2.5">
-                                {/* Drapeau */}
-                                {b.country === 'FR' ? (
-                                  <span className="inline-flex overflow-hidden rounded-[2px] w-4 h-3 border border-slate-200 shrink-0 shadow-2xs" title="France">
-                                    <span className="w-1/3 h-full bg-[#002654]"></span>
-                                    <span className="w-1/3 h-full bg-white"></span>
-                                    <span className="w-1/3 h-full bg-[#ce1126]"></span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex overflow-hidden rounded-[2px] w-4 h-3 border border-slate-200 shrink-0 shadow-2xs flex-col" title="Gabon">
-                                    <span className="w-full h-1/3 bg-[#009e60]"></span>
-                                    <span className="w-full h-1/3 bg-[#fcd116]"></span>
-                                    <span className="w-full h-1/3 bg-[#3a75c4]"></span>
-                                  </span>
-                                )}
                                 <div>
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="font-semibold text-slate-800">{b.name}</span>
@@ -776,7 +850,7 @@ export default function CoachDetailPage() {
                         {visibleColumns.statut && (
                           <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">
                             <span className={`inline-block text-[11px] font-medium ${
-                              b.status === 'Parcours à créer' ? 'text-[#f06553]' : 'text-emerald-600'
+                              b.status === 'En attente de parcours' ? 'text-[#f06553]' : 'text-emerald-600'
                             }`}>
                               {b.status}
                             </span>
@@ -886,52 +960,23 @@ export default function CoachDetailPage() {
                     </button>
                   </div>
 
-                  {/* Droite : 3 Boutons d'action corail */}
-                  <div className="flex flex-col items-end gap-2">
-                    {/* Ligne 1 : Feuille de prestations + Exporter */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsTimesheetModalOpen(true)}
-                        className="h-7 px-3 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                      >
-                        <FileText className="size-3.5" />
-                        <span>Feuille de prestations</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleExportCSV}
-                        className="h-7 px-3 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                      >
-                        <Download className="size-3.5" />
-                        <span>Exporter</span>
-                      </button>
-                    </div>
-
-                    {/* Ligne 2 : + Ajouter une prestation */}
+                  {/* Droite : Bouton Exporter */}
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setIsRecordServiceModalOpen(true)}
+                      onClick={handleExportCSV}
                       className="h-7 px-3.5 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
                     >
-                      <Plus className="size-3.5 stroke-[2.5]" />
-                      <span>Ajouter une prestation</span>
+                      <Download className="size-3.5" />
+                      <span>Exporter l'historique (CSV)</span>
                     </button>
                   </div>
 
                 </div>
               </div>
 
-              {/* 2. Zone inférieure : Légende + Tableau de pointage */}
+              {/* 2. Zone inférieure : Tableau d'historique */}
               <div className="p-4 sm:p-5 space-y-3 bg-white">
-                
-                {/* Légende en haut à droite du tableau */}
-                <div className="flex justify-end">
-                  <div className="border border-slate-200 rounded px-2.5 py-1 bg-white text-[11px] text-slate-500 shadow-2xs">
-                    Légende: <span className="text-slate-700">h</span> = heures, <span className="text-slate-700">m</span> = minutes
-                  </div>
-                </div>
 
                 {/* Tableau de pointage */}
                 <div className="overflow-x-auto border border-slate-200 rounded">
@@ -1214,122 +1259,6 @@ export default function CoachDetailPage() {
         document.body
       )}
 
-      {/* =========================================================================
-          6. MODALE D'ENREGISTREMENT DE PRESTATION (+ Ajouter une prestation)
-         ========================================================================= */}
-      <RecordServiceModal
-        isOpen={isRecordServiceModalOpen}
-        onClose={() => setIsRecordServiceModalOpen(false)}
-        onSuccess={() => {
-          refetchAppointments();
-          showToast('✓ Prestation enregistrée avec succès');
-          setIsRecordServiceModalOpen(false);
-        }}
-        defaultBeneficiaryId="bene-1"
-        defaultBeneficiaryName="Marine LOUPE"
-      />
-
-      {/* =========================================================================
-          7. MODALE FEUILLE DE PRESTATIONS (Feuille de prestations)
-         ========================================================================= */}
-      {isTimesheetModalOpen && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in duration-150">
-          <div className="bg-white rounded-lg shadow-xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-full bg-[#f06553]/10 text-[#f06553] flex items-center justify-center">
-                  <FileText className="size-4" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-800 text-sm">
-                    Feuille de prestations
-                  </h3>
-                  <p className="text-[11px] text-slate-500">Coach : {coachName}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsTimesheetModalOpen(false)}
-                className="size-7 rounded-md hover:bg-slate-200/60 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs">
-              <div className="flex items-center justify-between bg-slate-50 p-3.5 rounded border border-slate-200">
-                <div>
-                  <p className="text-slate-500 text-[11px]">Période</p>
-                  <p className="font-semibold text-slate-800">
-                    Mois en cours ({new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })})
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500 text-[11px]">Total d'heures déclarées</p>
-                  <p className="font-bold text-[#f06553] text-sm">
-                    {filteredPrestations.length > 0 ? `${filteredPrestations.length} session(s)` : '0h 00m'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="border border-slate-200 rounded overflow-hidden">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 text-slate-600 font-medium">
-                    <tr>
-                      <th className="p-2 border-b border-slate-200">Date</th>
-                      <th className="p-2 border-b border-slate-200">Bénéficiaire</th>
-                      <th className="p-2 border-b border-slate-200">Durée</th>
-                      <th className="p-2 border-b border-slate-200">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredPrestations.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="p-6 text-center text-slate-400">
-                          Aucun temps enregistré pour ce bénéficiaire actuellement.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredPrestations.map(p => (
-                        <tr key={p.id} className="border-b border-slate-100">
-                          <td className="p-2">{p.date}</td>
-                          <td className="p-2 font-medium text-slate-700">{p.beneficiaryName}</td>
-                          <td className="p-2">{p.duration}</td>
-                          <td className="p-2 text-slate-500">{p.description}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                <div className="text-[11px] text-slate-400">
-                  Document généré automatiquement par IML Digit
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsTimesheetModalOpen(false)}
-                    className="h-8 px-3 rounded border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
-                  >
-                    Fermer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { window.print(); }}
-                    className="h-8 px-4 rounded bg-[#f06553] hover:bg-[#e05341] text-white font-medium shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Download className="size-3.5" />
-                    <span>Imprimer / PDF</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
     </div>
   );

@@ -6,6 +6,7 @@ import type { AuthContext } from '../../middleware/auth';
 import type {
   createBeneficiarySchema, listBeneficiariesSchema, updateBeneficiarySchema, updateProjectSchema,
 } from './beneficiaries.schemas';
+import { sendCoachBriefingEmail } from '../email/email.service';
 
 type Auth = Pick<AuthContext, 'userId' | 'role'>;
 
@@ -20,9 +21,15 @@ export function scopeWhere(auth: Auth): Prisma.BeneficiaryWhereInput {
     case 'DIRECTION':
       return base;
     case 'AGENT':
-      return { ...base, OR: [{ assignedAgentId: auth.userId }, { assignments: { some: { userId: auth.userId } } }] };
+      return { ...base, OR: [{ assignedAgentId: auth.userId }, { assignedAgentId: null }, { assignments: { some: { userId: auth.userId } } }] };
     case 'COACH':
-      return { ...base, assignments: { some: { userId: auth.userId } } };
+      return {
+        ...base,
+        OR: [
+          { assignments: { some: { userId: auth.userId } } },
+          { appointments: { some: { userId: auth.userId } } },
+        ],
+      };
     default:
       return { ...base, id: '00000000-0000-0000-0000-000000000000' }; // aucun accès
   }
@@ -30,6 +37,7 @@ export function scopeWhere(auth: Auth): Prisma.BeneficiaryWhereInput {
 
 const listSelect = {
   id: true, fileSeq: true, createdAt: true, type: true, firstName: true, lastName: true, status: true,
+  email: true, phone: true,
   priority: true, lastActivityAt: true, startDate: true,
   assignedAgentId: true,
   assignedAgent: { select: { id: true, firstName: true, lastName: true } },
@@ -43,6 +51,12 @@ const listSelect = {
       template: { select: { id: true, name: true } },
       steps: { select: { id: true, title: true, status: true, orderIndex: true }, orderBy: { orderIndex: 'asc' } } 
     } 
+  },
+  assignments: {
+    select: {
+      id: true,
+      user: { select: { id: true, firstName: true, lastName: true, email: true } },
+    },
   },
   appointments: { select: { id: true, datetime: true, status: true }, take: 3, orderBy: { datetime: 'desc' } }
 } satisfies Prisma.BeneficiarySelect;
@@ -73,7 +87,21 @@ function filters(q: z.infer<typeof listBeneficiariesSchema>, auth: Auth): Prisma
 const orderBy = (sort: string): Prisma.BeneficiaryOrderByWithRelationInput[] =>
   sort === 'name' ? [{ lastName: 'asc' }, { firstName: 'asc' }] : sort === 'activity' ? [{ lastActivityAt: 'desc' }] : [{ createdAt: 'desc' }];
 
-const withNumber = <T extends { fileSeq: number; createdAt: Date }>(b: T) => ({ ...b, fileNumber: fileNumber(b) });
+const withNumber = <T extends { fileSeq: number; createdAt: Date; pathway?: any }>(b: T) => {
+  let pathway = b.pathway;
+  if (pathway && Array.isArray(pathway.steps) && pathway.steps.length > 0) {
+    const total = pathway.steps.length;
+    const completed = pathway.steps.filter((s: any) => s.status === 'TERMINE' || s.status === 'VALIDE').length;
+    const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+    pathway = {
+      ...pathway,
+      progress,
+      completedSteps: completed,
+      totalSteps: total,
+    };
+  }
+  return { ...b, fileNumber: fileNumber(b), pathway };
+};
 
 export async function listBeneficiaries(q: z.infer<typeof listBeneficiariesSchema>, auth: Auth) {
   const where = filters(q, auth);
@@ -135,7 +163,14 @@ export async function getBeneficiary(id: string, auth: Auth) {
       assignedAgent: { select: { id: true, firstName: true, lastName: true } },
       program: { select: { id: true, name: true } },
       projects: { include: { sector: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } },
-      assignments: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+      assignments: { include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } },
+      application: { select: { id: true, seqNumber: true, applicantData: true, projectData: true, submittedAt: true } },
+      pathway: {
+        include: {
+          steps: { orderBy: { orderIndex: 'asc' } },
+          template: { select: { id: true, name: true } },
+        },
+      },
     },
   });
   // 404 (et non 403) : on ne révèle pas l'existence d'un dossier hors périmètre.
@@ -160,16 +195,25 @@ export async function updateBeneficiary(id: string, input: z.infer<typeof update
     throw new AppError(409, 'Un dossier existe déjà avec cette adresse e-mail', 'DOUBLON_EMAIL');
   }
   await assertReferences({ programId: input.programId, assignedAgentId: input.assignedAgentId });
-  const changes = diff(current as unknown as Record<string, unknown>, input);
-  if (changes.length === 0) return current;
+  const { coachId, ...inputWithoutCoach } = input;
+  const changes = diff(current as unknown as Record<string, unknown>, inputWithoutCoach);
 
-  const { startDate, ...rest } = input;
-  await prisma.$transaction([
+  const { startDate, ...rest } = inputWithoutCoach;
+  const ops: any[] = [
     prisma.beneficiary.update({ where: { id }, data: { ...rest, startDate: toDate(startDate), lastActivityAt: new Date() } }),
     prisma.auditLog.create({
       data: { userId: auth.userId, action: 'beneficiary.update', entityType: 'Beneficiary', entityId: id, metadata: { changes } as Prisma.InputJsonValue, ipAddress: ip },
     }),
-  ]);
+  ];
+
+  if (coachId !== undefined) {
+    ops.push(prisma.assignment.deleteMany({ where: { beneficiaryId: id } }));
+    if (coachId !== null) {
+      ops.push(prisma.assignment.create({ data: { beneficiaryId: id, userId: coachId } }));
+    }
+  }
+
+  await prisma.$transaction(ops);
   return getBeneficiary(id, auth);
 }
 
@@ -207,7 +251,20 @@ export async function getOptions() {
   const [sectors, programs, agents] = await Promise.all([
     prisma.sector.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.program.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
-    prisma.user.findMany({ where: { isActive: true, role: { code: 'AGENT' } }, orderBy: { lastName: 'asc' }, select: { id: true, firstName: true, lastName: true } }),
+    prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { code: { in: ['AGENT', 'COACH', 'ADMIN', 'DIRECTION'] } },
+      },
+      orderBy: [{ role: { code: 'asc' } }, { lastName: 'asc' }],
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: { select: { code: true, label: true } },
+      },
+    }),
   ]);
   return { sectors, programs, agents };
 }
@@ -231,4 +288,85 @@ export async function exportCsv(q: z.infer<typeof listBeneficiariesSchema>, auth
     r.createdAt.toISOString().slice(0, 10), r.lastActivityAt.toISOString().slice(0, 10),
   ].map(csvCell).join(';'));
   return '\uFEFF' + [head.map(csvCell).join(';'), ...lines].join('\r\n');
+}
+
+export async function notifyCoach(
+  beneficiaryId: string,
+  input: { coachId?: string; coachEmail?: string; coachName?: string },
+  auth: Auth,
+  ip?: string
+) {
+  const b = await getBeneficiary(beneficiaryId, auth);
+  let targetEmail = input.coachEmail;
+  let targetName = input.coachName;
+
+  if (!targetEmail && input.coachId) {
+    const coachUser = await prisma.user.findUnique({ where: { id: input.coachId } });
+    if (coachUser) {
+      targetEmail = coachUser.email;
+      targetName = `${coachUser.firstName} ${coachUser.lastName}`;
+    }
+  }
+
+  if (!targetEmail && b.assignments && b.assignments.length > 0) {
+    const firstCoach = b.assignments[0]?.user;
+    if (firstCoach && 'email' in firstCoach) {
+      targetEmail = (firstCoach as any).email;
+      targetName = `${firstCoach.firstName} ${firstCoach.lastName}`;
+    }
+  }
+
+  if (!targetEmail) {
+    throw new AppError(400, 'Adresse e-mail du coach introuvable.', 'COACH_SANS_EMAIL');
+  }
+
+  const agentUser = await prisma.user.findUnique({ where: { id: auth.userId } });
+  const agentName = agentUser ? `${agentUser.firstName} ${agentUser.lastName}` : 'Coordination IML Digit';
+  const agentEmail = agentUser?.email;
+
+  const project = b.projects?.[0];
+  const nextAppt = await prisma.appointment.findFirst({
+    where: { beneficiaryId, status: 'PLANIFIE' },
+    orderBy: { datetime: 'asc' },
+  });
+
+  const apptDateStr = nextAppt
+    ? new Date(nextAppt.datetime).toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : undefined;
+
+  const result = await sendCoachBriefingEmail({
+    coachEmail: targetEmail,
+    coachName: targetName || 'Expert IML',
+    beneficiaryName: `${b.firstName} ${b.lastName}`,
+    companyName: project?.name,
+    sectorName: project?.sector?.name,
+    projectStage: project?.stage,
+    objectives: b.initialObjectives || project?.priorityNeeds || undefined,
+    beneficiaryPhone: b.phone || undefined,
+    beneficiaryEmail: b.email,
+    agentName,
+    agentEmail,
+    appointmentDatetime: apptDateStr,
+    appointmentLocation: nextAppt?.location || undefined,
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: auth.userId,
+      action: 'beneficiary.coach_notified_email',
+      entityType: 'Beneficiary',
+      entityId: beneficiaryId,
+      metadata: { targetEmail, simulated: result.simulated },
+      ipAddress: ip,
+    },
+  });
+
+  return { success: result.success, message: result.message || 'Briefing expédié par e-mail avec succès.' };
 }

@@ -11,6 +11,8 @@ export const updateApplicationSchema = z.object({
   status: z.enum(APPLICATION_STATUSES).optional(),
   evaluationNotes: z.string().trim().max(5000).optional(),
   assignedAgentId: z.string().uuid().nullable().optional(),
+  applicantData: z.record(z.any()).optional(),
+  projectData: z.record(z.any()).optional(),
 });
 
 export const listApplicationsSchema = z.object({

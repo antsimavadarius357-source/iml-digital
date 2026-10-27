@@ -42,11 +42,68 @@
   }
 }
 
+html {
+  scrollbar-gutter: stable;
+  scroll-behavior: smooth;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
-  background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
+  max-width: 100%;
+  overflow-x: hidden;
+  position: relative;
+  background: #FAF9F5;
   color: #0f172a;
   font-family: var(--font-sans);
   min-height: 100vh;
-  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Responsive elements */
+img, video, iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Smooth custom scrollbars on modern devices */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f0ea;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6d3c9;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b8b3a5;
+}
+
+/* =========================================================================
+   ANIMATION DÉFILEMENT CONTINU DE DROITE À GAUCHE (MARQUEE)
+   ========================================================================= */
+@keyframes marquee-scroll-left {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-marquee-left {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll-left 42s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-left:hover {
+  animation-play-state: paused;
+}
+

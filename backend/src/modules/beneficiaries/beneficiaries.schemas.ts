@@ -72,6 +72,7 @@ export const updateBeneficiarySchema = z
     priority: z.enum(PRIORITIES),
     programId: uuid.nullable(),
     assignedAgentId: uuid.nullable(),
+    coachId: uuid.nullable(),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
     initialObjectives: z.string().trim().max(5000).nullable(),
   })

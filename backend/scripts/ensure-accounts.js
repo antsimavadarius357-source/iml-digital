@@ -53,26 +53,6 @@ async function main() {
     console.log('Agent assuré:', agent.email, agent.id);
   }
 
-  // 3. Admin
-  if (roleMap.ADMIN) {
-    const admin = await prisma.user.upsert({
-      where: { email: 'admin@imldigit.com' },
-      update: {
-        roleId: roleMap.ADMIN,
-        passwordHash: hash,
-        isActive: true
-      },
-      create: {
-        email: 'admin@imldigit.com',
-        firstName: 'Directeur',
-        lastName: 'IML Digit',
-        passwordHash: hash,
-        roleId: roleMap.ADMIN,
-        isActive: true
-      }
-    });
-    console.log('Admin assuré:', admin.email, admin.id);
-  }
 }
 
 main().catch(console.error).finally(() => prisma.$disconnect());

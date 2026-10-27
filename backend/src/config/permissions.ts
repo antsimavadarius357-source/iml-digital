@@ -26,16 +26,22 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
-  ADMIN: ['dashboard:read', 'users:manage', 'audit:read', 'settings:manage'],
+  ADMIN: [
+    'dashboard:read', 'dashboard:global', 'users:manage', 'audit:read', 'settings:manage',
+    'beneficiaries:read', 'beneficiaries:write', 'beneficiaries:export', 'applications:review',
+    'pathways:manage', 'appointments:manage', 'documents:read', 'contacts:read', 'reports:read', 'training:manage',
+  ],
   DIRECTION: [
-    'dashboard:read', 'dashboard:global', 'beneficiaries:read', 'beneficiaries:export', 'applications:review', 'pathways:manage',
-    'appointments:manage', 'documents:read', 'training:manage', 'contacts:read', 'reports:read', 'audit:read',
+    'dashboard:read', 'dashboard:global', 'users:manage', 'audit:read', 'settings:manage',
+    'beneficiaries:read', 'beneficiaries:write', 'beneficiaries:export', 'applications:review',
+    'pathways:manage', 'appointments:manage', 'documents:read', 'contacts:read', 'reports:read', 'training:manage',
   ],
   AGENT: [
-    'dashboard:read', 'beneficiaries:read', 'beneficiaries:write', 'beneficiaries:export', 'applications:review', 'pathways:manage',
-    'appointments:manage', 'documents:read', 'contacts:read',
+    'dashboard:read', 'users:manage', 'beneficiaries:read', 'beneficiaries:write', 'beneficiaries:export',
+    'applications:review', 'pathways:manage', 'appointments:manage', 'documents:read', 'contacts:read',
+    'audit:read',
   ],
-  COACH: ['dashboard:read', 'beneficiaries:read', 'appointments:manage', 'documents:read', 'contacts:read'],
+  COACH: ['dashboard:read', 'beneficiaries:read', 'beneficiaries:write', 'pathways:manage', 'appointments:manage', 'documents:read', 'contacts:read'],
   FORMATEUR: ['dashboard:read', 'training:manage', 'documents:read'],
   BENEFICIAIRE: ['dashboard:read', 'portal:access'],
 };

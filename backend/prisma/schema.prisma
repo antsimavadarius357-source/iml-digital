@@ -57,6 +57,7 @@ model User {
   applications        Application[]
   appointments        Appointment[]
   documents           Document[]
+  followUpNotes       FollowUpNote[]
   auditLogs           AuditLog[]
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -212,6 +213,7 @@ model Beneficiary {
   application      Application?
   appointments     Appointment[]
   pathway          Pathway?
+  followUpNotes    FollowUpNote[]
   lastActivityAt   DateTime        @default(now())
   archivedAt       DateTime?
   createdAt        DateTime        @default(now())
@@ -379,6 +381,9 @@ model Document {
   title       String
   category    String        // ex: 'BUSINESS_PLAN', 'ID_CARD', 'STATUTS'
   filePath    String
+  fileName    String?       // nom d'origine du fichier (avec extension)
+  mimeType    String?
+  sizeBytes   Int?
   ownerId     String        // ID du bénéficiaire ou du projet
   ownerType   String        // 'BENEFICIARY', 'PROJECT'
   accessLevel AccessLevel   @default(INTERNAL)
@@ -390,4 +395,23 @@ model Document {
 
   @@index([ownerType, ownerId])
   @@index([uploadedById])
+}
+
+/// Compte-rendu de suivi rédigé par le coach (ou l'agent) dans le dossier d'un bénéficiaire.
+model FollowUpNote {
+  id            String      @id @default(uuid())
+  beneficiaryId String
+  beneficiary   Beneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User        @relation(fields: [authorId], references: [id])
+  sessionDate   DateTime    @default(now()) @db.Date
+  topic         String
+  content       String
+  nextSteps     String?
+  priority      Priority    @default(NORMALE)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([beneficiaryId])
+  @@index([authorId])
 }

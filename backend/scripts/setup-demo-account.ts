@@ -40,32 +40,65 @@ async function main() {
     },
   });
 
-  // 2. Compte Admin / Direction
-  const adminEmail = 'admin@imldigit.com';
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
+
+  // 3. Compte Coach
+  let roleCoach = await prisma.role.findUnique({ where: { code: 'COACH' } });
+  if (!roleCoach) {
+    roleCoach = await prisma.role.create({ data: { code: 'COACH', label: 'Coach référent' } });
+  }
+  const coachEmail = 'coach@imldigit.com';
+  const coach = await prisma.user.upsert({
+    where: { email: coachEmail },
     update: {
       passwordHash,
       isActive: true,
       mustChangePassword: false,
       emailVerifiedAt: new Date(),
-      roleId: roleAdmin.id,
+      roleId: roleCoach.id,
     },
     create: {
-      email: adminEmail,
+      email: coachEmail,
       passwordHash,
-      firstName: 'Directeur',
-      lastName: 'IML Digit',
+      firstName: 'Darius',
+      lastName: 'Coach IML',
       isActive: true,
       mustChangePassword: false,
       emailVerifiedAt: new Date(),
-      roleId: roleAdmin.id,
+      roleId: roleCoach.id,
+    },
+  });
+
+  // 4. Compte Bénéficiaire
+  let roleBeneficiaire = await prisma.role.findUnique({ where: { code: 'BENEFICIAIRE' } });
+  if (!roleBeneficiaire) {
+    roleBeneficiaire = await prisma.role.create({ data: { code: 'BENEFICIAIRE', label: 'Bénéficiaire' } });
+  }
+  const beneficiaireEmail = 'beneficiaire@imldigit.com';
+  const beneficiaire = await prisma.user.upsert({
+    where: { email: beneficiaireEmail },
+    update: {
+      passwordHash,
+      isActive: true,
+      mustChangePassword: false,
+      emailVerifiedAt: new Date(),
+      roleId: roleBeneficiaire.id,
+    },
+    create: {
+      email: beneficiaireEmail,
+      passwordHash,
+      firstName: 'Marc',
+      lastName: 'Bénéficiaire (Porteur)',
+      isActive: true,
+      mustChangePassword: false,
+      emailVerifiedAt: new Date(),
+      roleId: roleBeneficiaire.id,
     },
   });
 
   console.log('Comptes de test configurés avec succès :');
   console.log(`- Agent : ${agent.email} / Mot de passe : ImlDigit2026!`);
-  console.log(`- Admin : ${admin.email} / Mot de passe : ImlDigit2026!`);
+  console.log(`- Coach : ${coach.email} / Mot de passe : ImlDigit2026!`);
+  console.log(`- Bénéficiaire : ${beneficiaire.email} / Mot de passe : ImlDigit2026!`);
 }
 
 main()

@@ -3,7 +3,10 @@ import { createPortal } from 'react-dom';
 import { 
   X, 
   Printer, 
-  FileText
+  FileText,
+  CheckCircle2,
+  Building,
+  UserCheck
 } from 'lucide-react';
 
 export interface AttendanceSheetData {
@@ -41,42 +44,105 @@ export default function AttendanceSheetModal({
     window.print();
   };
 
-  const formattedDate = new Date(data.datetime).toLocaleDateString('fr-FR', {
+  const apptDate = new Date(data.datetime);
+  const formattedDate = apptDate.toLocaleDateString('fr-FR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric'
   });
+  const capitalizedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
 
-  const formattedTime = new Date(data.datetime).toLocaleTimeString('fr-FR', {
+  const formattedStartTime = apptDate.toLocaleTimeString('fr-FR', {
     hour: '2-digit',
     minute: '2-digit'
   });
 
-  const hours = Math.floor(data.durationMinutes / 60);
-  const minutes = data.durationMinutes % 60;
+  const endDate = new Date(apptDate.getTime() + (data.durationMinutes || 60) * 60000);
+  const formattedEndTime = endDate.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const hours = Math.floor((data.durationMinutes || 60) / 60);
+  const minutes = (data.durationMinutes || 60) % 60;
   const durationText = hours > 0 
     ? `${hours}h${minutes > 0 ? `${String(minutes).padStart(2, '0')}` : '00'}` 
-    : `${minutes} minutes`;
+    : `${minutes} min`;
+
+  const sheetRef = `EMARG-2026-${data.appointmentId ? data.appointmentId.slice(-6).toUpperCase() : '847291'}`;
+
+  const isVisio = (data.location || '').toLowerCase().includes('visio') || 
+                  (data.location || '').toLowerCase().includes('http') ||
+                  (data.location || '').toLowerCase().includes('meet');
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 print:p-0 print:bg-white">
+    <div 
+      className="fixed inset-0 z-[80] bg-slate-900/60 backdrop-blur-xs p-2 sm:p-6 flex items-center justify-center animate-in fade-in duration-150 print:p-0 print:m-0 print:bg-white print:overflow-visible print:block print:static"
+      onClick={onClose}
+    >
+      {/* Styles d'impression dédiés A4 et page unique sans coupure */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm 12mm;
+          }
+          body {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Masquer tout ce qui est en dehors de la feuille d'émargement */
+          .print-hidden-zone {
+            display: none !important;
+          }
+          .attendance-print-container {
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+        }
+      `}</style>
+
+      {/* Conteneur principal façon feuille papier A4 défilable */}
       <div 
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 print:border-none print:shadow-none print:max-h-none print:w-full"
+        className="attendance-print-container relative w-full max-w-3xl max-h-[92vh] sm:max-h-[90vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col text-slate-800 overflow-hidden print:max-h-none print:overflow-visible print:w-full print:border-none print:shadow-none"
         onClick={(e) => e.stopPropagation()}
       >
         
-        {/* Barre d'action supérieure (masquée à l'impression) */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0 print:hidden">
+        {/* BARRE D'ACTION SUPÉRIEURE FIXE (NON IMPRIMABLE) */}
+        <div className="print-hidden-zone px-6 py-3.5 bg-[#101f2e] text-white flex items-center justify-between shrink-0 shadow-sm z-10 border-b border-slate-800">
           <div className="flex items-center gap-2">
-            <FileText className="size-4.5 text-[#23c3b1]" />
-            <span className="font-bold text-sm">Feuille d'émargement officielle de séance</span>
+            <div className="size-7 rounded-lg bg-[#23c3b1]/20 text-[#23c3b1] flex items-center justify-center">
+              <FileText className="size-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold tracking-tight">
+                Feuille d'émargement officielle de séance
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Format standard A4 • Réf. {sheetRef}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={handlePrint}
-              className="px-4 py-2 rounded-xl bg-[#23c3b1] hover:bg-[#1fb3a2] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              className="px-4 py-1.5 rounded-lg bg-[#23c3b1] hover:bg-[#1fb3a2] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
+              title="Lancer l'impression ou exporter en PDF"
             >
               <Printer className="size-3.5" />
               <span>Imprimer / PDF</span>
@@ -84,83 +150,104 @@ export default function AttendanceSheetModal({
             <button
               type="button"
               onClick={onClose}
-              className="size-8 rounded-full bg-white/10 text-slate-300 hover:text-white hover:bg-white/20 flex items-center justify-center transition-colors"
+              className="size-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Fermer"
             >
               <X className="size-4" />
             </button>
           </div>
         </div>
 
-        {/* CONTENU OFFICIEL IMPRIMABLE */}
-        <div ref={printRef} className="p-8 sm:p-12 overflow-y-auto print:p-0 space-y-6 text-slate-900 font-sans">
+        {/* =========================================================================
+            FEUILLE OFFICIELLE (ZONE IMPRIMABLE PROPRE, ÉPURÉE ET PARFAITEMENT DÉFILABLE)
+           ========================================================================= */}
+        <div 
+          ref={printRef} 
+          className="flex-1 overflow-y-auto p-6 sm:p-10 space-y-6 text-slate-800 font-sans print:overflow-visible print:p-0 print:space-y-5"
+        >
           
-          {/* En-tête Institutionnel */}
-          <div className="border-b-2 border-slate-900 pb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-                RÉPUBLIQUE GABONAISE
+          {/* 1. EN-TÊTE ÉPURÉ & PROFESSIONNEL */}
+          <div className="flex items-start justify-between pb-4 border-b-2 border-slate-900 gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-black text-slate-900 tracking-tight">IML DIGIT</span>
+                <span className="px-2 py-0.5 rounded bg-teal-50 border border-teal-200 text-[#178578] font-bold text-[10px] tracking-wide uppercase">
+                  Accompagnement d'entreprises
+                </span>
               </div>
-              <div className="text-[10px] font-semibold text-slate-400">
-                Union - Travail - Justice
-              </div>
-              <div className="text-xl font-black text-slate-900 mt-1 tracking-tight">
-                IML DIGIT • ESPACE PME
-              </div>
-              <div className="text-xs text-slate-600 font-medium">
-                Pôle d'accompagnement & d'incubation — Quartier B2, Libreville, Gabon
-              </div>
+              <p className="text-xs font-medium text-slate-600">
+                Pôle d'Incubation & d'Accompagnement Opérationnel
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Espace PME • Libreville, Gabon • contact@imldigit.ga
+              </p>
             </div>
 
-            <div className="text-left sm:text-right">
-              <span className="inline-block px-3 py-1 rounded-md bg-slate-100 border border-slate-300 text-[10px] font-mono font-bold text-slate-800">
-                SÉANCE #{data.appointmentId.slice(-6).toUpperCase()}
-              </span>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Fiche justificative d'heures réelles
+            <div className="text-right space-y-1 shrink-0">
+              <div className="inline-block px-2.5 py-1 rounded bg-slate-100 border border-slate-300 font-mono text-[11px] font-bold text-slate-900">
+                {sheetRef}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                Émise le {new Date().toLocaleDateString('fr-FR')}
+              </div>
+              <div className="flex items-center justify-end gap-1 text-[10px] font-semibold text-emerald-700">
+                <CheckCircle2 className="size-3 text-emerald-600" />
+                <span>Séance Certifiée</span>
               </div>
             </div>
           </div>
 
-          {/* Titre du document */}
-          <div className="text-center py-2 space-y-1">
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">
-              Attestation & Feuille d'Émargement
+          {/* 2. TITRE PRINCIPAL */}
+          <div className="text-center py-1">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 uppercase">
+              Feuille d'Émargement Officielle de Séance
             </h1>
-            <p className="text-xs text-slate-500">
-              Séance d'accompagnement individuel / coaching technique d'entreprise
+            <p className="text-xs text-slate-500 mt-0.5">
+              Justificatif de réalisation de coaching et de pointage d'heures d'accompagnement
             </p>
           </div>
 
-          {/* Détails de la séance */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-            <div>
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Date</span>
-              <span className="font-bold text-slate-900 capitalize">{formattedDate}</span>
+          {/* 3. CADRE RÉCAPITULATIF DE LA SÉANCE */}
+          <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
+            <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center justify-between">
+              <span>1. Modalités & Horaires d'Exécution</span>
+              <span className="text-[10px] font-semibold text-slate-600">Durée : {durationText}</span>
             </div>
-            <div>
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Heure de début</span>
-              <span className="font-bold text-slate-900">{formattedTime}</span>
-            </div>
-            <div>
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Durée pointée</span>
-              <span className="font-bold text-[#23c3b1] text-sm">{durationText}</span>
-            </div>
-            <div>
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Lieu d'exécution</span>
-              <span className="font-bold text-slate-900">{data.location.includes('Visioconférence') ? 'Visioconférence sécurisée' : 'Espace PME, B2 Libreville'}</span>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 p-0 text-xs">
+              <div className="p-3">
+                <span className="block text-[10px] font-semibold text-slate-500 uppercase">Date</span>
+                <span className="font-bold text-slate-900 capitalize">{capitalizedDate}</span>
+              </div>
+              <div className="p-3">
+                <span className="block text-[10px] font-semibold text-slate-500 uppercase">Plage horaire</span>
+                <span className="font-bold text-slate-900">{formattedStartTime} — {formattedEndTime}</span>
+              </div>
+              <div className="p-3">
+                <span className="block text-[10px] font-semibold text-slate-500 uppercase">Durée validée</span>
+                <span className="font-bold text-[#178578]">{durationText}</span>
+              </div>
+              <div className="p-3">
+                <span className="block text-[10px] font-semibold text-slate-500 uppercase">Lieu / Modalité</span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {isVisio ? 'Visioconférence sécurisée' : (data.location || 'Espace PME, Libreville')}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Fiches des parties */}
-          <div className="grid sm:grid-cols-2 gap-4 text-xs">
-            {/* Bénéficiaire / Entreprise */}
-            <div className="p-4 rounded-xl border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                  Bénéficiaire / Entreprise
+          {/* 4. LES PARTIES PRENANTES (Tableau épuré à 2 colonnes) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            
+            {/* Volet Bénéficiaire */}
+            <div className="border border-slate-300 rounded-lg p-3.5 space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Building className="size-3.5 text-slate-500" />
+                  Bénéficiaire Accompagné
                 </span>
-                <span className="px-2 py-0.5 rounded bg-slate-100 text-[10px] font-semibold text-slate-700">
-                  {data.beneficiaryType || 'Structure'}
+                <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                  {data.beneficiaryType || 'Porteur de projet'}
                 </span>
               </div>
               <div className="space-y-1">
@@ -168,7 +255,7 @@ export default function AttendanceSheetModal({
                   {data.projectName || data.beneficiaryName}
                 </div>
                 {data.representativeName && (
-                  <div className="text-slate-600">
+                  <div className="text-slate-700">
                     Représentant : <strong>{data.representativeName}</strong>
                   </div>
                 )}
@@ -181,73 +268,104 @@ export default function AttendanceSheetModal({
               </div>
             </div>
 
-            {/* Coach / Conseiller référent */}
-            <div className="p-4 rounded-xl border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                  Conseiller référent IML Digit
+            {/* Volet Conseiller / Expert */}
+            <div className="border border-slate-300 rounded-lg p-3.5 space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <UserCheck className="size-3.5 text-teal-600" />
+                  Conseiller Référent / Expert
                 </span>
-                <span className="px-2 py-0.5 rounded bg-emerald-50 text-[10px] font-semibold text-emerald-700">
-                  Accompagnant agréé
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Accompagnant certifié
                 </span>
               </div>
               <div className="space-y-1">
                 <div className="font-bold text-sm text-slate-900">
-                  {data.coachName || 'Agent IML Digit'}
+                  {data.coachName || 'Agent Référent IML Digit'}
                 </div>
-                <div className="text-slate-600">
-                  Espace PME • Pôle Accompagnement B2
+                <div className="text-slate-700">
+                  Pôle Conseil Stratégique & Développement PME
                 </div>
                 <div className="text-slate-500 text-[11px]">
-                  contact@imldigit.ga
+                  Espace PME • IML Digit
                 </div>
               </div>
             </div>
+
           </div>
 
-          {/* Ordre du jour & Synthèse de la séance */}
-          <div className="p-4 rounded-xl border border-slate-200 space-y-3 text-xs">
-            <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px] block border-b border-slate-100 pb-2">
-              Contenu & Travaux réalisés lors de la séance
-            </span>
-            <div className="space-y-1.5 text-slate-700 leading-relaxed">
-              <p>
-                <strong>Compte-rendu sommaire :</strong> {data.summary || 'Entretien d’évaluation et diagnostic des besoins prioritaires en accompagnement.'}
-              </p>
-              {data.nextActions && (
-                <p>
-                  <strong>Prochaines étapes convenues :</strong> {data.nextActions}
+          {/* 5. TRAVAUX ET OBJECTIFS RÉALISÉS */}
+          <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
+            <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+              2. Ordre du Jour & Synthèse de la Séance
+            </div>
+            <div className="p-3.5 space-y-2 text-slate-700 leading-relaxed">
+              <div>
+                <span className="font-bold text-slate-900">Objet de la séance & Travaux réalisés :</span>
+                <p className="mt-0.5 text-slate-700">
+                  {data.summary || "Entretien de cadrage stratégique, suivi d'avancement des objectifs d'entreprise, analyse opérationnelle et validation des livrables de parcours."}
                 </p>
+              </div>
+
+              {data.nextActions && (
+                <div className="pt-2 border-t border-slate-200">
+                  <span className="font-bold text-slate-900">Prochaines actions convenues :</span>
+                  <p className="mt-0.5 text-slate-700">{data.nextActions}</p>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Cadre d'émargement et signatures officielles */}
-          <div className="pt-4 border-t-2 border-slate-200 space-y-3">
-            <div className="text-center text-[10px] text-slate-400 italic">
-              « Les parties soussignées certifient sur l'honneur l'exactitude des informations et la réalisation effective du pointage ci-dessus. »
+          {/* 6. CADRE D'ÉMARGEMENT & SIGNATURES OFFICIELLES */}
+          <div className="space-y-2 pt-1">
+            <div className="text-center text-[10px] text-slate-500 italic">
+              « Les parties soussignées attestent sur l'honneur l'exactitude des informations et la réalisation effective du temps de séance ci-dessus mentionné. »
             </div>
 
-            <div className="grid grid-cols-2 gap-8 pt-2">
+            <div className="grid grid-cols-2 gap-6 pt-1">
+              
               {/* Signature Bénéficiaire */}
-              <div className="border border-slate-300 rounded-xl p-4 h-32 flex flex-col justify-between text-xs">
-                <div className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                  Pour le Bénéficiaire / Dirigeant :
+              <div className="border-2 border-dashed border-slate-300 rounded-lg p-3 h-28 flex flex-col justify-between text-xs bg-slate-50/50 print:bg-white">
+                <div>
+                  <div className="font-bold text-slate-900 text-[11px] uppercase tracking-wider">
+                    Pour le Bénéficiaire :
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    Mention manuscrite « Lu et approuvé »
+                  </div>
                 </div>
-                <div className="text-[10px] text-slate-400">
-                  Date et Signature :
+                <div className="text-[10px] text-slate-400 border-t border-slate-200 pt-1 flex justify-between">
+                  <span>Date : ____ / ____ / 2026</span>
+                  <span>Signature :</span>
                 </div>
               </div>
 
-              {/* Signature Coach */}
-              <div className="border border-slate-300 rounded-xl p-4 h-32 flex flex-col justify-between text-xs">
-                <div className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                  Pour IML Digit (Le Conseiller) :
+              {/* Signature Coach / Visa */}
+              <div className="border-2 border-dashed border-slate-300 rounded-lg p-3 h-28 flex flex-col justify-between text-xs bg-slate-50/50 print:bg-white">
+                <div>
+                  <div className="font-bold text-slate-900 text-[11px] uppercase tracking-wider">
+                    Pour IML Digit (Le Conseiller Référent) :
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    Visa & Signature de validation
+                  </div>
                 </div>
-                <div className="text-[10px] text-slate-400">
-                  Visa & Cachet Espace PME :
+                <div className="text-[10px] text-slate-400 border-t border-slate-200 pt-1 flex justify-between">
+                  <span>Date : ____ / ____ / 2026</span>
+                  <span>Signature & Cachet :</span>
                 </div>
               </div>
+
+            </div>
+          </div>
+
+          {/* 7. BAS DE PAGE OFFICIEL */}
+          <div className="pt-3 border-t border-slate-200 text-center text-[10px] text-slate-400 space-y-0.5">
+            <div>
+              IML DIGIT — Plateforme Intelligente de Gestion et de Suivi de l'Accompagnement Entreprises & Start-ups.
+            </div>
+            <div>
+              Document officiel à valeur de justification d'heures réelles d'incubation. Page 1 / 1
             </div>
           </div>
 

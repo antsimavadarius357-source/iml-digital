@@ -257,18 +257,32 @@ export default function BeneficiaryEditPage() {
                 {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-slate-700">Programme d'incubation</label>
-              <select {...register('programId')} className={sel}>
-                <option value="">Sélectionner un programme...</option>
-                {options.data?.programs.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Agent en charge</label>
+              <label className="block text-sm font-medium text-slate-700">Référent assigné (Coach, Agent IML, Direction)</label>
               <select {...register('assignedAgentId')} className={sel}>
-                <option value="">Non assigné</option>
-                {options.data?.agents.map(s => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
+                <option value="">Non assigné (Attribution ultérieure)</option>
+                {options.data?.agents?.filter(a => a.role?.code === 'COACH').length ? (
+                  <optgroup label="🎯 Coachs & Mentors">
+                    {options.data.agents.filter(a => a.role?.code === 'COACH').map(a => (
+                      <option key={a.id} value={a.id}>Coach : {a.firstName} {a.lastName}</option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {options.data?.agents?.filter(a => a.role?.code === 'AGENT' || !a.role?.code).length ? (
+                  <optgroup label="📋 Agents IML (Coordination)">
+                    {options.data.agents.filter(a => a.role?.code === 'AGENT' || !a.role?.code).map(a => (
+                      <option key={a.id} value={a.id}>Agent : {a.firstName} {a.lastName}</option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {options.data?.agents?.filter(a => a.role?.code === 'ADMIN' || a.role?.code === 'DIRECTION').length ? (
+                  <optgroup label="👑 Direction du Programme">
+                    {options.data.agents.filter(a => a.role?.code === 'ADMIN' || a.role?.code === 'DIRECTION').map(a => (
+                      <option key={a.id} value={a.id}>Direction : {a.firstName} {a.lastName}</option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
             </div>
             <div>

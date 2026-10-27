@@ -6,7 +6,9 @@ import {
   ChevronRight, 
   Ban, 
   X, 
-  Users 
+  Users,
+  Edit3,
+  Trash2 
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
@@ -21,14 +23,51 @@ interface GroupItem {
   createdAt: string;
 }
 
+const DEFAULT_GROUPS: GroupItem[] = [
+  {
+    id: 'grp-1',
+    name: 'Cohorte Accélération Digitale 2026',
+    candidatesCount: 12,
+    groupDiscussion: true,
+    chatInterParticipants: true,
+    pathwayTemplate: 'Parcours Numérique & Croissance',
+    articlesCount: 8,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'grp-2',
+    name: 'Programme PME & Agro-Industrie',
+    candidatesCount: 9,
+    groupDiscussion: true,
+    chatInterParticipants: false,
+    pathwayTemplate: 'Parcours Structuration PME',
+    articlesCount: 5,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'grp-3',
+    name: 'Incubation Porteurs d\'idées Innovantes',
+    candidatesCount: 15,
+    groupDiscussion: true,
+    chatInterParticipants: true,
+    pathwayTemplate: 'Parcours Amorçage & Idéation',
+    articlesCount: 12,
+    createdAt: new Date().toISOString()
+  }
+];
+
 export default function GroupsPage() {
   // Liste des groupes (persistance locale)
   const [groups, setGroups] = useState<GroupItem[]>(() => {
     try {
       const saved = localStorage.getItem('iml_groups_records_v1');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      return DEFAULT_GROUPS;
     } catch {
-      return [];
+      return DEFAULT_GROUPS;
     }
   });
 
@@ -38,6 +77,9 @@ export default function GroupsPage() {
   const [newGroupPathway, setNewGroupPathway] = useState('Parcours standard d\'incubation');
   const [enableDiscussion, setEnableDiscussion] = useState(true);
   const [enableChat, setEnableChat] = useState(true);
+
+  // Modal d'édition de groupe
+  const [editingGroup, setEditingGroup] = useState<GroupItem | null>(null);
 
   // Colonnes visibles
   const [isColumnsDropdownOpen, setIsColumnsDropdownOpen] = useState(false);
@@ -85,6 +127,22 @@ export default function GroupsPage() {
     setGroups(prev => [newGroup, ...prev]);
     setNewGroupName('');
     setIsAddGroupOpen(false);
+  };
+
+  // Modifier un groupe
+  const handleUpdateGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGroup || !editingGroup.name.trim()) return;
+
+    setGroups(prev => prev.map(g => g.id === editingGroup.id ? editingGroup : g));
+    setEditingGroup(null);
+  };
+
+  // Supprimer un groupe
+  const handleDeleteGroup = (id: string, name: string) => {
+    if (window.confirm(`Confirmez-vous la suppression du groupe « ${name} » ?`)) {
+      setGroups(prev => prev.filter(g => g.id !== id));
+    }
   };
 
   return (
@@ -246,10 +304,13 @@ export default function GroupsPage() {
                 </th>
               )}
               {visibleColumns.articles && (
-                <th className="py-2.5 px-3 font-normal text-slate-700">
+                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-100">
                   Articles d'accompagnement
                 </th>
               )}
+              <th className="py-2.5 px-3 font-normal text-slate-700 text-right">
+                Actions
+              </th>
             </tr>
           </thead>
 
@@ -257,7 +318,7 @@ export default function GroupsPage() {
             {groups.length === 0 ? (
               <tr>
                 <td 
-                  colSpan={6} 
+                  colSpan={7} 
                   className="py-16 text-center text-slate-400 select-none"
                 >
                   {/* Icône cercle barré gris (exactement comme sur votre capture) */}
@@ -308,10 +369,30 @@ export default function GroupsPage() {
                     </td>
                   )}
                   {visibleColumns.articles && (
-                    <td className="py-2.5 px-3 text-slate-600">
+                    <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">
                       {g.articlesCount || 0}
                     </td>
                   )}
+                  <td className="py-2 px-3 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingGroup(g)}
+                        title="Modifier le groupe"
+                        className="p-1.5 rounded-md text-slate-500 hover:text-[#23c3b1] hover:bg-emerald-50 transition-colors cursor-pointer"
+                      >
+                        <Edit3 className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGroup(g.id, g.name)}
+                        title="Supprimer le groupe"
+                        className="p-1.5 rounded-md text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
@@ -464,6 +545,121 @@ export default function GroupsPage() {
                   className="px-4 py-2 rounded-md text-xs font-medium bg-[#f06553] hover:bg-[#e05341] text-white shadow-2xs transition-colors cursor-pointer"
                 >
                   Créer le groupe
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* =========================================================================
+          6. MODALE MODIFIER UN GROUPE (AU PREMIER PLAN)
+         ========================================================================= */}
+      {editingGroup && createPortal(
+        <div 
+          className="fixed inset-0 z-[70] bg-black/55 backdrop-blur-[2px] p-4 flex items-center justify-center animate-in fade-in duration-200"
+          onClick={() => setEditingGroup(null)}
+        >
+          <div 
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in zoom-in-95 duration-200 text-slate-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* En-tête */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="size-9 rounded-full bg-[#23c3b1]/15 text-[#23c3b1] flex items-center justify-center">
+                  <Edit3 className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-800">Modifier le groupe</h3>
+                  <p className="text-xs text-slate-500">Mettez à jour les paramètres de la cohorte</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingGroup(null)}
+                className="size-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Formulaire */}
+            <form onSubmit={handleUpdateGroup} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nom du groupe <span className="text-[#f06553]">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingGroup.name}
+                  onChange={(e) => setEditingGroup({ ...editingGroup, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-md border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nombre de candidats
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editingGroup.candidatesCount}
+                  onChange={(e) => setEditingGroup({ ...editingGroup, candidatesCount: Number(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 rounded-md border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Modèle de parcours associé
+                </label>
+                <input
+                  type="text"
+                  value={editingGroup.pathwayTemplate}
+                  onChange={(e) => setEditingGroup({ ...editingGroup, pathwayTemplate: e.target.value })}
+                  className="w-full px-3 py-2 rounded-md border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1]"
+                />
+              </div>
+
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={editingGroup.groupDiscussion}
+                    onChange={(e) => setEditingGroup({ ...editingGroup, groupDiscussion: e.target.checked })}
+                    className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
+                  />
+                  <span>Activer la discussion de groupe</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={editingGroup.chatInterParticipants}
+                    onChange={(e) => setEditingGroup({ ...editingGroup, chatInterParticipants: e.target.checked })}
+                    className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
+                  />
+                  <span>Activer le chat inter-participants</span>
+                </label>
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingGroup(null)}
+                  className="px-4 py-2 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-md text-xs font-medium bg-[#23c3b1] hover:bg-[#1fb3a2] text-white shadow-2xs transition-colors cursor-pointer"
+                >
+                  Enregistrer les modifications
                 </button>
               </div>
             </form>

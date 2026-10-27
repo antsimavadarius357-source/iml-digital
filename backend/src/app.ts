@@ -45,6 +45,16 @@ export function createApp(): express.Express {
   v1.use('/settings', settingsRouter);
   app.use('/api/v1', v1);
 
+  // Route d'accueil informative pour éviter une erreur 404 si l'URL est visitée directement
+  app.get(['/', '/api'], (_req, res) => {
+    res.json({
+      status: 'ok',
+      message: 'API IML Digital opérationnelle',
+      interface: env.FRONTEND_URL,
+      health: '/api/v1/health',
+    });
+  });
+
   app.use(notFound);
   app.use(errorHandler);
   return app;

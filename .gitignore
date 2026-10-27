@@ -9,4 +9,5 @@ storage/
 .pgdata/
 backups/
 *.log
+uploads/
 .DS_Store

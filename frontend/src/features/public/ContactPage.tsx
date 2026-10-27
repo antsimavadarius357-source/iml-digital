@@ -1,70 +1,235 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { 
+  MapPin, 
+  Mail, 
+  Phone, 
+  Clock, 
+  Send, 
+  CheckCircle2, 
+  ArrowRight
+} from 'lucide-react';
+
 export default function ContactPage() {
+  const [submitted, setSubmitted] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    subject: 'Renseignement sur une cohorte',
+    message: ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitted(true);
+  };
+
   return (
-    <div className="py-24 bg-slate-50 min-h-screen border-t border-slate-200">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <div className="space-y-8">
-            <div>
-              <h1 className="text-iml-600 font-bold tracking-wide uppercase text-sm mb-4">Nous Contacter</h1>
-              <h2 className="text-4xl font-extrabold text-slate-900">Venez nous rencontrer</h2>
-            </div>
-            <p className="text-lg text-slate-600 leading-relaxed">
-              Notre équipe est à votre disposition pour répondre à toutes vos questions concernant les programmes d'accompagnement de l'IML.
-            </p>
-            
-            <div className="space-y-6 pt-4">
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-iml-600 shrink-0 shadow-sm">
-                  <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Adresse</div>
-                  <div className="text-slate-600">Quartier Batterie IV, Libreville, Gabon</div>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-iml-600 shrink-0 shadow-sm">
-                  <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Email</div>
-                  <div className="text-slate-600">contact@iml.ga</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-iml-600 shrink-0 shadow-sm">
-                  <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Téléphone</div>
-                  <div className="text-slate-600">+241 11 00 00 00</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100">
-            <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); alert('Message envoyé !'); }}>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nom complet</label>
-                <input type="text" required className="w-full rounded-xl border-slate-300 shadow-sm focus:ring-iml-500 p-3 bg-slate-50" placeholder="Jean Dupont" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input type="email" required className="w-full rounded-xl border-slate-300 shadow-sm focus:ring-iml-500 p-3 bg-slate-50" placeholder="jean@exemple.com" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Message</label>
-                <textarea rows={4} required className="w-full rounded-xl border-slate-300 shadow-sm focus:ring-iml-500 p-3 bg-slate-50" placeholder="Comment pouvons-nous vous aider ?"></textarea>
-              </div>
-              <button type="submit" className="w-full py-4 bg-iml-900 text-white font-semibold rounded-xl hover:bg-iml-800 transition-colors shadow-lg">
-                Envoyer le message
-              </button>
-            </form>
-          </div>
+    <div className="py-16 sm:py-24 bg-[#FAF9F5] min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* En-tête */}
+        <div className="text-center max-w-2xl mx-auto space-y-3 mb-16">
+          <span className="px-3 py-1 rounded-full bg-orange-100 text-[#FF5B37] text-xs font-bold uppercase tracking-wider inline-block">
+            Permanence & Écoute
+          </span>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tight">
+            Contactez l'équipe IML Digit
+          </h1>
+          <p className="text-slate-600 text-sm sm:text-base">
+            Que vous soyez porteur de projet, institution partenaire ou expert souhaitant intégrer notre réseau de coachs, nous vous répondons sous 24h.
+          </p>
         </div>
+
+        <div className="grid lg:grid-cols-12 gap-10 items-start">
+          
+          {/* Colonne gauche : Coordonnées & Présentation */}
+          <div className="lg:col-span-5 space-y-6">
+            
+            <div className="bg-white rounded-3xl p-7 border border-stone-200/90 shadow-sm space-y-6">
+              <h2 className="text-xl font-bold text-slate-900">Siège Opérationnel</h2>
+              
+              <div className="space-y-5 text-sm">
+                <div className="flex items-start gap-3.5">
+                  <div className="size-10 rounded-xl bg-orange-50 text-[#FF5B37] flex items-center justify-center shrink-0">
+                    <MapPin className="size-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900">Adresse</div>
+                    <div className="text-slate-600 text-xs mt-0.5">
+                      Immeuble IML Digit, Quartier Batterie IV, Libreville, République Gabonaise
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5">
+                  <div className="size-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Mail className="size-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900">Courrier électronique</div>
+                    <div className="text-slate-600 text-xs mt-0.5">
+                      contact@imldigit.com • admission@imldigit.com
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5">
+                  <div className="size-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Phone className="size-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900">Permanence téléphonique</div>
+                    <div className="text-slate-600 text-xs mt-0.5">
+                      +241 01 00 00 00 / +241 77 00 00 00
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5">
+                  <div className="size-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                    <Clock className="size-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900">Horaires du guichet</div>
+                    <div className="text-slate-600 text-xs mt-0.5">
+                      Lundi au Vendredi : 08h00 – 17h00 (Heure de Libreville)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Carte Appel Candidature Rapide */}
+            <div className="bg-slate-900 text-white rounded-3xl p-7 shadow-lg relative overflow-hidden space-y-4">
+              <span className="px-3 py-1 rounded-full bg-[#FF5B37] text-white text-[11px] font-bold uppercase tracking-wider inline-block">
+                Candidature directe
+              </span>
+              <h3 className="text-lg font-bold">Vous souhaitez déposer un dossier d'incubation ?</h3>
+              <p className="text-xs text-slate-400">
+                Vous n'avez pas besoin d'attendre : notre formulaire d'admission en ligne est ouvert 24h/24.
+              </p>
+              <Link
+                to="/candidater"
+                className="inline-flex items-center gap-2 text-xs font-bold text-[#FF8E75] hover:text-white transition-colors"
+              >
+                <span>Accéder au formulaire de candidature</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </div>
+
+          </div>
+
+          {/* Colonne droite : Formulaire de contact */}
+          <div className="lg:col-span-7 bg-white p-7 sm:p-9 rounded-3xl shadow-sm border border-stone-200/90">
+            {submitted ? (
+              <div className="py-12 text-center space-y-4">
+                <div className="size-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="size-8" />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900">Message transmis avec succès !</h3>
+                <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+                  Merci {formData.name}. Un conseiller d'orientation IML Digit a bien reçu votre demande et prendra contact avec vous dans les plus brefs délais.
+                </p>
+                <div className="pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubmitted(false);
+                      setFormData({ name: '', email: '', phone: '', subject: 'Renseignement sur une cohorte', message: '' });
+                    }}
+                    className="px-6 py-2.5 rounded-full bg-stone-100 hover:bg-stone-200 text-slate-700 text-xs font-bold transition-all"
+                  >
+                    Envoyer un autre message
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="border-b border-stone-100 pb-4 mb-2">
+                  <h3 className="text-lg font-bold text-slate-900">Formulaire de demande d'information</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Renseignez vos coordonnées pour être rappelé.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Nom et Prénom *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Ex: Jean-Marc Nguema"
+                      className="w-full px-4 py-3 rounded-xl border border-stone-200 text-xs text-slate-900 focus:outline-none focus:border-[#FF5B37] bg-stone-50/50" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Adresse email *</label>
+                    <input 
+                      type="email" 
+                      required 
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="votre.email@domaine.ga"
+                      className="w-full px-4 py-3 rounded-xl border border-stone-200 text-xs text-slate-900 focus:outline-none focus:border-[#FF5B37] bg-stone-50/50" 
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Téléphone / WhatsApp</label>
+                    <input 
+                      type="tel" 
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="+241 07 00 00 00"
+                      className="w-full px-4 py-3 rounded-xl border border-stone-200 text-xs text-slate-900 focus:outline-none focus:border-[#FF5B37] bg-stone-50/50" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Objet de votre demande</label>
+                    <select
+                      value={formData.subject}
+                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-stone-200 text-xs text-slate-900 focus:outline-none focus:border-[#FF5B37] bg-stone-50/50 cursor-pointer"
+                    >
+                      <option value="Renseignement sur une cohorte">Renseignement sur une cohorte</option>
+                      <option value="Postuler en tant que Mentor / Coach">Postuler en tant que Mentor / Coach</option>
+                      <option value="Partenariat institutionnel / Bailleurs">Partenariat institutionnel / Bailleurs</option>
+                      <option value="Autre demande">Autre demande</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Votre message *</label>
+                  <textarea 
+                    rows={4} 
+                    required 
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    placeholder="Précisez la nature de votre projet ou votre question..."
+                    className="w-full px-4 py-3 rounded-xl border border-stone-200 text-xs text-slate-900 focus:outline-none focus:border-[#FF5B37] bg-stone-50/50 resize-none"
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="w-full py-3.5 rounded-full bg-[#FF5B37] hover:bg-[#e94d29] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-orange-500/20 hover:shadow-orange-500/30 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Send className="size-4" />
+                  <span>Transmettre mon message</span>
+                </button>
+              </form>
+            )}
+          </div>
+
+        </div>
+
       </div>
     </div>
   );

@@ -54,19 +54,6 @@ const DEFAULT_MESSAGES: MessageItem[] = [
     replies: []
   },
   {
-    id: 'msg-3',
-    senderName: 'Direction IML Digit',
-    senderRole: 'Direction Générale Incubateur',
-    senderType: 'DIRECTION',
-    senderEmail: 'admin@imldigit.com',
-    subject: 'Transmission des feuilles de prestations de coaching',
-    content: 'Cher coach,\n\nNous vous rappelons que la clôture administrative des heures de coaching du mois en cours aura lieu le 25 du mois.\n\nMerci de vous assurer que toutes vos prestations réalisées auprès des entrepreneurs (séances individuelles et bilans d\'étape) ont bien été renseignées dans votre session.\n\nLa Direction IML',
-    createdAt: '10 Octobre 2026',
-    timeAgo: 'Il y a 3 jours',
-    isRead: true,
-    replies: []
-  },
-  {
     id: 'msg-4',
     senderName: 'COOPÉRATIVE AGRI-GABON',
     senderRole: 'Bénéficiaire Organisation',

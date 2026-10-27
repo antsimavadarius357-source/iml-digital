@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requirePermission } from '../../middleware/auth';
 import { createAppointmentSchema, idParam, listAppointmentsSchema, updateAppointmentSchema, createSessionSchema } from './appointments.schemas';
-import { createAppointment, listAppointments, updateAppointment, submitSession } from './appointments.service';
+import { createAppointment, listAppointments, updateAppointment, submitSession, deleteAppointment } from './appointments.service';
 
 export const appointmentsRouter = Router();
 
@@ -20,6 +20,13 @@ appointmentsRouter.post('/', async (req, res, next) => {
 appointmentsRouter.patch('/:id', async (req, res, next) => {
   try { res.json({ appointment: await updateAppointment(idParam.parse(req.params.id), updateAppointmentSchema.parse(req.body), req.auth!) }); }
   catch (e) { next(e); }
+});
+
+appointmentsRouter.delete('/:id', async (req, res, next) => {
+  try { 
+    await deleteAppointment(idParam.parse(req.params.id), req.auth!);
+    res.json({ success: true, message: 'RDV supprimé avec succès' });
+  } catch (e) { next(e); }
 });
 
 appointmentsRouter.post('/:id/session', async (req, res, next) => {

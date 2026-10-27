@@ -8,9 +8,10 @@ import {
   FileText, 
   Target, 
   Network, 
-  Settings, 
   Contact,
-  MessageSquare
+  MessageSquare,
+  BookOpen,
+  CheckCircle2
 } from 'lucide-react';
 
 export interface BreadcrumbCrumb {
@@ -47,10 +48,10 @@ export function BreadcrumbProvider({ children }: { children: React.ReactNode }) 
 
 export function useSetBreadcrumbs(crumbs: BreadcrumbCrumb[]) {
   const { setCustomCrumbs } = useContext(BreadcrumbContext);
+  const key = crumbs.map(c => `${c.label}:${c.to || ''}`).join('|');
   useEffect(() => {
     setCustomCrumbs(crumbs);
-    return () => setCustomCrumbs(null);
-  }, [JSON.stringify(crumbs)]);
+  }, [key]);
 }
 
 export default function AppBreadcrumb() {
@@ -118,6 +119,10 @@ export default function AppBreadcrumb() {
       crumbs = [
         { label: 'Documents & Livrables', icon: FileText }
       ];
+    } else if (path.startsWith('/notes-suivi')) {
+      crumbs = [
+        { label: 'Notes de suivi', icon: BookOpen }
+      ];
     } else if (path.startsWith('/candidatures')) {
       if (path !== '/candidatures') {
         crumbs = [
@@ -140,9 +145,9 @@ export default function AppBreadcrumb() {
           { label: 'Parcours types', icon: Network }
         ];
       }
-    } else if (path.startsWith('/parametres')) {
+    } else if (path.startsWith('/validation-etapes')) {
       crumbs = [
-        { label: 'Paramètres', icon: Settings }
+        { label: 'Validation des étapes', icon: CheckCircle2 }
       ];
     } else if (path.startsWith('/audit')) {
       crumbs = [
