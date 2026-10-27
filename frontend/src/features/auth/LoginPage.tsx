@@ -87,10 +87,10 @@ export default function LoginPage() {
             {/* Titre épuré */}
             <div className="text-center space-y-1.5 pb-2">
               <h1 className="text-2xl font-bold text-white tracking-tight">
-                Connexion
+                Espace Pro & Administration
               </h1>
               <p className="text-xs text-slate-300 leading-snug max-w-xs mx-auto">
-                Pour vous connecter à votre compte, renseignez votre identifiant et votre mot de passe.
+                Accès réservé aux coachs, mentors et à l'équipe de coordination IML Digit.
               </p>
             </div>
 
@@ -100,12 +100,12 @@ export default function LoginPage() {
               {/* Champ Identifiant */}
               <div>
                 <label className="block text-xs font-medium text-slate-200 mb-1">
-                  Identifiant <span className="text-[#f06553]">*</span>
+                  Identifiant professionnel <span className="text-[#f06553]">*</span>
                 </label>
                 <input
                   type="email"
                   autoComplete="username"
-                  placeholder="Mon email"
+                  placeholder="coach@imldigit.com"
                   {...register('email')}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all shadow-inner"
                 />
@@ -161,28 +161,33 @@ export default function LoginPage() {
                   {isSubmitting ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <span>Se connecter</span>
+                    <span>Accéder à mon espace</span>
                   )}
                 </button>
               </div>
             </form>
 
-            {/* Liens Inscription & Mot de passe oublié */}
-            <div className="text-center space-y-1 pt-1 text-xs">
+            {/* Aide pour les candidats / porteurs de projet */}
+            <div className="pt-3 border-t border-slate-700/60 text-center space-y-2 text-xs">
               <p className="text-slate-300">
-                Pas de compte ?{' '}
+                Vous êtes porteur de projet ou candidat ?
+              </p>
+              <div className="flex items-center justify-center gap-3 text-xs">
                 <button
                   type="button"
-                  onClick={() => setAuthModalOpen(true)}
-                  className="text-[#f06553] font-semibold hover:underline cursor-pointer"
+                  onClick={() => navigate('/suivi-candidature')}
+                  className="text-[#f06553] font-bold hover:underline cursor-pointer"
                 >
-                  Inscrivez-vous ici.
+                  Suivre mon dossier
                 </button>
-              </p>
-              <div>
-                <a href="#" className="text-[#f06553] font-semibold hover:underline">
-                  Mot de passe oublié ?
-                </a>
+                <span className="text-slate-500">•</span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/candidater')}
+                  className="text-white font-medium hover:underline cursor-pointer"
+                >
+                  Déposer une candidature
+                </button>
               </div>
             </div>
 

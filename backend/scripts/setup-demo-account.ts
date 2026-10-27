@@ -68,37 +68,9 @@ async function main() {
     },
   });
 
-  // 4. Compte Bénéficiaire
-  let roleBeneficiaire = await prisma.role.findUnique({ where: { code: 'BENEFICIAIRE' } });
-  if (!roleBeneficiaire) {
-    roleBeneficiaire = await prisma.role.create({ data: { code: 'BENEFICIAIRE', label: 'Bénéficiaire' } });
-  }
-  const beneficiaireEmail = 'beneficiaire@imldigit.com';
-  const beneficiaire = await prisma.user.upsert({
-    where: { email: beneficiaireEmail },
-    update: {
-      passwordHash,
-      isActive: true,
-      mustChangePassword: false,
-      emailVerifiedAt: new Date(),
-      roleId: roleBeneficiaire.id,
-    },
-    create: {
-      email: beneficiaireEmail,
-      passwordHash,
-      firstName: 'Marc',
-      lastName: 'Bénéficiaire (Porteur)',
-      isActive: true,
-      mustChangePassword: false,
-      emailVerifiedAt: new Date(),
-      roleId: roleBeneficiaire.id,
-    },
-  });
-
   console.log('Comptes de test configurés avec succès :');
   console.log(`- Agent : ${agent.email} / Mot de passe : ImlDigit2026!`);
   console.log(`- Coach : ${coach.email} / Mot de passe : ImlDigit2026!`);
-  console.log(`- Bénéficiaire : ${beneficiaire.email} / Mot de passe : ImlDigit2026!`);
 }
 
 main()
