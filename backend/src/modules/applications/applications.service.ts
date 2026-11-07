@@ -43,7 +43,10 @@ export async function listApplications(query: z.infer<typeof listApplicationsSch
     prisma.application.count({ where }),
     prisma.application.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { submittedAt: 'desc' },
+        { createdAt: 'desc' }
+      ],
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
@@ -60,6 +63,26 @@ export async function getApplication(id: string, auth: AuthContext) {
     where: { id, ...scopeWhere(auth) },
     include: {
       assignedAgent: { select: { id: true, firstName: true, lastName: true } },
+      beneficiary: {
+        include: {
+          program: { select: { id: true, name: true } },
+          pathway: true,
+          appointments: {
+            orderBy: { datetime: 'desc' },
+            take: 10,
+            include: {
+              user: { select: { id: true, firstName: true, lastName: true, role: true } },
+              session: true,
+            }
+          },
+          followUpNotes: {
+            orderBy: { createdAt: 'desc' },
+            include: {
+              author: { select: { id: true, firstName: true, lastName: true, role: true } }
+            }
+          }
+        }
+      }
     }
   });
   if (!app) throw new AppError(404, 'NON_TROUVE', 'Candidature introuvable ou accès refusé');
@@ -102,7 +125,7 @@ export async function createApplication(data: z.infer<typeof createApplicationSc
               create: {
                 name: applicant.companyName?.trim() || project.title?.trim() || 'Nouveau projet',
                 description: project.description?.trim() || null,
-                stage: project.stage || 'IDEE',
+                stage: project.stage === 'COMMERCIAL' ? 'LANCEMENT' : (['IDEE', 'PROTOTYPE', 'LANCEMENT', 'CROISSANCE', 'MATURITE'].includes(project.stage) ? project.stage : 'IDEE'),
               }
             }
           }
@@ -122,6 +145,9 @@ export async function createApplication(data: z.infer<typeof createApplicationSc
                   title: doc.originalName || 'Document justificatif',
                   category: doc.category || 'PROJET',
                   filePath: doc.fileId,
+                  fileName: doc.originalName || null,
+                  mimeType: doc.mimeType || null,
+                  sizeBytes: doc.size || null,
                   ownerId: beneficiaryId,
                   ownerType: 'BENEFICIARY',
                   status: 'EN_ATTENTE',
@@ -294,21 +320,53 @@ export async function trackApplicationPublic(searchQuery: string) {
     if (ben) {
       const project = ben.projects?.[0] || {};
       const year = ben.createdAt ? new Date(ben.createdAt).getUTCFullYear() : 2026;
+      
+      const appt = await prisma.appointment.findFirst({
+        where: { beneficiaryId: ben.id },
+        orderBy: { datetime: 'desc' },
+        include: { user: { select: { firstName: true, lastName: true } } }
+      });
+      let appointmentInfo: any = null;
+      if (appt) {
+        const loc = appt.location || '';
+        const isVisio = loc.toLowerCase().includes('visio') || loc.includes('http') || loc.toLowerCase().includes('meet');
+        const match = loc.match(/https?:\/\/[^\s\]]+/);
+        appointmentInfo = {
+          id: appt.id,
+          datetime: appt.datetime,
+          duration: appt.duration,
+          location: loc,
+          isVisio,
+          videoUrl: match ? match[0] : (isVisio ? `https://meet.jit.si/imldigit-entretien-${appt.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}` : null),
+          coachName: appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML'
+        };
+      }
+
+      let status = ben.status === 'EN_ATTENTE' ? 'SOUMISE' : ben.status === 'ACTIF' ? 'ACCEPTEE' : 'EN_COURS_EXAMEN';
+      if (status !== 'ACCEPTEE' && status !== 'REFUSEE') {
+        if (appointmentInfo) {
+          status = 'ENTRETIEN';
+        } else if (ben.assignedAgentId) {
+          status = 'EN_COURS_EXAMEN';
+        }
+      }
+
       return {
         id: ben.id,
         seqNumber: ben.fileSeq,
         referenceCode: `IML-${year}-${String(ben.fileSeq).padStart(4, '0')}`,
-        status: ben.status === 'EN_ATTENTE' ? 'SOUMISE' : ben.status === 'ACTIF' ? 'ACCEPTEE' : 'EN_COURS_EXAMEN',
+        status,
         submittedAt: ben.createdAt,
         applicantName: `${ben.firstName || ''} ${ben.lastName || ''}`.trim() || 'Porteur / Entreprise',
         structureType: ben.type || 'PORTEUR_IDEE',
         companyName: ben.companyName || project.name || 'Projet / Entreprise',
         rccm: ben.rccm,
         nif: ben.nif,
-        interviewPreference: 'PRESENTIEL',
+        interviewPreference: appointmentInfo?.isVisio ? 'VIDEO' : 'PRESENTIEL',
         hasVideoEquipment: false,
         needs: [],
-        stage: project.stage || 'IDEE'
+        stage: project.stage || 'IDEE',
+        appointment: appointmentInfo
       };
     }
   }
@@ -320,20 +378,54 @@ export async function trackApplicationPublic(searchQuery: string) {
   const applicant = (app.applicantData as any) || {};
   const project = (app.projectData as any) || {};
 
+  let appointmentInfo: any = null;
+  const targetBenId = app.beneficiaryId;
+  if (targetBenId) {
+    const appt = await prisma.appointment.findFirst({
+      where: { beneficiaryId: targetBenId },
+      orderBy: { datetime: 'desc' },
+      include: { user: { select: { firstName: true, lastName: true } } }
+    });
+    if (appt) {
+      const loc = appt.location || '';
+      const isVisio = loc.toLowerCase().includes('visio') || loc.includes('http') || loc.toLowerCase().includes('meet');
+      const match = loc.match(/https?:\/\/[^\s\]]+/);
+      appointmentInfo = {
+        id: appt.id,
+        datetime: appt.datetime,
+        duration: appt.duration,
+        location: loc,
+        isVisio,
+        videoUrl: match ? match[0] : (isVisio ? `https://meet.jit.si/imldigit-entretien-${appt.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}` : null),
+        coachName: appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML'
+      };
+    }
+  }
+
+  let status = app.status;
+  if (status !== 'ACCEPTEE' && status !== 'REFUSEE') {
+    if (appointmentInfo) {
+      status = 'ENTRETIEN';
+    } else if (app.assignedAgentId || status === 'EN_COURS_EXAMEN') {
+      status = 'EN_COURS_EXAMEN';
+    }
+  }
+
   return {
     id: app.id,
     seqNumber: app.seqNumber,
     referenceCode: `IML-2026-${String(app.seqNumber).padStart(4, '0')}`,
-    status: app.status,
+    status,
     submittedAt: app.submittedAt,
     applicantName: `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() || 'Porteur / Entreprise',
     structureType: applicant.structureType || 'PORTEUR_IDEE',
     companyName: applicant.companyName || project.title || 'Projet / Entreprise',
     rccm: applicant.rccm,
     nif: applicant.nif,
-    interviewPreference: applicant.interviewPreference || 'PRESENTIEL',
+    interviewPreference: applicant.interviewPreference || (appointmentInfo?.isVisio ? 'VIDEO' : 'PRESENTIEL'),
     hasVideoEquipment: applicant.hasVideoEquipment,
     needs: project.needs || [],
-    stage: project.stage || 'IDEE'
+    stage: project.stage || 'IDEE',
+    appointment: appointmentInfo
   };
 }

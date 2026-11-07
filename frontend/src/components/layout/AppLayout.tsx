@@ -23,7 +23,9 @@ import {
   X,
   FolderOpen,
   Video,
-  MapPin
+  MapPin,
+  BarChart3,
+  Building2
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -182,6 +184,140 @@ export default function AppLayout() {
     });
   };
 
+  const [readRoomAlertIds, setReadRoomAlertIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('iml_read_room_alerts') || '[]');
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const markRoomAlertAsRead = (bookingId: string) => {
+    setReadRoomAlertIds((prev) => {
+      if (prev.includes(bookingId)) return prev;
+      const next = [...prev, bookingId];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('iml_read_room_alerts', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+  };
+
+  const [readContactAlertIds, setReadContactAlertIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('iml_read_contact_alerts') || '[]');
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const markContactAlertAsRead = (contactId: string) => {
+    setReadContactAlertIds((prev) => {
+      if (prev.includes(contactId)) return prev;
+      const next = [...prev, contactId];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('iml_read_contact_alerts', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+  };
+
+
+  // Récupérer les nouvelles réservations de salle pour notifier l'équipe et la direction
+  const { data: pendingRoomBookingsRes } = useQuery({
+    queryKey: ['pending-room-bookings-alert'],
+    queryFn: () =>
+      api<{ items: any[] } | any[]>('/rooms/bookings?status=EN_ATTENTE')
+        .then((res) => (Array.isArray(res) ? res : res?.items || []))
+        .catch(() => []),
+    refetchInterval: 10_000,
+    enabled: !isCoach,
+  });
+
+  // Récupérer les nouvelles candidatures pour notifier l'équipe agent/direction
+  const { data: pendingAppsData } = useQuery({
+    queryKey: ['pending-applications-alert'],
+    queryFn: () => api<{ items: any[]; total: number }>('/applications?pageSize=30').catch(() => ({ items: [], total: 0 })),
+    refetchInterval: 10_000,
+    enabled: !isCoach,
+  });
+
+  const isDateToday = (dateStr?: string | null): boolean => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    const now = new Date();
+    return d.toDateString() === now.toDateString();
+  };
+
+  // Récupérer les derniers comptes-rendus rédigés par les coachs/experts pour notifier l'agent
+  const { data: recentNotesData } = useQuery({
+    queryKey: ['recent-notes-alert'],
+    queryFn: () => api<{ items: any[] }>('/beneficiaries/recent-notes').then(r => r.items || []).catch(() => []),
+    refetchInterval: 10_000,
+    enabled: !isCoach,
+  });
+
+  // Récupérer les séances et bénéficiaires affectés au coach par l'agent de planification
+  const { data: coachApptsData } = useQuery({
+    queryKey: ['coach-notifications-appts', user?.id],
+    queryFn: () => api<{ items: any[] }>('/appointments').then(r => r.items || []).catch(() => []),
+    refetchInterval: 10_000,
+    enabled: isCoach,
+  });
+
+  const coachAppts = coachApptsData || [];
+  const unreadCoachAppts = coachAppts.filter((a: any) => !readCoachAlertIds.includes(a.id));
+
+  const pendingRoomBookings = Array.isArray(pendingRoomBookingsRes)
+    ? pendingRoomBookingsRes
+    : (pendingRoomBookingsRes as any)?.items || [];
+  const unreadRoomBookings = pendingRoomBookings.filter((b: any) => !readRoomAlertIds.includes(b.id));
+
+  // Candidatures éligibles à l'alerte : celles soumises ou reçues aujourd'hui
+  const pendingApps = (pendingAppsData?.items || []).filter((a: any) => 
+    a.status === 'SOUMISE' || isDateToday(a.submittedAt || a.createdAt)
+  );
+  const unreadApps = pendingApps.filter((a: any) => !readAlertIds.includes(a.id));
+
+  // Les candidatures d'aujourd'hui doivent obligatoirement être affichées tout en haut
+  const todayApps = unreadApps
+    .filter((a: any) => isDateToday(a.submittedAt || a.createdAt))
+    .sort((a: any, b: any) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime());
+
+  const olderApps = unreadApps
+    .filter((a: any) => !isDateToday(a.submittedAt || a.createdAt))
+    .sort((a: any, b: any) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime());
+
+  const recentNotes = recentNotesData || [];
+  // Filtrer les comptes-rendus non consultés (et ignorer les notes rédigées par l'agent lui-même)
+  const unreadNotes = recentNotes.filter((n: any) => !readNoteAlertIds.includes(n.id) && n.author?.id !== user?.id);
+
+  // Récupérer les nouveaux messages de contact reçus depuis le formulaire public du site web
+  const { data: contactsRes } = useQuery({
+    queryKey: ['contact-messages-alert'],
+    queryFn: () => api<{ items: any[]; total: number; unreadCount: number }>('/contacts').catch(() => ({ items: [], total: 0, unreadCount: 0 })),
+    refetchInterval: 10_000,
+    enabled: !isCoach,
+  });
+
+  const contactItems = contactsRes?.items || [];
+  const unreadContacts = contactItems.filter((c: any) => c.status === 'NOUVEAU' && !readContactAlertIds.includes(c.id));
+
+  const alertCount = isCoach
+    ? unreadCoachAppts.length
+    : (unreadApps.length + unreadNotes.length + unreadRoomBookings.length + unreadContacts.length);
+
   const markAllAlertsAsRead = () => {
     if (isCoach) {
       const allIds = coachAppts.map((a: any) => a.id);
@@ -203,49 +339,23 @@ export default function AppLayout() {
     const combinedNotes = Array.from(new Set([...readNoteAlertIds, ...allNoteIds]));
     setReadNoteAlertIds(combinedNotes);
 
+    const allRoomIds = pendingRoomBookings.map((b: any) => b.id);
+    const combinedRooms = Array.from(new Set([...readRoomAlertIds, ...allRoomIds]));
+    setReadRoomAlertIds(combinedRooms);
+
+    const allContactIds = contactItems.map((c: any) => c.id);
+    const combinedContacts = Array.from(new Set([...readContactAlertIds, ...allContactIds]));
+    setReadContactAlertIds(combinedContacts);
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('iml_read_application_alerts', JSON.stringify(combinedApps));
         localStorage.setItem('iml_read_note_alerts', JSON.stringify(combinedNotes));
+        localStorage.setItem('iml_read_room_alerts', JSON.stringify(combinedRooms));
+        localStorage.setItem('iml_read_contact_alerts', JSON.stringify(combinedContacts));
       } catch {}
     }
   };
-
-  // Récupérer les nouvelles candidatures soumises pour notifier l'équipe agent/direction
-  const { data: pendingAppsData } = useQuery({
-    queryKey: ['pending-applications-alert'],
-    queryFn: () => api<{ items: any[]; total: number }>('/applications?status=SOUMISE&pageSize=10').catch(() => ({ items: [], total: 0 })),
-    refetchInterval: 10_000,
-    enabled: !isCoach,
-  });
-
-  // Récupérer les derniers comptes-rendus rédigés par les coachs/experts pour notifier l'agent
-  const { data: recentNotesData } = useQuery({
-    queryKey: ['recent-notes-alert'],
-    queryFn: () => api<{ items: any[] }>('/beneficiaries/recent-notes').then(r => r.items || []).catch(() => []),
-    refetchInterval: 10_000,
-    enabled: !isCoach,
-  });
-
-  // Récupérer les séances et bénéficiaires affectés au coach par l'agent de planification
-  const { data: coachApptsData } = useQuery({
-    queryKey: ['coach-notifications-appts', user?.id],
-    queryFn: () => api<{ items: any[] }>('/appointments').then(r => r.items || []).catch(() => []),
-    refetchInterval: 10_000,
-    enabled: isCoach,
-  });
-
-  const coachAppts = coachApptsData || [];
-  const unreadCoachAppts = coachAppts.filter((a: any) => !readCoachAlertIds.includes(a.id));
-
-  const pendingApps = pendingAppsData?.items || [];
-  const unreadApps = pendingApps.filter((a: any) => !readAlertIds.includes(a.id));
-
-  const recentNotes = recentNotesData || [];
-  // Filtrer les comptes-rendus non consultés (et ignorer les notes rédigées par l'agent lui-même)
-  const unreadNotes = recentNotes.filter((n: any) => !readNoteAlertIds.includes(n.id) && n.author?.id !== user?.id);
-
-  const alertCount = isCoach ? unreadCoachAppts.length : (unreadApps.length + unreadNotes.length);
 
   // Petite notification d'accusé de réception pour l'agent de planification (JAMAIS POUR LE COACH)
   const [receiptToast, setReceiptToast] = useState<{
@@ -339,6 +449,16 @@ export default function AppLayout() {
   // Détermination du rôle effectif strictement basé sur le compte e-mail authentifié
   const effectiveRole = user?.role || (urlVue === 'coach' ? 'COACH' : urlVue === 'agent' ? 'AGENT' : 'DIRECTION');
 
+  const isDirection = !!(
+    effectiveRole === 'DIRECTION' ||
+    user?.role === 'DIRECTION' ||
+    user?.roleLabel?.toLowerCase().includes('direct') ||
+    user?.email?.toLowerCase().includes('direction') ||
+    user?.email?.toLowerCase().includes('directeur') ||
+    user?.firstName?.toLowerCase().includes('directeur') ||
+    user?.lastName?.toLowerCase().includes('directeur')
+  );
+
   const submenus: Record<string, { title: string; subtitle?: string; items: { label: string; to: string; icon: any }[] }> = {
     organisation: {
       title: 'Organisation',
@@ -347,7 +467,6 @@ export default function AppLayout() {
         { label: 'Bénéficiaires & PME', to: '/beneficiaires', icon: UserIcon },
         { label: 'Contacts & Réseau', to: '/contacts', icon: Contact },
         { label: 'Coachs & Mentors', to: '/coachs', icon: UserCheck },
-        { label: 'Journal d\'audit', to: '/audit', icon: FileText },
       ]
     },
     accompagnement: {
@@ -355,45 +474,42 @@ export default function AppLayout() {
       subtitle: effectiveRole === 'COACH' ? 'Mentorat & livrables' : 'Suivi opérationnel',
       items: [
         { label: effectiveRole === 'COACH' ? 'Mon Agenda de mentorat' : 'Rendez-vous & Agenda', to: '/agendas', icon: Calendar },
-        { label: effectiveRole === 'COACH' ? 'Notes d\'accompagnement' : 'Notes & Comptes-rendus', to: '/notes-suivi', icon: BookOpen },
+        { label: effectiveRole === 'COACH' ? 'Notes d\'accompagnement' : 'Comptes-rendus d\'experts', to: '/notes-suivi', icon: BookOpen },
         { label: 'Documents & Livrables', to: '/documents', icon: FileText },
-      ]
-    },
-    parcours: {
-      title: 'Candidatures & Parcours',
-      subtitle: 'Étapes et progression',
-      items: [
-        { label: 'Candidatures reçues', to: '/candidatures', icon: Target },
-        { label: 'Parcours types & Jalons', to: '/parcours', icon: Network },
-        { label: 'Validation des Étapes', to: '/validation-etapes', icon: CheckCircle2 },
       ]
     }
   };
 
   const routeCategoryMap: Record<string, string[]> = {
-    organisation: ['/beneficiaires', '/contacts', '/coachs', '/equipe', '/audit'],
+    direction: ['/direction', '/pilotage', '/statistiques'],
+    candidatures: ['/candidatures'],
+    beneficiaires: ['/beneficiaires'],
+    organisation: ['/beneficiaires', '/contacts', '/coachs', '/equipe'],
     accompagnement: ['/agendas', '/rendez-vous', '/documents', '/notes-suivi'],
-    parcours: ['/candidatures', '/parcours', '/validation-etapes'],
   };
 
   const homeLink = effectiveRole === 'COACH' 
     ? '/tableau-de-bord?vue=coach' 
-    : effectiveRole === 'AGENT' 
-    ? '/tableau-de-bord?vue=agent' 
-    : '/tableau-de-bord?vue=direction';
+    : effectiveRole === 'DIRECTION' 
+    ? '/direction' 
+    : '/tableau-de-bord?vue=agent';
 
   // Navigation contextuelle et stricte selon le rôle :
   const allNavLinks = effectiveRole === 'COACH'
     ? [
         { id: 'accueil', to: '/tableau-de-bord?vue=coach', label: 'Cahier de bord', icon: Home, hasSubmenu: false, roles: ['COACH'] },
-        { id: 'beneficiaires', to: '/beneficiaires', label: 'Mes Dossiers', icon: UserIcon, hasSubmenu: false, roles: ['COACH'] },
         { id: 'agendas', to: '/agendas', label: 'Mon Planning', icon: Calendar, hasSubmenu: false, roles: ['COACH'] },
       ]
+    : effectiveRole === 'DIRECTION'
+    ? [
+        { id: 'direction', to: '/direction', label: 'Cockpit Stratégique & Trafic', icon: BarChart3, hasSubmenu: false, roles: ['DIRECTION'] },
+        { id: 'candidatures', to: '/candidatures', label: 'Candidatures & Admissions', icon: Target, hasSubmenu: false, roles: ['DIRECTION'] },
+      ]
     : [
-        { id: 'accueil', to: homeLink, label: 'Accueil', icon: Home, hasSubmenu: false, roles: ['AGENT', 'DIRECTION', 'ADMIN'] },
-        { id: 'organisation', to: '/beneficiaires', label: 'Organisation', icon: Network, hasSubmenu: true, roles: ['AGENT'] },
-        { id: 'accompagnement', to: '/agendas', label: 'Accompagnement', icon: HeartHandshake, hasSubmenu: true, roles: ['AGENT'] },
-        { id: 'parcours', to: '/candidatures', label: 'Candidatures & Parcours', icon: Target, hasSubmenu: true, roles: ['AGENT', 'DIRECTION', 'ADMIN'] },
+        { id: 'accueil', to: homeLink, label: 'Accueil Guichet', icon: Home, hasSubmenu: false, roles: ['AGENT', 'ADMIN'] },
+        { id: 'organisation', to: '/beneficiaires', label: 'Organisation', icon: Network, hasSubmenu: true, roles: ['AGENT', 'ADMIN'] },
+        { id: 'accompagnement', to: '/agendas', label: 'Accompagnement', icon: HeartHandshake, hasSubmenu: true, roles: ['AGENT', 'ADMIN'] },
+        { id: 'candidatures', to: '/candidatures', label: 'Candidatures & Admissions', icon: Target, hasSubmenu: false, roles: ['ADMIN'] },
       ];
 
   const navLinks = allNavLinks.filter(item => item.roles.includes(effectiveRole));
@@ -434,7 +550,7 @@ export default function AppLayout() {
             className="flex items-center justify-center hover:scale-105 transition-transform"
             title="Accueil iml digit"
           >
-            <ImlSymbol size={32} />
+            <ImlSymbol size={42} />
           </Link>
         </div>
 
@@ -584,36 +700,49 @@ export default function AppLayout() {
           </div>
 
           {/* Centre : Barre de recherche blanche "Rechercher un bénéficiaire" */}
-          <div className="hidden md:flex items-center flex-1 max-w-sm mx-4">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const input = form.elements.namedItem('searchBeneficiary') as HTMLInputElement;
+              if (input && input.value.trim()) {
+                navigate(`/beneficiaires?search=${encodeURIComponent(input.value.trim())}`);
+              }
+            }}
+            className="hidden md:flex items-center flex-1 max-w-sm mx-4"
+          >
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
               <input 
+                name="searchBeneficiary"
                 type="text" 
-                placeholder="Rechercher un bénéficiaire"
+                placeholder="Rechercher un bénéficiaire (Entrée)..."
                 className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#2dd4bf] transition-all shadow-inner"
               />
             </div>
-          </div>
+          </form>
 
           {/* Droite : Calendrier (Icône interactive), Cloche & Profil Utilisateur */}
           <div className="flex items-center gap-3 sm:gap-4">
-            <button 
-              type="button"
-              onClick={() => {
-                if (location.pathname === '/' || location.pathname === '/tableau-de-bord') {
-                  window.dispatchEvent(new CustomEvent('open-calendar-drawer'));
-                } else {
-                  navigate('/agendas');
-                }
-              }}
-              className="p-1.5 text-slate-600 hover:text-[#23c3b1] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer relative"
-              title="Mon calendrier (Ouvrir)"
-            >
-              <Calendar className="size-4" />
-            </button>
+            {!isDirection && (
+              <>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (location.pathname === '/' || location.pathname === '/tableau-de-bord') {
+                      window.dispatchEvent(new CustomEvent('open-calendar-drawer'));
+                    } else {
+                      navigate('/agendas');
+                    }
+                  }}
+                  className="p-1.5 text-slate-600 hover:text-[#23c3b1] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer relative"
+                  title="Mon calendrier (Ouvrir)"
+                >
+                  <Calendar className="size-4" />
+                </button>
 
-            {/* Cloche de notifications interactive avec badge et aperçu des demandes */}
-            <div className="relative" ref={notificationsRef}>
+                {/* Cloche de notifications interactive avec badge et aperçu des demandes */}
+                <div className="relative" ref={notificationsRef}>
               <button 
                 type="button"
                 onClick={() => setIsNotificationsOpen(prev => !prev)}
@@ -758,16 +887,198 @@ export default function AppLayout() {
                         })
                       )
                     ) : (
-                      /* LISTE POUR L'AGENT / DIRECTION : Comptes-rendus d'experts + Nouvelles candidatures */
-                      (unreadApps.length === 0 && unreadNotes.length === 0) ? (
+                      /* LISTE POUR L'AGENT / DIRECTION : Réservations de salle + Messages de contact + Comptes-rendus + Nouvelles candidatures */
+                      (unreadApps.length === 0 && unreadNotes.length === 0 && unreadRoomBookings.length === 0 && unreadContacts.length === 0) ? (
                         <div className="p-6 text-center text-slate-400">
                           <CheckCircle2 className="size-7 mx-auto mb-2 text-[#23c3b1]" />
                           <p className="font-semibold text-slate-700">Toutes les alertes ont été consultées</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Aucun nouveau compte-rendu ni candidature en attente</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Aucune demande de contact, réservation de salle, compte-rendu ni candidature en attente</p>
                         </div>
                       ) : (
                         <div className="divide-y divide-slate-100">
-                          {/* 1. NOUVEAUX COMPTES-RENDUS RÉDIGÉS PAR LES EXPERTS / COACHS */}
+                          {/* 0. MESSAGES & DEMANDES DE CONTACT REÇUS DU SITE WEB */}
+                          {unreadContacts.map((c: any) => {
+                            const formattedDate = formatNotificationDate(c.createdAt);
+
+                            return (
+                              <div key={c.id} className="p-3.5 bg-amber-50/50 hover:bg-amber-50/90 transition-colors space-y-2 group relative border-l-3 border-[#FF5B37]">
+                                <div className="flex items-center justify-between">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FF5B37]/15 text-[#FF5B37] border border-[#FF5B37]/30 flex items-center gap-1">
+                                    <Mail className="size-3 text-[#FF5B37]" />
+                                    <span>Demande de contact reçue</span>
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-medium text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200/60">
+                                      {formattedDate}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        markContactAlertAsRead(c.id);
+                                      }}
+                                      title="Marquer comme lu"
+                                      className="opacity-60 group-hover:opacity-100 text-slate-400 hover:text-[#FF5B37] transition-opacity p-0.5 cursor-pointer rounded hover:bg-slate-200/50"
+                                    >
+                                      <CheckCircle2 className="size-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                                    {c.name}
+                                  </div>
+                                  <div className="text-[11px] text-slate-600 font-medium mt-0.5">
+                                    Objet : <span className="text-slate-800 font-bold">{c.subject}</span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 line-clamp-2 mt-1 italic bg-white/70 p-1.5 rounded border border-amber-200/50">
+                                    « {c.message} »
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Link
+                                    to={`/contacts?tab=messages&contactId=${c.id}`}
+                                    onClick={() => {
+                                      markContactAlertAsRead(c.id);
+                                      setIsNotificationsOpen(false);
+                                    }}
+                                    className="px-2.5 py-1 rounded bg-[#FF5B37] hover:bg-[#e94d29] text-white text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                  >
+                                    <Mail className="size-3" />
+                                    <span>Consulter & Répondre</span>
+                                  </Link>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {/* 1. CANDIDATURES REÇUES AUJOURD'HUI (PRIORITÉ ABSOLUE TOUT EN HAUT) */}
+                          {todayApps.map((a: any) => {
+                            const applicant = a.applicantData || {};
+                            const project = a.projectData || {};
+                            const name = `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() || 'Porteur de projet';
+                            const company = applicant.companyName || project.title || 'Projet sans nom';
+                            const code = `IML-2026-${String(a.seqNumber).padStart(4, '0')}`;
+                            const formattedDate = formatNotificationDate(a.submittedAt || a.createdAt);
+
+                            return (
+                              <div key={a.id} className="p-3.5 bg-rose-50/35 hover:bg-rose-50/70 transition-colors space-y-1.5 group relative border-l-3 border-[#f06553]">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-[#f06553] text-[11px]">{code}</span>
+                                    <span className="text-[9.5px] font-extrabold text-rose-700 bg-rose-100/90 px-1.5 py-0.5 rounded border border-rose-200/80 flex items-center gap-1 shadow-2xs">
+                                      <span className="size-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                      Aujourd'hui
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-bold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200/60 shadow-2xs">
+                                      {formattedDate}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        markAlertAsRead(a.id);
+                                      }}
+                                      title="Marquer comme lu"
+                                      className="opacity-60 group-hover:opacity-100 text-slate-400 hover:text-[#23c3b1] transition-opacity p-0.5 cursor-pointer rounded hover:bg-slate-200/50"
+                                    >
+                                      <CheckCircle2 className="size-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="font-semibold text-slate-900">{name}</div>
+                                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                                  <span>Projet :</span>
+                                  <span className="font-medium text-slate-700 truncate">{company}</span>
+                                </div>
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Link
+                                    to={`/candidatures/${a.id}`}
+                                    onClick={() => {
+                                      markAlertAsRead(a.id);
+                                      setIsNotificationsOpen(false);
+                                    }}
+                                    className="px-2.5 py-1 rounded bg-[#102a43] hover:bg-[#193a5c] text-white text-[10px] font-bold transition-colors cursor-pointer shadow-2xs"
+                                  >
+                                    Consulter la candidature
+                                  </Link>
+                                  <Link
+                                    to="/beneficiaires"
+                                    onClick={() => {
+                                      markAlertAsRead(a.id);
+                                      setIsNotificationsOpen(false);
+                                    }}
+                                    className="px-2.5 py-1 rounded bg-teal-50 hover:bg-teal-100 text-[#178578] text-[10px] font-medium transition-colors cursor-pointer"
+                                  >
+                                    Voir dans Bénéficiaires
+                                  </Link>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* 2. NOUVELLES RÉSERVATIONS DE SALLE (DIRECTION & AGENTS) */}
+                          {unreadRoomBookings.map((b: any) => {
+                            const date = new Date(b.startAt);
+                            const formattedDate = formatNotificationDate(b.createdAt || b.startAt);
+                            const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+                            return (
+                              <div key={b.id} className="p-3.5 bg-orange-50/40 hover:bg-orange-50/80 transition-colors space-y-2 group relative border-l-3 border-[#FF5B37]">
+                                <div className="flex items-center justify-between">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FF5B37]/15 text-[#FF5B37] border border-[#FF5B37]/30 flex items-center gap-1">
+                                    <Building2 className="size-3 text-[#FF5B37]" />
+                                    <span>Réservation de Salle</span>
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-medium text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200/60">
+                                      {formattedDate}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        markRoomAlertAsRead(b.id);
+                                      }}
+                                      title="Marquer comme lu"
+                                      className="opacity-60 group-hover:opacity-100 text-slate-400 hover:text-[#FF5B37] transition-opacity p-0.5 cursor-pointer rounded hover:bg-slate-200/50"
+                                    >
+                                      <CheckCircle2 className="size-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                                    {b.organizerName} {b.organization ? <span className="text-slate-500 font-normal">({b.organization})</span> : null}
+                                  </div>
+                                  <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
+                                    <Calendar className="size-3 text-[#FF5B37]" />
+                                    <span>Créneau : <strong>{date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} à {timeStr}</strong> ({b.attendees} participants)</span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Link
+                                    to={`/dashboard?tab=salle&bookingId=${b.id}`}
+                                    onClick={() => {
+                                      markRoomAlertAsRead(b.id);
+                                      setIsNotificationsOpen(false);
+                                    }}
+                                    className="px-2.5 py-1 rounded bg-[#FF5B37] hover:bg-[#e94d29] text-white text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                  >
+                                    <Building2 className="size-3" />
+                                    <span>Traiter la réservation (Direction)</span>
+                                  </Link>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* 3. NOUVEAUX COMPTES-RENDUS RÉDIGÉS PAR LES EXPERTS / COACHS */}
                           {unreadNotes.map((n: any) => {
                             const authorName = `${n.author?.firstName || 'Expert'} ${n.author?.lastName || ''}`.trim();
                             const benName = `${n.beneficiary?.firstName || ''} ${n.beneficiary?.lastName || ''}`.trim() || 'Bénéficiaire';
@@ -828,8 +1139,8 @@ export default function AppLayout() {
                             );
                           })}
 
-                          {/* 2. NOUVELLES CANDIDATURES REÇUES */}
-                          {unreadApps.map((a: any) => {
+                          {/* 4. AUTRES CANDIDATURES NON LUES (ANTÉRIEURES) */}
+                          {olderApps.map((a: any) => {
                             const applicant = a.applicantData || {};
                             const project = a.projectData || {};
                             const name = `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() || 'Porteur de projet';
@@ -872,7 +1183,7 @@ export default function AppLayout() {
                                     }}
                                     className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-medium transition-colors cursor-pointer"
                                   >
-                                    Examiner la candidature
+                                    Consulter la candidature
                                   </Link>
                                   <Link
                                     to="/beneficiaires"
@@ -915,9 +1226,11 @@ export default function AppLayout() {
                 </div>
               )}
             </div>
+          </>
+        )}
 
             {/* Profil utilisateur connecté avec déconnexion */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div className={`flex items-center gap-2 ${!isDirection ? 'pl-2 border-l border-slate-200' : ''}`}>
               <div className="size-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
                 <UserIcon className="size-3.5" />
               </div>

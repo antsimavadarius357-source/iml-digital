@@ -21,6 +21,7 @@ import ContactPage from '../features/public/ContactPage';
 import PublicApplicationPage from '../features/public/PublicApplicationPage';
 import SuiviCandidaturePage from '../features/public/SuiviCandidaturePage';
 import PublicCertificatePage from '../features/public/PublicCertificatePage';
+import SallePage from '../features/public/SallePage';
 import BeneficiariesPage from '../features/beneficiaries/BeneficiariesPage';
 import BeneficiaryFormPage from '../features/beneficiaries/BeneficiaryFormPage';
 import BeneficiaryDetailPage from '../features/beneficiaries/BeneficiaryDetailPage';
@@ -28,8 +29,6 @@ import BeneficiaryEditPage from '../features/beneficiaries/BeneficiaryEditPage';
 import ApplicationsPage from '../features/applications/ApplicationsPage';
 import ApplicationDetailPage from '../features/applications/ApplicationDetailPage';
 import AppointmentsPage from '../features/appointments/AppointmentsPage';
-import PathwaysPage from '../features/pathways/PathwaysPage';
-import PathwayDetailPage from '../features/pathways/PathwayDetailPage';
 import DocumentsPage from '../features/documents/DocumentsPage';
 import UsersPage from '../features/users/UsersPage';
 import CoachesPage from '../features/coaches/CoachesPage';
@@ -37,9 +36,8 @@ import CoachDetailPage from '../features/coaches/CoachDetailPage';
 import GroupsPage from '../features/groups/GroupsPage';
 import ContactsPage from '../features/contacts/ContactsPage';
 import CoachMessagesPage from '../features/messages/CoachMessagesPage';
-import AuditPage from '../features/audit/AuditPage';
 import FollowUpNotesPage from '../features/notes/FollowUpNotesPage';
-import MilestoneValidationPage from '../features/pathways/MilestoneValidationPage';
+import DirectorDashboardPage from '../features/director/DirectorDashboardPage';
 
 function Protected() {
   const { user, isLoading } = useAuth();
@@ -53,7 +51,10 @@ function Protected() {
 
 /** Garde d'interface uniquement : la sécurité réelle est appliquée par le backend. */
 function RequirePermission({ permission, children }: { permission: string; children: ReactNode }) {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  if (user?.role === 'DIRECTION' && permission === 'applications:review') {
+    return <>{children}</>;
+  }
   if (!can(permission)) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-8 max-w-lg mx-auto text-center my-12 shadow-sm">
@@ -88,6 +89,8 @@ export default function AppRoutes() {
         <Route path="/ressources/webinaires" element={<WebinairesPage />} />
         <Route path="/solutions/:slug" element={<SolutionsDetailPage />} />
         <Route path="/fonctionnalites" element={<FonctionnalitesPage />} />
+        <Route path="/salle" element={<SallePage />} />
+        <Route path="/espaces" element={<SallePage />} />
         <Route path="/contact" element={<ContactPage />} />
       </Route>
       <Route path="/connexion" element={<LoginPage />} />
@@ -95,6 +98,11 @@ export default function AppRoutes() {
       <Route element={<Protected />}>
         <Route path="tableau-de-bord" element={<DashboardPage />} />
         
+        {/* Cockpit Direction & Statistiques Stratégiques */}
+        <Route path="direction" element={<DirectorDashboardPage />} />
+        <Route path="pilotage" element={<DirectorDashboardPage />} />
+        <Route path="statistiques" element={<DirectorDashboardPage />} />
+
         {/* Organisation */}
         <Route path="beneficiaires">
           <Route index element={<RequirePermission permission="beneficiaries:read"><BeneficiariesPage /></RequirePermission>} />
@@ -124,18 +132,14 @@ export default function AppRoutes() {
         <Route path="prestations" element={<Navigate to="/rendez-vous" replace />} />
         <Route path="notes-suivi" element={<FollowUpNotesPage />} />
 
-        {/* Parcours & Validation des étapes */}
-        <Route path="parcours">
-          <Route index element={<RequirePermission permission="pathways:manage"><PathwaysPage /></RequirePermission>} />
-          <Route path=":id" element={<RequirePermission permission="pathways:manage"><PathwayDetailPage /></RequirePermission>} />
-        </Route>
-        <Route path="validation-etapes" element={<MilestoneValidationPage />} />
+        {/* Redirection parcours & jalons */}
+        <Route path="parcours" element={<Navigate to="/candidatures" replace />} />
+        <Route path="parcours/*" element={<Navigate to="/candidatures" replace />} />
+        <Route path="validation-etapes" element={<Navigate to="/beneficiaires" replace />} />
 
         {/* Documents */}
         <Route path="documents" element={<DocumentsPage />} />
-
-        {/* Journal d'Audit */}
-        <Route path="audit" element={<AuditPage />} />
+        <Route path="audit" element={<Navigate to="/tableau-de-bord" replace />} />
         <Route path="parametres" element={<Navigate to="/tableau-de-bord" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

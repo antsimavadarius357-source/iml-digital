@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const user = me.data ?? null;
+
   const value: AuthState = {
     user,
     isLoading: me.isLoading,
