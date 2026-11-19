@@ -19,17 +19,19 @@ export function scopeWhere(auth: Auth): Prisma.BeneficiaryWhereInput {
   switch (auth.role) {
     case 'ADMIN':
     case 'DIRECTION':
-      return base;
     case 'AGENT':
-      return { ...base, OR: [{ assignedAgentId: auth.userId }, { assignedAgentId: null }, { assignments: { some: { userId: auth.userId } } }] };
+      return base;
     case 'COACH':
       return {
         ...base,
         OR: [
+          { assignedAgentId: auth.userId },
           { assignments: { some: { userId: auth.userId } } },
           { appointments: { some: { userId: auth.userId } } },
         ],
       };
+    case 'BENEFICIAIRE':
+      return { ...base, userId: auth.userId };
     default:
       return { ...base, id: '00000000-0000-0000-0000-000000000000' }; // aucun accès
   }
@@ -112,7 +114,7 @@ export async function listBeneficiaries(q: z.infer<typeof listBeneficiariesSchem
   return { items: items.map(withNumber), total, page: q.page, pageSize: q.pageSize };
 }
 
-async function assertReferences(refs: { programId?: string | null; assignedAgentId?: string | null; sectorId?: string | null }) {
+async function assertReferences(refs: { programId?: string | null; assignedAgentId?: string | null; coachId?: string | null; sectorId?: string | null }) {
   if (refs.programId && !(await prisma.program.findUnique({ where: { id: refs.programId } }))) {
     throw new AppError(400, 'Programme introuvable', 'PROGRAMME_INCONNU');
   }
@@ -120,19 +122,56 @@ async function assertReferences(refs: { programId?: string | null; assignedAgent
     throw new AppError(400, "Secteur d'activité introuvable", 'SECTEUR_INCONNU');
   }
   if (refs.assignedAgentId) {
-    const agent = await prisma.user.findFirst({ where: { id: refs.assignedAgentId, isActive: true, role: { code: 'AGENT' } } });
-    if (!agent) throw new AppError(400, "Agent d'accompagnement introuvable ou inactif", 'AGENT_INCONNU');
+    const agent = await prisma.user.findFirst({
+      where: {
+        id: refs.assignedAgentId,
+        isActive: true,
+        role: { code: { in: ['AGENT', 'COACH', 'ADMIN', 'DIRECTION'] } },
+      },
+    });
+    if (!agent) throw new AppError(400, "Référent d'accompagnement introuvable ou inactif", 'AGENT_INCONNU');
+  }
+  if (refs.coachId) {
+    const coach = await prisma.user.findFirst({
+      where: {
+        id: refs.coachId,
+        isActive: true,
+        role: { code: { in: ['COACH', 'ADMIN', 'AGENT', 'DIRECTION'] } },
+      },
+    });
+    if (!coach) throw new AppError(400, "Coach / expert introuvable ou inactif", 'COACH_INCONNU');
   }
 }
 
-const toDate = (v?: string | null) => (v ? new Date(`${v}T00:00:00.000Z`) : v === null ? null : undefined);
+async function resolveSectorId(sectorId?: string | null, customSectorName?: string | null): Promise<string | undefined | null> {
+  if (customSectorName && customSectorName.trim()) {
+    const clean = customSectorName.trim();
+    const existing = await prisma.sector.findFirst({
+      where: { name: { equals: clean, mode: 'insensitive' } },
+    });
+    if (existing) {
+      return existing.id;
+    }
+    const created = await prisma.sector.create({
+      data: { name: clean },
+    });
+    return created.id;
+  }
+  return sectorId;
+}
+
+const toDate = (v?: string | null) => {
+  if (!v) return v === null ? null : undefined;
+  return v.includes('T') ? new Date(v) : new Date(`${v}T00:00:00.000Z`);
+};
 
 export async function createBeneficiary(input: z.infer<typeof createBeneficiarySchema>, auth: Auth, ip?: string) {
   if (await prisma.beneficiary.findUnique({ where: { email: input.email } })) {
     throw new AppError(409, 'Un dossier existe déjà avec cette adresse e-mail', 'DOUBLON_EMAIL');
   }
   const assignedAgentId = input.assignedAgentId ?? (auth.role === 'AGENT' ? auth.userId : undefined);
-  await assertReferences({ programId: input.programId, assignedAgentId, sectorId: input.project.sectorId });
+  const finalSectorId = await resolveSectorId(input.project.sectorId, input.project.customSectorName);
+  await assertReferences({ programId: input.programId, assignedAgentId, sectorId: finalSectorId });
   const { project, ...b } = input;
 
   const created = await prisma.beneficiary.create({
@@ -142,7 +181,7 @@ export async function createBeneficiary(input: z.infer<typeof createBeneficiaryS
       startDate: toDate(b.startDate), initialObjectives: b.initialObjectives,
       projects: {
         create: {
-          name: project.name, description: project.description, sectorId: project.sectorId, projectType: project.projectType,
+          name: project.name, description: project.description, sectorId: finalSectorId, projectType: project.projectType,
           stage: project.stage, companyCreatedAt: toDate(project.companyCreatedAt), legalStatus: project.legalStatus,
           companySize: project.companySize, priorityNeeds: project.priorityNeeds,
         },
@@ -191,10 +230,13 @@ function diff(before: Record<string, unknown>, after: Record<string, unknown>) {
 
 export async function updateBeneficiary(id: string, input: z.infer<typeof updateBeneficiarySchema>, auth: Auth, ip?: string) {
   const current = await getBeneficiary(id, auth);
+  if (auth.role === 'COACH' && (input.assignedAgentId !== undefined || input.coachId !== undefined)) {
+    throw new AppError(403, 'Seul un chargé de dossier ou un administrateur peut modifier les affectations', 'INTERDIT');
+  }
   if (input.email && input.email !== current.email && (await prisma.beneficiary.findUnique({ where: { email: input.email } }))) {
     throw new AppError(409, 'Un dossier existe déjà avec cette adresse e-mail', 'DOUBLON_EMAIL');
   }
-  await assertReferences({ programId: input.programId, assignedAgentId: input.assignedAgentId });
+  await assertReferences({ programId: input.programId, assignedAgentId: input.assignedAgentId, coachId: input.coachId });
   const { coachId, ...inputWithoutCoach } = input;
   const changes = diff(current as unknown as Record<string, unknown>, inputWithoutCoach);
 
@@ -211,6 +253,17 @@ export async function updateBeneficiary(id: string, input: z.infer<typeof update
     if (coachId !== null) {
       ops.push(prisma.assignment.create({ data: { beneficiaryId: id, userId: coachId } }));
     }
+  } else if (input.assignedAgentId !== undefined) {
+    if (input.assignedAgentId) {
+      const assignedUser = await prisma.user.findUnique({
+        where: { id: input.assignedAgentId },
+        include: { role: true },
+      });
+      if (assignedUser?.role?.code === 'COACH') {
+        ops.push(prisma.assignment.deleteMany({ where: { beneficiaryId: id } }));
+        ops.push(prisma.assignment.create({ data: { beneficiaryId: id, userId: input.assignedAgentId } }));
+      }
+    }
   }
 
   await prisma.$transaction(ops);
@@ -221,13 +274,15 @@ export async function updateProject(id: string, projectId: string, input: z.infe
   const current = await getBeneficiary(id, auth);
   const project = current.projects.find((p) => p.id === projectId);
   if (!project) throw new AppError(404, 'Projet introuvable', 'INTROUVABLE');
-  await assertReferences({ sectorId: input.sectorId });
-  const changes = diff(project as unknown as Record<string, unknown>, input);
+  const finalSectorId = await resolveSectorId(input.sectorId, input.customSectorName);
+  await assertReferences({ sectorId: finalSectorId });
+  const { companyCreatedAt, customSectorName, ...rest } = input;
+  const updateData = { ...rest, sectorId: finalSectorId, companyCreatedAt: toDate(companyCreatedAt) };
+  const changes = diff(project as unknown as Record<string, unknown>, updateData);
   if (changes.length === 0) return current;
 
-  const { companyCreatedAt, ...rest } = input;
   await prisma.$transaction([
-    prisma.project.update({ where: { id: projectId }, data: { ...rest, companyCreatedAt: toDate(companyCreatedAt) } }),
+    prisma.project.update({ where: { id: projectId }, data: updateData }),
     prisma.beneficiary.update({ where: { id }, data: { lastActivityAt: new Date() } }),
     prisma.auditLog.create({
       data: { userId: auth.userId, action: 'project.update', entityType: 'Beneficiary', entityId: id, metadata: { projectId, changes } as Prisma.InputJsonValue, ipAddress: ip },

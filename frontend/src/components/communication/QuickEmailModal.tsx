@@ -263,7 +263,7 @@ export default function QuickEmailModal({
                 <label className="text-[11px] text-slate-500 font-medium">Nom complet</label>
                 <input
                   type="text"
-                  placeholder="Ex: Marine LOUPE"
+                  placeholder="Nom complet"
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
                   className="w-full px-3 py-1.5 mt-0.5 rounded-lg border border-slate-200 text-xs focus:ring-1 focus:ring-teal-500"
@@ -275,7 +275,7 @@ export default function QuickEmailModal({
                   <Mail className="size-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
-                    placeholder="Ex: marine.loupe@test.com"
+                    placeholder="contact@exemple.com"
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
                     className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-1 focus:ring-teal-500 font-sans"

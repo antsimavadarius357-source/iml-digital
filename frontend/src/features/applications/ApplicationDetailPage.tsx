@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
@@ -20,7 +20,12 @@ import {
   Download,
   ExternalLink,
   Upload,
-  Trash2
+  Trash2,
+  ShieldCheck,
+  Bell,
+  Plus,
+  FileCheck,
+  X
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -57,6 +62,48 @@ export default function ApplicationDetailPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
+
+  const [isAddNoteModalOpen, setIsAddNoteModalOpen] = useState(false);
+  const [noteTopic, setNoteTopic] = useState('Diagnostic & Stratégie');
+  const [noteContent, setNoteContent] = useState('');
+  const [noteNextSteps, setNoteNextSteps] = useState('');
+  const [notePriority, setNotePriority] = useState('NORMALE');
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+
+  const handleCreateNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const bId = app?.beneficiaryId || app?.beneficiary?.id;
+    if (!bId) {
+      alert("Aucun dossier bénéficiaire associé à cette candidature pour lier le compte-rendu.");
+      return;
+    }
+    if (!noteContent.trim()) {
+      alert("Veuillez saisir le contenu du compte-rendu.");
+      return;
+    }
+    setIsSubmittingNote(true);
+    try {
+      await api(`/beneficiaries/${bId}/notes`, {
+        method: 'POST',
+        body: {
+          topic: noteTopic.trim() || "Compte-rendu d'accompagnement",
+          content: noteContent.trim(),
+          nextSteps: noteNextSteps.trim() || null,
+          priority: notePriority,
+          sessionDate: new Date(),
+        }
+      });
+      setNoteContent('');
+      setNoteNextSteps('');
+      setIsAddNoteModalOpen(false);
+      await refetch();
+      alert('✓ Compte-rendu enregistré avec succès et répertorié sur le dossier !');
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors de l'enregistrement du compte-rendu.");
+    } finally {
+      setIsSubmittingNote(false);
+    }
+  };
 
   const { data: res, isLoading, isError, refetch } = useQuery({
     queryKey: ['application', id],
@@ -126,10 +173,12 @@ export default function ApplicationDetailPage() {
 
   const c = app.applicantData || {};
   const p = app.projectData || {};
-  const isReadOnly = app.status === 'ACCEPTEE' || app.status === 'REFUSEE';
+  const isDirection = user?.role === 'DIRECTION';
+  const isReadOnly = app.status === 'ACCEPTEE' || app.status === 'REFUSEE' || isDirection;
   const structureType = c.structureType || 'PORTEUR_IDEE';
 
   const handleSave = () => {
+    if (isDirection) return;
     updateMut.mutate({ status, evaluationNotes: notes, assignedAgentId: agentId || null });
   };
 
@@ -137,11 +186,31 @@ export default function ApplicationDetailPage() {
     navigate('/beneficiaires/nouveau', { state: { fromApp: app.seqNumber || app.id, applicant: c, project: p } });
   };
 
-  const uploadedDocs: any[] = 
+  const appDocsFromPayload: any[] = 
     (Array.isArray(p.documents) && p.documents) || 
     (Array.isArray(c.documents) && c.documents) || 
     (Array.isArray((app as any).documents) && (app as any).documents) || 
     [];
+
+  const beneficiaryDocs = ((app as any)?.beneficiary?.documents || []).map((bd: any) => ({
+    fileId: bd.filePath,
+    originalName: bd.fileName || bd.title,
+    size: bd.sizeBytes,
+    category: bd.category,
+    status: bd.status,
+    id: bd.id,
+  }));
+
+  const uploadedDocs: any[] = [
+    ...appDocsFromPayload,
+    ...beneficiaryDocs.filter((bd: any) => !appDocsFromPayload.some((d: any) => d.fileId === bd.fileId))
+  ];
+
+  const followUpNotes: any[] = (app as any)?.beneficiary?.followUpNotes || [];
+  const appointmentsWithSession: any[] = ((app as any)?.beneficiary?.appointments || []).filter(
+    (a: any) => a.session || a.status === 'REALISE'
+  );
+  const allReportsCount = followUpNotes.length + appointmentsWithSession.length;
 
   const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -223,6 +292,12 @@ export default function ApplicationDetailPage() {
             <ArrowLeft className="size-5" />
           </button>
 
+          {c.photo && (
+            <div className="size-12 rounded-full overflow-hidden border-2 border-[#23c3b1] shadow-xs shrink-0 hidden sm:block">
+              <img src={c.photo} alt={`${c.firstName} ${c.lastName}`} className="size-full object-cover" />
+            </div>
+          )}
+
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
@@ -280,6 +355,11 @@ export default function ApplicationDetailPage() {
                 </a>
               )}
             </>
+          ) : user?.role === 'DIRECTION' ? (
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-teal-50 border border-teal-200 text-[#137469] text-xs font-bold">
+              <ShieldCheck className="size-4 text-[#23c3b1]" />
+              <span>Consultation Direction • Lecture seule</span>
+            </div>
           ) : (
             <button
               type="button"
@@ -292,6 +372,247 @@ export default function ApplicationDetailPage() {
           )}
         </div>
       </div>
+
+      {/* =========================================================================
+          PARCOURS DE SÉLECTION & D'INTÉGRATION (Relié au Parcours d'Incubation)
+         ========================================================================= */}
+      {(() => {
+        const latestAppt = (app as any)?.beneficiary?.appointments?.[0];
+        const hasInterview = Boolean(latestAppt);
+        const hasReport = allReportsCount > 0;
+        const currentStepNum = app.status === 'ACCEPTEE' ? 4 : (hasReport || hasInterview) ? 3 : app.status === 'EN_COURS_EXAMEN' ? 2 : 1;
+        const programName = (app as any)?.beneficiary?.program?.name || 'Idéation & Structuration';
+        const beneficiaryId = app.beneficiaryId || (app as any)?.beneficiary?.id;
+
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200/80">
+                    Parcours de Sélection & d'Intégration
+                  </span>
+                  {app.status === 'ACCEPTEE' && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/80">
+                      Candidat Admis
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-sm font-bold text-slate-900 mt-1">
+                  Instruction, Entretien expert et Décision d'Admission
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  Progression : <strong>{currentStepNum}/4 étapes</strong>
+                </span>
+                {beneficiaryId && (
+                  <Link
+                    to={`/beneficiaires/${beneficiaryId}`}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100/80 px-2.5 py-1 rounded-lg border border-teal-200 transition-all"
+                  >
+                    <span>Dossier Bénéficiaire</span>
+                    <ExternalLink className="size-3" />
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+              {/* Étape 1 : Réception */}
+              <div className={`p-3.5 rounded-xl border flex items-start gap-3 transition-all ${
+                currentStepNum > 1 
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' 
+                  : 'bg-blue-50/70 border-blue-200 ring-2 ring-blue-500/10 text-blue-900'
+              }`}>
+                <div className={`size-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                  currentStepNum > 1 ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'
+                }`}>
+                  {currentStepNum > 1 ? '✓' : '1'}
+                </div>
+                <div>
+                  <div className="font-bold text-slate-900">1. Réception</div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Dossier reçu & vérifié</p>
+                  <span className="text-[10px] text-emerald-700 font-medium">Accusé de réception IML</span>
+                </div>
+              </div>
+
+              {/* Étape 2 : Instruction */}
+              <div className={`p-3.5 rounded-xl border flex items-start gap-3 transition-all ${
+                currentStepNum > 2 
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' 
+                  : currentStepNum === 2 
+                    ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-500/10 text-amber-950' 
+                    : 'bg-white border-slate-200 text-slate-400'
+              }`}>
+                <div className={`size-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                  currentStepNum > 2 ? 'bg-emerald-600 text-white' : currentStepNum === 2 ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {currentStepNum > 2 ? '✓' : '2'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-slate-900 flex items-center justify-between gap-1">
+                    <span className="truncate">2. Instruction</span>
+                    {currentStepNum === 1 && !isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStatus('EN_COURS_EXAMEN');
+                          updateMut.mutate({ status: 'EN_COURS_EXAMEN' });
+                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white transition-all cursor-pointer shadow-2xs shrink-0"
+                        title="Passer en cours d'instruction"
+                      >
+                        Activer
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                    {currentStepNum >= 2 ? "Examen par l'agent" : "En attente d'examen"}
+                  </p>
+                  <span className="text-[10px] text-slate-500 block truncate">
+                    Vérification des pièces & profil
+                  </span>
+                </div>
+              </div>
+
+              {/* Étape 3 : Entretien & Compte-rendu expert */}
+              <div className={`p-3.5 rounded-xl border flex items-start gap-3 transition-all ${
+                currentStepNum > 3 
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' 
+                  : currentStepNum === 3 
+                    ? 'bg-teal-50/70 border-teal-300 ring-2 ring-teal-500/10 text-teal-950' 
+                    : 'bg-white border-slate-200 text-slate-400'
+              }`}>
+                <div className={`size-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                  currentStepNum > 3 ? 'bg-emerald-600 text-white' : currentStepNum === 3 ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {currentStepNum > 3 ? '✓' : '3'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-slate-900 flex items-center justify-between gap-1">
+                    <span className="truncate">3. Entretien & Avis</span>
+                    {!hasInterview && !isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAppointmentOpen(true)}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-600 hover:bg-teal-700 text-white transition-all cursor-pointer shadow-2xs shrink-0"
+                      >
+                        Planifier
+                      </button>
+                    )}
+                    {hasInterview && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await api.post<{ success: boolean; message: string }>(`/appointments/${latestAppt.id}/reminder`);
+                            alert(res?.message || 'Rappel e-mail envoyé avec succès au candidat et au coach !');
+                          } catch (err: any) {
+                            alert(err?.message || "Erreur lors de l'envoi du rappel");
+                          }
+                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
+                        title="Envoyer immédiatement un e-mail de rappel au candidat et au coach"
+                      >
+                        <Bell className="size-2.5" />
+                        <span>Rappeler</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                    {latestAppt 
+                      ? `${new Date(latestAppt.datetime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} à ${new Date(latestAppt.datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` 
+                      : "Entretien à planifier"}
+                  </p>
+                  <div className="mt-1">
+                    {hasReport ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                        <CheckCircle2 className="size-2.5" />
+                        <span>Avis expert déposé ({allReportsCount})</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddNoteModalOpen(true)}
+                        className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                      >
+                        + Déposer le compte-rendu
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Étape 4 : Admission en Incubation */}
+              <div className={`p-3.5 rounded-xl border flex items-start gap-3 transition-all ${
+                app.status === 'ACCEPTEE' 
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 ring-2 ring-emerald-500/20' 
+                  : 'bg-white border-slate-200 text-slate-400'
+              }`}>
+                <div className={`size-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                  app.status === 'ACCEPTEE' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {app.status === 'ACCEPTEE' ? '✓' : '4'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-slate-900 flex items-center justify-between gap-1">
+                    <span className="truncate">4. Admission</span>
+                    {app.status !== 'ACCEPTEE' && !isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStatus('ACCEPTEE');
+                          updateMut.mutate({ status: 'ACCEPTEE' });
+                        }}
+                        className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
+                        title="Valider l'Admission officielle dans le parcours d'incubation"
+                      >
+                        <span>Valider</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                    {app.status === 'ACCEPTEE' ? "Admission validée ✓" : "Comité & Agent IML"}
+                  </p>
+                  <span className="text-[10px] text-slate-500 block truncate">
+                    {app.status === 'ACCEPTEE' ? `Intégré : ${programName}` : "Décision finale sur avis expert"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* BANDEAU PASSERELLE VERS LE PARCOURS D'INCUBATION SI ADMIS */}
+            {app.status === 'ACCEPTEE' && (
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-teal-50 via-emerald-50 to-indigo-50 border border-teal-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in-50">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+                    <CheckCircle2 className="size-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 flex items-center gap-2">
+                      <span>Candidature Admise · Prise en charge active</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Étapes d'accompagnement : <strong>Cadrage & Diagnostic</strong> → <strong>Mentorat & Livrables</strong> → <strong>Bilan & Attestation</strong>
+                    </p>
+                  </div>
+                </div>
+
+                {beneficiaryId && (
+                  <Link
+                    to={`/beneficiaires/${beneficiaryId}`}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs shadow-xs transition-all shrink-0 cursor-pointer"
+                  >
+                    <span>Ouvrir le Suivi d'Accompagnement</span>
+                    <ExternalLink className="size-3.5" />
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* =========================================================================
           2. CORPS DU DOSSIER : Colonne Gauche (Fiches) + Colonne Droite (Instruction)
@@ -319,9 +640,15 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                <div className="size-9 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center border border-slate-200">
-                  {c.firstName?.[0] || 'C'}{c.lastName?.[0] || 'D'}
-                </div>
+                {c.photo ? (
+                  <div className="size-11 rounded-full overflow-hidden border-2 border-[#23c3b1] shadow-xs shrink-0">
+                    <img src={c.photo} alt={`${c.firstName} ${c.lastName}`} className="size-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="size-9 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center border border-slate-200">
+                    {c.firstName?.[0] || 'C'}{c.lastName?.[0] || 'D'}
+                  </div>
+                )}
               </div>
 
               {/* Grille de données du candidat */}
@@ -534,6 +861,154 @@ export default function ApplicationDetailPage() {
           </section>
 
           {/* =====================================================================
+              TABLEAU / FICHE : Comptes-Rendus d'Experts & Suivi
+             ===================================================================== */}
+          <section className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-amber-500 via-teal-500 to-emerald-500" />
+            <div className="p-5 sm:p-6 space-y-4">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-9 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600">
+                    <FileCheck className="size-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <span>Comptes-Rendus d'Experts & Suivi</span>
+                      {allReportsCount > 0 && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                          {allReportsCount} disponible{allReportsCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </h2>
+                    <p className="text-[11px] text-slate-500">
+                      Évaluations, synthèses d'entretiens et retours des coachs référents
+                    </p>
+                  </div>
+                </div>
+
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddNoteModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="size-3.5" />
+                    <span>Rédiger un compte-rendu</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Contenu : liste des comptes-rendus ou état vide */}
+              {allReportsCount === 0 ? (
+                <div className="py-8 px-4 text-center rounded-xl bg-slate-50/70 border border-dashed border-slate-200">
+                  <FileText className="size-9 mx-auto text-slate-300 stroke-[1.25] mb-2" />
+                  <p className="text-xs font-semibold text-slate-700">Aucun compte-rendu enregistré pour le moment</p>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
+                    Dès qu'un coach ou expert réalise une séance ou consigne un avis sur ce projet, son rapport s'affiche automatiquement ici.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {/* Notes de suivi / mentorat rédigées */}
+                  {followUpNotes.map((note: any) => {
+                    const authorName = note.author ? `${note.author.firstName} ${note.author.lastName}` : 'Coach Référent IML';
+                    const dateStr = new Intl.DateTimeFormat('fr-FR', {
+                      dateStyle: 'full',
+                      timeStyle: 'short',
+                    }).format(new Date(note.createdAt || note.sessionDate || Date.now()));
+
+                    return (
+                      <div 
+                        key={note.id}
+                        className="p-4 rounded-xl bg-slate-50/90 border border-slate-200 hover:border-amber-300 transition-all space-y-2.5 shadow-2xs"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-200/60 pb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                              {note.topic || "Compte-rendu de séance"}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                              Expertise & Suivi
+                            </span>
+                            {note.priority && note.priority !== 'NORMALE' && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                                {note.priority}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                            <span className="font-medium text-slate-700">{authorName}</span>
+                            <span>•</span>
+                            <span>{dateStr}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-3.5 rounded-lg border border-slate-100">
+                          {note.content}
+                        </div>
+
+                        {note.nextSteps && (
+                          <div className="text-xs p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-2">
+                            <span className="font-bold shrink-0">🎯 Prochaines étapes :</span>
+                            <span className="whitespace-pre-wrap">{note.nextSteps}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Sessions d'entretien formelles */}
+                  {appointmentsWithSession.map((appt: any) => {
+                    const coachName = appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML';
+                    const dateStr = new Intl.DateTimeFormat('fr-FR', {
+                      dateStyle: 'full',
+                      timeStyle: 'short',
+                    }).format(new Date(appt.datetime));
+
+                    return (
+                      <div 
+                        key={appt.id}
+                        className="p-4 rounded-xl bg-teal-50/50 border border-teal-200/80 space-y-2.5 shadow-2xs"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-teal-200/60 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                              Entretien d'évaluation ({appt.duration} min)
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                              Séance Réalisée ✓
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                            <span className="font-medium text-slate-700">{coachName}</span>
+                            <span>•</span>
+                            <span>{dateStr}</span>
+                          </div>
+                        </div>
+
+                        {appt.session?.summary && (
+                          <div className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-3.5 rounded-lg border border-slate-100">
+                            {appt.session.summary}
+                          </div>
+                        )}
+
+                        {appt.session?.nextActions && (
+                          <div className="text-xs p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-2">
+                            <span className="font-bold shrink-0">🎯 Plan d'action :</span>
+                            <span className="whitespace-pre-wrap">{appt.session.nextActions}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+            </div>
+          </section>
+
+          {/* =====================================================================
               TABLEAU / FICHE 3 : Documents & Pièces Jointes Déposés
              ===================================================================== */}
           <section className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
@@ -560,17 +1035,19 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                {/* Bouton d'ajout direct d'un document au dossier */}
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer transition-colors shadow-2xs self-start sm:self-auto">
-                  <Upload className="size-3.5 text-slate-500" />
-                  <span>{isUploadingDoc ? 'Téléversement...' : 'Ajouter un document'}</span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    disabled={isUploadingDoc}
-                    onChange={handleDirectFileUpload}
-                  />
-                </label>
+                {/* Bouton d'ajout direct d'un document au dossier (masqué pour la Direction) */}
+                {user?.role !== 'DIRECTION' && (
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer transition-colors shadow-2xs self-start sm:self-auto">
+                    <Upload className="size-3.5 text-slate-500" />
+                    <span>{isUploadingDoc ? 'Téléversement...' : 'Ajouter un document'}</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      disabled={isUploadingDoc}
+                      onChange={handleDirectFileUpload}
+                    />
+                  </label>
+                )}
               </div>
 
               {/* Contenu : liste des documents ou état vide explicite */}
@@ -612,14 +1089,16 @@ export default function ApplicationDetailPage() {
                             </div>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDoc(idx)}
-                            title="Retirer ce document"
-                            className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
+                          {!isDirection && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDoc(idx)}
+                              title="Retirer ce document"
+                              className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2 pt-2 border-t border-slate-200/70">
@@ -665,13 +1144,25 @@ export default function ApplicationDetailPage() {
               </h2>
             </div>
             
+            {user?.role === 'DIRECTION' && (
+              <div className="p-3.5 bg-teal-50 border border-teal-200 text-teal-900 rounded-xl text-xs space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-teal-800">
+                  <ShieldCheck className="size-4 text-[#23c3b1]" />
+                  <span>Mode Consultation Direction</span>
+                </div>
+                <p className="text-[11px] text-teal-700 leading-relaxed font-normal">
+                  Ce dossier est affiché en lecture seule. Les modifications de statut et les évaluations opérationnelles sont réservées aux agents instructeurs.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-4">
               
-              {/* Choix du Conseiller Référent (réservé coordination / agent) */}
+              {/* Choix du Référent (réservé coordination / agent) */}
               {user?.role !== 'COACH' && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Conseiller référent (Coach / Agent / Direction)
+                    Référent assigné (Chargé de dossier ou Coach)
                   </label>
                   <select 
                     className="w-full rounded-xl border border-slate-300 shadow-2xs focus:border-[#23c3b1] focus:ring-2 focus:ring-[#23c3b1]/20 text-xs text-slate-800 p-2.5 bg-white disabled:bg-slate-100 cursor-pointer"
@@ -680,17 +1171,17 @@ export default function ApplicationDetailPage() {
                     disabled={isReadOnly && !can('applications:review')}
                   >
                     <option value="">Non assigné (Attribution ultérieure)</option>
-                    {options.data?.agents?.filter(a => a.role?.code === 'COACH').length ? (
-                      <optgroup label="🎯 Coachs & Mentors">
-                        {options.data.agents.filter(a => a.role?.code === 'COACH').map(a => (
-                          <option key={a.id} value={a.id}>Coach : {a.firstName} {a.lastName}</option>
+                    {options.data?.agents?.filter(a => a.role?.code === 'AGENT' || !a.role?.code).length ? (
+                      <optgroup label="📋 Chargés de dossier IML (Suivi & Coordination)">
+                        {options.data.agents.filter(a => a.role?.code === 'AGENT' || !a.role?.code).map(a => (
+                          <option key={a.id} value={a.id}>Chargé de dossier : {a.firstName} {a.lastName}</option>
                         ))}
                       </optgroup>
                     ) : null}
-                    {options.data?.agents?.filter(a => a.role?.code === 'AGENT' || !a.role?.code).length ? (
-                      <optgroup label="📋 Agents IML (Coordination)">
-                        {options.data.agents.filter(a => a.role?.code === 'AGENT' || !a.role?.code).map(a => (
-                          <option key={a.id} value={a.id}>Agent : {a.firstName} {a.lastName}</option>
+                    {options.data?.agents?.filter(a => a.role?.code === 'COACH').length ? (
+                      <optgroup label="🎯 Coachs & Mentors (Expertise pratique)">
+                        {options.data.agents.filter(a => a.role?.code === 'COACH').map(a => (
+                          <option key={a.id} value={a.id}>Coach : {a.firstName} {a.lastName}</option>
                         ))}
                       </optgroup>
                     ) : null}
@@ -749,8 +1240,8 @@ export default function ApplicationDetailPage() {
                 </div>
               )}
 
-              {/* Bouton Enregistrer l'évaluation */}
-              {can('applications:review') && (
+              {/* Bouton Enregistrer l'évaluation (masqué pour la Direction) */}
+              {!isDirection && can('applications:review') && (
                 <button 
                   type="button"
                   onClick={handleSave} 
@@ -825,6 +1316,115 @@ export default function ApplicationDetailPage() {
           updateMut.mutate({ status: 'EN_COURS_EXAMEN', evaluationNotes: notes ? `${notes}\n[RDV Planifié avec le candidat]` : '[RDV Planifié avec le candidat]' });
         }}
       />
+
+      {/* Modale d'ajout rapide d'un compte-rendu / note de suivi */}
+      {isAddNoteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent">
+              <div className="flex items-center gap-2.5">
+                <div className="size-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-sm">
+                  <FileCheck className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Rédiger un Compte-Rendu d'Expertise</h3>
+                  <p className="text-[11px] text-slate-500">Attaché au dossier {c.companyName || p.title || `${c.firstName} ${c.lastName}`}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddNoteModalOpen(false)}
+                className="size-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNote} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Thématique ou Objet de la séance *
+                </label>
+                <select
+                  value={noteTopic}
+                  onChange={(e) => setNoteTopic(e.target.value)}
+                  className="w-full text-xs font-semibold rounded-xl border border-slate-300 p-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 bg-white"
+                >
+                  <option value="Diagnostic & Stratégie">Diagnostic & Stratégie</option>
+                  <option value="Entretien de sélection & Cadrage">Entretien de sélection & Cadrage</option>
+                  <option value="Stratégie & Gouvernance">Stratégie & Gouvernance</option>
+                  <option value="Modèle Économique & Business Plan">Modèle Économique & Business Plan</option>
+                  <option value="Marketing, Ventes & Prospection">Marketing, Ventes & Prospection</option>
+                  <option value="Comptabilité, Finances & Trésorerie">Comptabilité, Finances & Trésorerie</option>
+                  <option value="Juridique, Fiscalité & Contrats">Juridique, Fiscalité & Contrats</option>
+                  <option value="Technologie, Produit & Digital">Technologie, Produit & Digital</option>
+                  <option value="Autre échange / Point de situation">Autre échange / Point de situation</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Compte-rendu & Observations du coach *
+                </label>
+                <textarea
+                  rows={4}
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  placeholder="Points abordés, niveau de maturité, forces constatées, points d'attention..."
+                  required
+                  className="w-full text-xs rounded-xl border border-slate-300 p-3 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 resize-y leading-relaxed text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  🎯 Prochaines étapes & Recommandations (optionnel)
+                </label>
+                <textarea
+                  rows={2}
+                  value={noteNextSteps}
+                  onChange={(e) => setNoteNextSteps(e.target.value)}
+                  placeholder="Actions à mener par le candidat d'ici le prochain point..."
+                  className="w-full text-xs rounded-xl border border-slate-300 p-3 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 resize-y text-slate-800"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-slate-500">Priorité :</span>
+                  <select
+                    value={notePriority}
+                    onChange={(e) => setNotePriority(e.target.value)}
+                    className="text-[11px] font-semibold rounded-lg border border-slate-200 px-2 py-1 bg-slate-50 text-slate-700"
+                  >
+                    <option value="NORMALE">Normale</option>
+                    <option value="HAUTE">Haute</option>
+                    <option value="URGENTE">Urgente</option>
+                    <option value="BASSE">Basse</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddNoteModalOpen(false)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingNote}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold shadow-md shadow-amber-500/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmittingNote ? 'Enregistrement...' : 'Enregistrer le compte-rendu'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

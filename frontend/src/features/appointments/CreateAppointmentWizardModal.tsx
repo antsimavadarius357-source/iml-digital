@@ -5,7 +5,6 @@ import {
   Video, 
   Handshake, 
   Loader2, 
-  ExternalLink,
   Copy,
   Mail,
   MapPin,
@@ -144,9 +143,6 @@ export default function CreateAppointmentWizardModal({
   const coachesList = useMemo(() => {
     return allStaff.filter((u: any) => u.role?.code === 'COACH' || u.role === 'COACH');
   }, [allStaff]);
-  const staffOthers = useMemo(() => {
-    return allStaff.filter((u: any) => u.role?.code !== 'COACH' && u.role !== 'COACH');
-  }, [allStaff]);
 
   // Initialisation du coach sélectionné par défaut
   useEffect(() => {
@@ -155,13 +151,9 @@ export default function CreateAppointmentWizardModal({
     } else if (!selectedCoachId) {
       if (coachesList.length > 0) {
         setSelectedCoachId(coachesList[0].id);
-      } else if (allStaff.length > 0) {
-        setSelectedCoachId(allStaff[0].id);
-      } else if (user?.id) {
-        setSelectedCoachId(user.id);
       }
     }
-  }, [user, coachesList, allStaff, selectedCoachId]);
+  }, [user, coachesList, selectedCoachId]);
 
   // Initialisation par défaut si un ID de bénéficiaire est passé
   useEffect(() => {
@@ -506,16 +498,6 @@ export default function CreateAppointmentWizardModal({
                       {copiedLink ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
                       <span>{copiedLink ? 'Copié' : 'Copier'}</span>
                     </button>
-                    <a
-                      href={videoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-2 bg-[#f06553] hover:bg-[#e05341] text-white rounded-lg text-xs font-semibold shrink-0 flex items-center gap-1 cursor-pointer shadow-2xs"
-                      title="Tester la visio dans un nouvel onglet"
-                    >
-                      <span>Tester</span>
-                      <ExternalLink className="size-3" />
-                    </a>
                   </div>
 
                   <p className="text-[10px] text-slate-500">
@@ -646,24 +628,11 @@ export default function CreateAppointmentWizardModal({
                     className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#23c3b1] focus:ring-1 focus:ring-[#23c3b1] shadow-2xs cursor-pointer font-medium"
                   >
                     <option value="" disabled>Sélectionner le coach référent...</option>
-                    {coachesList.length > 0 && (
-                      <optgroup label="Coachs d'accompagnement">
-                        {coachesList.map((c: any) => (
-                          <option key={c.id} value={c.id}>
-                            {c.firstName} {c.lastName} (Coach) {c.email ? `- ${c.email}` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {staffOthers.length > 0 && (
-                      <optgroup label="Agents de planification / Conseillers">
-                        {staffOthers.map((a: any) => (
-                          <option key={a.id} value={a.id}>
-                            {a.firstName} {a.lastName} ({a.role?.label || 'Agent'})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
+                    {coachesList.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.firstName} {c.lastName} (Coach) {c.email ? `- ${c.email}` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

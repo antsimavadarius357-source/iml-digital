@@ -1,28 +1,48 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { 
   MapPin, 
   Mail, 
   Phone, 
   Clock, 
   Send, 
-  CheckCircle2, 
-  ArrowRight
+  CheckCircle2,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
+import { api } from '../../lib/api';
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    subject: 'Renseignement sur une cohorte',
+    subject: 'Renseignement sur une promotion d\'incubation',
     message: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    try {
+      await api('/contacts', {
+        method: 'POST',
+        body: formData,
+      });
+      setSubmitted(true);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('iml_last_submission', Date.now().toString());
+        } catch {}
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Une erreur est survenue lors de la transmission. Veuillez réessayer ou nous contacter par téléphone.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -58,7 +78,7 @@ export default function ContactPage() {
                   <div>
                     <div className="font-bold text-slate-900">Adresse</div>
                     <div className="text-slate-600 text-xs mt-0.5">
-                      Immeuble IML Digit, Quartier Batterie IV, Libreville, République Gabonaise
+                      Immeuble Espace PME, Quartier Awendjé, Libreville, République Gabonaise
                     </div>
                   </div>
                 </div>
@@ -70,7 +90,7 @@ export default function ContactPage() {
                   <div>
                     <div className="font-bold text-slate-900">Courrier électronique</div>
                     <div className="text-slate-600 text-xs mt-0.5">
-                      contact@imldigit.com • admission@imldigit.com
+                      imlGabon2@gmail.com
                     </div>
                   </div>
                 </div>
@@ -82,7 +102,7 @@ export default function ContactPage() {
                   <div>
                     <div className="font-bold text-slate-900">Permanence téléphonique</div>
                     <div className="text-slate-600 text-xs mt-0.5">
-                      +241 01 00 00 00 / +241 77 00 00 00
+                      +241 066 64 84 88
                     </div>
                   </div>
                 </div>
@@ -101,23 +121,7 @@ export default function ContactPage() {
               </div>
             </div>
 
-            {/* Carte Appel Candidature Rapide */}
-            <div className="bg-slate-900 text-white rounded-3xl p-7 shadow-lg relative overflow-hidden space-y-4">
-              <span className="px-3 py-1 rounded-full bg-[#FF5B37] text-white text-[11px] font-bold uppercase tracking-wider inline-block">
-                Candidature directe
-              </span>
-              <h3 className="text-lg font-bold">Vous souhaitez déposer un dossier d'incubation ?</h3>
-              <p className="text-xs text-slate-400">
-                Vous n'avez pas besoin d'attendre : notre formulaire d'admission en ligne est ouvert 24h/24.
-              </p>
-              <Link
-                to="/candidater"
-                className="inline-flex items-center gap-2 text-xs font-bold text-[#FF8E75] hover:text-white transition-colors"
-              >
-                <span>Accéder au formulaire de candidature</span>
-                <ArrowRight className="size-3.5" />
-              </Link>
-            </div>
+
 
           </div>
 
@@ -137,7 +141,7 @@ export default function ContactPage() {
                     type="button"
                     onClick={() => {
                       setSubmitted(false);
-                      setFormData({ name: '', email: '', phone: '', subject: 'Renseignement sur une cohorte', message: '' });
+                      setFormData({ name: '', email: '', phone: '', subject: 'Renseignement sur une promotion d\'incubation', message: '' });
                     }}
                     className="px-6 py-2.5 rounded-full bg-stone-100 hover:bg-stone-200 text-slate-700 text-xs font-bold transition-all"
                   >
@@ -160,7 +164,7 @@ export default function ContactPage() {
                       required 
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Ex: Jean-Marc Nguema"
+                      placeholder="Nom et prénom"
                       className="w-full px-4 py-3 rounded-xl border border-stone-200 text-xs text-slate-900 focus:outline-none focus:border-[#FF5B37] bg-stone-50/50" 
                     />
                   </div>
@@ -197,11 +201,17 @@ export default function ContactPage() {
                       onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border border-stone-200 text-xs text-slate-900 focus:outline-none focus:border-[#FF5B37] bg-stone-50/50 cursor-pointer"
                     >
-                      <option value="Renseignement sur une cohorte">Renseignement sur une cohorte</option>
+                      <option value="Renseignement sur une promotion d'incubation">Renseignement sur une promotion d'incubation</option>
+                      <option value="Location de salle / Animation de masterclass">Location de salle / Animation de masterclass</option>
                       <option value="Postuler en tant que Mentor / Coach">Postuler en tant que Mentor / Coach</option>
                       <option value="Partenariat institutionnel / Bailleurs">Partenariat institutionnel / Bailleurs</option>
                       <option value="Autre demande">Autre demande</option>
                     </select>
+                    {formData.subject === 'Location de salle / Animation de masterclass' && (
+                      <p className="text-[11px] text-[#FF5B37] font-semibold mt-1">
+                        💡 Vous pouvez aussi vérifier la disponibilité en direct et faire une demande express sur notre page <a href="/salle" className="underline font-bold">Louer la salle</a>.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -217,12 +227,29 @@ export default function ContactPage() {
                   />
                 </div>
 
+                {errorMessage && (
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5">
+                    <AlertCircle className="size-4 shrink-0 text-rose-600 mt-0.5" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
                 <button 
                   type="submit" 
-                  className="w-full py-3.5 rounded-full bg-[#FF5B37] hover:bg-[#e94d29] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-orange-500/20 hover:shadow-orange-500/30 flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="w-full py-3.5 rounded-full bg-[#FF5B37] hover:bg-[#e94d29] disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-orange-500/20 hover:shadow-orange-500/30 flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Send className="size-4" />
-                  <span>Transmettre mon message</span>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      <span>Transmission en cours...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-4" />
+                      <span>Transmettre mon message</span>
+                    </>
+                  )}
                 </button>
               </form>
             )}

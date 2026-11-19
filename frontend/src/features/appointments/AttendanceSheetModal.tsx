@@ -179,7 +179,7 @@ export default function AttendanceSheetModal({
                 Pôle d'Incubation & d'Accompagnement Opérationnel
               </p>
               <p className="text-[11px] text-slate-500">
-                Espace PME • Libreville, Gabon • contact@imldigit.ga
+                Espace PME • Libreville, Gabon • imlGabon2@gmail.com
               </p>
             </div>
 
@@ -273,7 +273,7 @@ export default function AttendanceSheetModal({
               <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
                 <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
                   <UserCheck className="size-3.5 text-teal-600" />
-                  Conseiller Référent / Expert
+                  Coach / Expert Référent
                 </span>
                 <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                   Accompagnant certifié
@@ -281,7 +281,7 @@ export default function AttendanceSheetModal({
               </div>
               <div className="space-y-1">
                 <div className="font-bold text-sm text-slate-900">
-                  {data.coachName || 'Agent Référent IML Digit'}
+                  {data.coachName || 'Coach Référent IML Digit'}
                 </div>
                 <div className="text-slate-700">
                   Pôle Conseil Stratégique & Développement PME
@@ -344,7 +344,7 @@ export default function AttendanceSheetModal({
               <div className="border-2 border-dashed border-slate-300 rounded-lg p-3 h-28 flex flex-col justify-between text-xs bg-slate-50/50 print:bg-white">
                 <div>
                   <div className="font-bold text-slate-900 text-[11px] uppercase tracking-wider">
-                    Pour IML Digit (Le Conseiller Référent) :
+                    Pour IML Digit (Le Coach / Formateur) :
                   </div>
                   <div className="text-[10px] text-slate-500 mt-0.5">
                     Visa & Signature de validation

@@ -16,7 +16,8 @@ import {
   Mail,
   Loader2,
   Eye,
-  Printer
+  Printer,
+  ExternalLink
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -35,6 +36,15 @@ interface TrackedApplication {
   hasVideoEquipment?: boolean;
   needs: string[];
   stage: string;
+  appointment?: {
+    id: string;
+    datetime: string;
+    duration: number;
+    location: string;
+    isVisio: boolean;
+    videoUrl?: string | null;
+    coachName: string;
+  } | null;
 }
 
 const STRUCTURE_LABELS: Record<string, { label: string; style: string }> = {
@@ -57,15 +67,21 @@ const STATUS_DETAILS: Record<string, { title: string; desc: string; color: strin
     color: "bg-amber-500",
     step: 2
   },
+  ENTRETIEN: {
+    title: "Entretien d'évaluation programmé",
+    desc: "Un rendez-vous d'échange a été fixé avec l'équipe de l'incubateur IML Digit pour faire le point sur votre projet.",
+    color: "bg-teal-600",
+    step: 3
+  },
   ACCEPTEE: {
     title: "Candidature admise",
-    desc: "Félicitations ! Votre structure a été retenue par l'incubateur IML Digit pour intégrer la cohorte d'accompagnement.",
+    desc: "Félicitations ! Votre structure a été retenue par l'incubateur IML Digit pour intégrer la promotion d'incubation.",
     color: "bg-emerald-600",
     step: 4
   },
   REFUSEE: {
     title: "Non retenu pour cette session",
-    desc: "Votre dossier n'a pas été retenu pour cette cohorte. Vous pouvez demander un retour constructif ou repostuler lors du prochain appel.",
+    desc: "Votre dossier n'a pas été retenu pour cette promotion d'incubation. Vous pouvez demander un retour constructif ou repostuler lors du prochain appel.",
     color: "bg-slate-500",
     step: 2
   }
@@ -164,17 +180,6 @@ export default function SuiviCandidaturePage() {
       }
     } catch {
       // ignore
-    }
-    // Si la candidature est officiellement admise ou acceptée, on permet de visualiser l'attestation officielle
-    if (app.status === 'ACCEPTEE') {
-      return {
-        id: `CERT-IML-${app.referenceCode}`,
-        recipientName: app.applicantName,
-        projectName: app.companyName,
-        structureType: STRUCTURE_LABELS[app.structureType]?.label || "PME / Startup",
-        templateType: 'incubation',
-        themeColor: 'gold_emerald'
-      };
     }
     return null;
   }, [app]);
@@ -296,7 +301,80 @@ export default function SuiviCandidaturePage() {
               </div>
             </div>
 
-            {/* SECTION ATTESTATION OFFICIELLE SI DÉLIVRÉE OU DOSSIER ADMIS */}
+            {/* SECTION CONVOCATION ENTRETIEN SI PROGRAMMÉ */}
+            {app.appointment && (
+              <div className="p-6 rounded-3xl bg-teal-50 border-2 border-teal-300 shadow-sm space-y-4 animate-in zoom-in-95">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="size-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-xl shadow-md shrink-0">
+                      📅
+                    </div>
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-900 border border-teal-300 uppercase tracking-wider inline-block mb-1">
+                        Entretien d'évaluation fixé
+                      </span>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900">
+                        {new Date(app.appointment.datetime).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} à {new Date(app.appointment.datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Avec <strong>{app.appointment.coachName}</strong> · Modalité : {app.appointment.isVisio ? 'Visioconférence sécurisée' : 'Présentiel (Siège IML Digit - Espace PME)'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                    {app.appointment.isVisio && app.appointment.videoUrl && (
+                      <a
+                        href={app.appointment.videoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-4 py-2.5 rounded-xl bg-[#f06553] hover:bg-[#e04a27] text-white text-xs font-bold shadow-md shadow-[#f06553]/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        <Video className="size-4" />
+                        <span>Rejoindre la visio</span>
+                        <ExternalLink className="size-3 opacity-80" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION CANDIDATURE ADMISE : PRISE EN CHARGE AVEC LE COACH */}
+            {app.status === 'ACCEPTEE' && !certificateData && (
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 shadow-md space-y-4 animate-in zoom-in-95">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="size-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-3xl shadow-md shrink-0">
+                      🤝
+                    </div>
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase tracking-wider inline-block mb-1">
+                        Candidature Validée & Retenue
+                      </span>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900">
+                        Votre dossier est officiellement admis au sein de l'incubateur
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                        Félicitations ! Votre candidature a été retenue. Vous allez maintenant travailler avec votre coach référent pour démarrer le cadrage, vos séances de travail et vos livrables.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                    <Link
+                      to="/espace-beneficiaire"
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                    >
+                      <User className="size-4" />
+                      <span>Accéder à mon espace</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION ATTESTATION OFFICIELLE DE FIN (UNIQUEMENT SI FIN DU CIRCUIT & DÉLIVRÉE) */}
             {certificateData && (
               <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-500/15 via-emerald-500/10 to-teal-500/15 border-2 border-amber-400/80 shadow-md space-y-4 animate-in zoom-in-95">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -414,7 +492,7 @@ export default function SuiviCandidaturePage() {
                 </span>
                 <span className="flex items-center gap-1">
                   <Mail className="size-3.5 text-slate-400" />
-                  <span>contact@imldigit.ga</span>
+                  <span>imlGabon2@gmail.com</span>
                 </span>
               </div>
               <button

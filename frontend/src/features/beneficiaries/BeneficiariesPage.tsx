@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
   Search, 
@@ -17,7 +17,7 @@ import {
   Trash2, 
   Loader2,
   CheckCircle2,
-  Pencil
+  ShieldCheck
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -46,6 +46,9 @@ interface BeneficiaryItem {
   lastActivityAt: string;
   projects?: { id: string; name: string; stage?: string; legalStatus?: string; companySize?: string; sector?: { id: string; name: string } }[];
   companyName?: string;
+  assignments?: { id: string; user?: { id: string; firstName: string; lastName: string; email?: string } }[];
+  assignedAgent?: { id: string; firstName: string; lastName: string };
+  createdAt?: string;
 }
 
 const DEFAULT_KNOWN_BENEFICIARIES: BeneficiaryItem[] = [
@@ -134,8 +137,15 @@ interface BeneficiariesResponse {
 }
 
 export default function BeneficiariesPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isCoach = user?.role === 'COACH';
+  const isDirection = user?.role === 'DIRECTION';
+
+  // Le coach n'a pas accès à la table administrative brute des bénéficiaires : redirection vers son Cahier de Bord & Suivi
+  if (isCoach) {
+    return <Navigate to="/tableau-de-bord?vue=coach" replace />;
+  }
 
   // Modale de création
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -148,16 +158,14 @@ export default function BeneficiariesPage() {
   const [groupFilter, setGroupFilter] = useState('Tous les groupes');
   const [tagFilter, setTagFilter] = useState('Etiquettes');
 
-  // Colonnes visibles
+  // Colonnes visibles (Ciblage strict du dossier bénéficiaire)
   const [isColumnsDropdownOpen, setIsColumnsDropdownOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState({
+    matricule: true,
     nom: true,
-    langue: true,
+    structure: true,
+    secteur: true,
     statut: true,
-    heures: true,
-    parcours: true,
-    etape: true,
-    progression: true,
   });
 
   // Sélection de lignes (Batch actions)
@@ -237,10 +245,22 @@ export default function BeneficiariesPage() {
   const total = isCoach ? (data?.total ?? beneficiaries.length) : Math.max(data?.total || 0, beneficiaries.length);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  // Filtrage des bénéficiaires
+  const filteredBeneficiaries = useMemo(() => {
+    return beneficiaries.filter((b) => {
+      if (statusFilter !== 'Tous les statuts (actifs)') {
+        if (statusFilter === 'ACTIF' && b.status !== 'ACTIF' && b.status !== 'EN_COURS') return false;
+        if (statusFilter === 'EN_ATTENTE' && b.status !== 'EN_ATTENTE') return false;
+        if (statusFilter === 'TERMINE' && b.status !== 'TERMINE') return false;
+      }
+      return true;
+    });
+  }, [beneficiaries, statusFilter]);
+
   // Gestion de la sélection
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(beneficiaries.map((b) => b.id));
+      setSelectedIds(filteredBeneficiaries.map((b) => b.id));
     } else {
       setSelectedIds([]);
     }
@@ -252,13 +272,13 @@ export default function BeneficiariesPage() {
     );
   };
 
-  const isAllSelected = beneficiaries.length > 0 && selectedIds.length === beneficiaries.length;
+  const isAllSelected = filteredBeneficiaries.length > 0 && selectedIds.length === filteredBeneficiaries.length;
 
-  // Export CSV direct
+  // Export CSV direct du dossier des bénéficiaires
   const handleExportCsv = () => {
     const listToExport = selectedIds.length > 0 
-      ? beneficiaries.filter(b => selectedIds.includes(b.id))
-      : beneficiaries;
+      ? filteredBeneficiaries.filter(b => selectedIds.includes(b.id))
+      : filteredBeneficiaries;
 
     if (listToExport.length === 0) {
       setToastMsg('Aucune donnée à exporter.');
@@ -270,41 +290,38 @@ export default function BeneficiariesPage() {
       'Nom',
       'Prénom',
       'Structure / Type',
+      'Entreprise / Projet',
+      'Secteur d\'activité',
       'Email',
       'Téléphone',
       'Ville',
-      'Statut',
-      'Langue',
-      'Parcours',
-      'Heures Réalisées',
-      'Heures Totales',
-      'Progression (%)',
+      'Coach Référent',
+      'Statut du dossier',
       'Dernière Activité'
     ];
 
     const escape = (val: unknown) => `"${String(val ?? '').replace(/"/g, '""')}"`;
 
     const rows = listToExport.map(b => {
-      const fileNum = b.fileNumber || `IML-2026-${String(b.fileSeq).padStart(4, '0')}`;
+      const fileNum = b.fileNumber || `IML-2026-${String(b.fileSeq || 1).padStart(4, '0')}`;
       const typeLabel = b.type === 'ENTREPRISE' ? 'PME / Entreprise' : b.type === 'STARTUP' ? 'Start-up' : 'Porteur de projet';
-      const pathwayLabel = typeof b.pathway === 'string'
-        ? b.pathway
-        : b.pathway?.template?.name || (b.pathway ? 'Parcours actif' : 'Création d’entreprise');
+      const pName = b.projects?.[0]?.name || b.companyName || '';
+      const sector = b.projects?.[0]?.sector?.name || 'Général';
+      const coach = b.assignments?.[0]?.user ? `${b.assignments[0].user.firstName} ${b.assignments[0].user.lastName}` : 'À assigner';
+      const statusLabel = (b.status === 'ACTIF' || b.status === 'EN_COURS') ? 'Dossier Actif / En incubation' : b.status === 'TERMINE' ? 'Clôturé' : 'En incubation';
 
       return [
         escape(fileNum),
         escape(b.lastName),
         escape(b.firstName),
         escape(typeLabel),
+        escape(pName),
+        escape(sector),
         escape(b.email),
         escape(b.phone || ''),
-        escape(b.city || 'Libreville (B2)'),
-        escape(b.status),
-        escape(b.language || 'Français'),
-        escape(pathwayLabel),
-        escape(b.hoursSpent || 0),
-        escape(b.hoursTotal || 20),
-        escape(b.progressPercent || 0),
+        escape(b.city || 'Libreville'),
+        escape(coach),
+        escape(statusLabel),
         escape(b.lastActivityAt ? new Date(b.lastActivityAt).toLocaleDateString('fr-FR') : '')
       ].join(';');
     });
@@ -334,32 +351,37 @@ export default function BeneficiariesPage() {
     setTagFilter('Etiquettes');
   };
 
-  // Libellé de statut visuel
+  // Libellé de statut visuel pour le dossier bénéficiaire
   const getStatusBadge = (status: string) => {
-    if (status === 'EN_ATTENTE' || status === 'ACTIF' || !status) {
+    const norm = (status || '').toUpperCase();
+    if (norm === 'ACTIF' || norm === 'EN_COURS') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-normal bg-[#fff1ec] text-[#e8664d] border border-[#fed7cc]">
-          En attente de parcours
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span className="size-1.5 rounded-full bg-emerald-500" />
+          Dossier actif
         </span>
       );
     }
-    if (status === 'EN_COURS') {
+    if (norm === 'TERMINE' || norm === 'CLOTURE') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-normal bg-emerald-50 text-emerald-700 border border-emerald-200">
-          En cours
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+          <span className="size-1.5 rounded-full bg-slate-400" />
+          Accompagnement clôturé
         </span>
       );
     }
-    if (status === 'TERMINE') {
+    if (norm === 'EN_PAUSE') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-normal bg-slate-100 text-slate-700 border border-slate-200">
-          Terminé
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="size-1.5 rounded-full bg-amber-500" />
+          En pause
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-normal bg-orange-50 text-orange-600 border border-orange-200">
-        En attente de parcours
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-50 text-teal-800 border border-teal-200">
+        <span className="size-1.5 rounded-full bg-[#23c3b1]" />
+        En incubation
       </span>
     );
   };
@@ -373,14 +395,26 @@ export default function BeneficiariesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-[23px] font-normal text-slate-800 tracking-tight">
-            {isCoach ? 'Mes Bénéficiaires & Dossiers' : 'Bénéficiaires'}
+            {isCoach ? 'Mes Bénéficiaires & Dossiers' : isDirection ? 'Portefeuille Entreprises & Bénéficiaires' : 'Bénéficiaires'}
           </h1>
           {isCoach && (
             <p className="text-xs text-slate-500 mt-0.5">
               Entrepreneurs qui vous sont confiés ou programmés en séance par l'agent de planification.
             </p>
           )}
+          {isDirection && (
+            <p className="text-xs text-slate-500 mt-0.5">
+              Consultation exhaustive du portefeuille pour le pilotage stratégique et l'analyse des indicateurs clés.
+            </p>
+          )}
         </div>
+
+        {isDirection && (
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-teal-50 border border-teal-200 text-[#137469] text-xs font-bold">
+            <ShieldCheck className="size-4 text-[#23c3b1]" />
+            <span>Mode Consultation Direction • Lecture seule</span>
+          </div>
+        )}
       </div>
 
       {/* =========================================================================
@@ -404,7 +438,19 @@ export default function BeneficiariesPage() {
               </button>
 
               {isColumnsDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-xl z-30 p-2 space-y-1 text-xs">
+                <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-slate-200 rounded-lg shadow-xl z-30 p-2 space-y-1 text-xs">
+                  <div className="px-2 py-1 text-[10px] font-bold uppercase text-slate-400">
+                    Colonnes du dossier
+                  </div>
+                  <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns.matricule}
+                      onChange={(e) => setVisibleColumns((c) => ({ ...c, matricule: e.target.checked }))}
+                      className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
+                    />
+                    <span>Matricule / N° Dossier</span>
+                  </label>
                   <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
                     <input
                       type="checkbox"
@@ -412,16 +458,25 @@ export default function BeneficiariesPage() {
                       onChange={(e) => setVisibleColumns((c) => ({ ...c, nom: e.target.checked }))}
                       className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
                     />
-                    <span>Nom</span>
+                    <span>Bénéficiaire</span>
                   </label>
                   <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={visibleColumns.langue}
-                      onChange={(e) => setVisibleColumns((c) => ({ ...c, langue: e.target.checked }))}
+                      checked={visibleColumns.structure}
+                      onChange={(e) => setVisibleColumns((c) => ({ ...c, structure: e.target.checked }))}
                       className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
                     />
-                    <span>Langue</span>
+                    <span>Structure</span>
+                  </label>
+                  <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns.secteur}
+                      onChange={(e) => setVisibleColumns((c) => ({ ...c, secteur: e.target.checked }))}
+                      className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
+                    />
+                    <span>Secteur d'activité</span>
                   </label>
                   <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
                     <input
@@ -430,25 +485,7 @@ export default function BeneficiariesPage() {
                       onChange={(e) => setVisibleColumns((c) => ({ ...c, statut: e.target.checked }))}
                       className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
                     />
-                    <span>Statut</span>
-                  </label>
-                  <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.heures}
-                      onChange={(e) => setVisibleColumns((c) => ({ ...c, heures: e.target.checked }))}
-                      className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
-                    />
-                    <span>Compteur d'heures</span>
-                  </label>
-                  <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.parcours}
-                      onChange={(e) => setVisibleColumns((c) => ({ ...c, parcours: e.target.checked }))}
-                      className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
-                    />
-                    <span>Parcours</span>
+                    <span>Statut du dossier</span>
                   </label>
                 </div>
               )}
@@ -487,8 +524,8 @@ export default function BeneficiariesPage() {
             </button>
           )}
 
-          {/* Bouton Créer un bénéficiaire (Masqué pour le Coach) */}
-          {!isCoach && (
+          {/* Bouton Créer un bénéficiaire (Masqué pour le Coach et pour la Direction) */}
+          {!isCoach && !isDirection && (
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(true)}
@@ -537,9 +574,9 @@ export default function BeneficiariesPage() {
             className="appearance-none bg-transparent pr-6 pl-1 py-1 text-xs text-slate-700 hover:text-slate-900 font-normal focus:outline-none cursor-pointer"
           >
             <option value="Tous les statuts (actifs)">Tous les statuts (actifs)</option>
-            <option value="EN_ATTENTE">En attente de parcours</option>
-            <option value="EN_COURS">En cours</option>
-            <option value="TERMINE">Terminé</option>
+            <option value="ACTIF">Dossiers actifs (En incubation)</option>
+            <option value="EN_ATTENTE">Nouveaux dossiers</option>
+            <option value="TERMINE">Accompagnements clôturés</option>
           </select>
           <ChevronDown className="size-3 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
@@ -706,15 +743,15 @@ export default function BeneficiariesPage() {
       )}
 
       {/* =========================================================================
-          5. TABLE DES BÉNÉFICIAIRES
+          5. TABLE DES BÉNÉFICIAIRES (DOSSIERS & STRUCTURES)
          ========================================================================= */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-slate-200/90 text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-50/80">
               
-              {/* Checkbox Tout sélectionner (Masqué pour le Coach) */}
-              {!isCoach && (
+              {/* Checkbox Tout sélectionner (Masqué pour le Coach et pour la Direction) */}
+              {!isCoach && !isDirection && (
                 <th className="py-2.5 px-3 w-10 text-center border-r border-slate-100">
                   <input
                     type="checkbox"
@@ -725,51 +762,35 @@ export default function BeneficiariesPage() {
                 </th>
               )}
 
-              {visibleColumns.nom && (
-                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-100">
-                  Nom & Structure
+              {visibleColumns.matricule && (
+                <th className="py-2.5 px-3 font-semibold text-slate-700 border-r border-slate-100 min-w-[130px]">
+                  Matricule
                 </th>
               )}
 
-              {visibleColumns.langue && (
-                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-100">
-                  Langue
+              {visibleColumns.nom && (
+                <th className="py-2.5 px-3 font-semibold text-slate-700 border-r border-slate-100 min-w-[190px]">
+                  Bénéficiaire
+                </th>
+              )}
+
+              {visibleColumns.structure && (
+                <th className="py-2.5 px-3 font-semibold text-slate-700 border-r border-slate-100 min-w-[130px]">
+                  Structure
+                </th>
+              )}
+
+              {visibleColumns.secteur && (
+                <th className="py-2.5 px-3 font-semibold text-slate-700 border-r border-slate-100 min-w-[140px]">
+                  Secteur d'activité
                 </th>
               )}
 
               {visibleColumns.statut && (
-                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-100">
-                  Statut
+                <th className="py-2.5 px-3 font-semibold text-slate-700 min-w-[130px]">
+                  Statut du dossier
                 </th>
               )}
-
-              {visibleColumns.heures && (
-                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-100">
-                  Compteur d'heures
-                </th>
-              )}
-
-              {visibleColumns.parcours && (
-                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-100">
-                  Parcours
-                </th>
-              )}
-
-              {visibleColumns.etape && (
-                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-100">
-                  Etape
-                </th>
-              )}
-
-              {visibleColumns.progression && (
-                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-100">
-                  Progression du parcours
-                </th>
-              )}
-
-              <th className="py-2.5 px-3 font-semibold text-slate-700 text-right pr-4 min-w-[140px]">
-                {isCoach ? 'Dossier' : 'Actions directes'}
-              </th>
 
             </tr>
           </thead>
@@ -777,21 +798,21 @@ export default function BeneficiariesPage() {
           <tbody className="divide-y divide-slate-100 text-xs">
             {isLoading && (
               <tr>
-                <td colSpan={isCoach ? 7 : 8} className="py-8 text-center text-slate-400">
+                <td colSpan={7} className="py-8 text-center text-slate-400">
                   <Loader2 className="size-4 animate-spin inline mr-2 text-[#23c3b1]" />
-                  Chargement des bénéficiaires...
+                  Chargement des dossiers bénéficiaires...
                 </td>
               </tr>
             )}
 
-            {!isLoading && beneficiaries.length === 0 && (
+            {!isLoading && filteredBeneficiaries.length === 0 && (
               <tr>
-                <td colSpan={isCoach ? 7 : 8} className="py-12 text-center text-slate-400">
+                <td colSpan={7} className="py-12 text-center text-slate-400">
                   <div className="max-w-md mx-auto space-y-1.5">
                     <p className="text-sm font-medium text-slate-600">
                       {isCoach 
                         ? "Aucun bénéficiaire ne vous a encore été programmé." 
-                        : "Aucun bénéficiaire trouvé"}
+                        : "Aucun dossier bénéficiaire trouvé"}
                     </p>
                     {isCoach && (
                       <p className="text-xs text-slate-400">
@@ -803,7 +824,7 @@ export default function BeneficiariesPage() {
               </tr>
             )}
 
-            {beneficiaries.map((b) => {
+            {filteredBeneficiaries.map((b) => {
               const isSelected = selectedIds.includes(b.id);
               const projectName = b.projects?.[0]?.name || b.companyName;
               const isStartup = b.type === 'STARTUP';
@@ -818,15 +839,20 @@ export default function BeneficiariesPage() {
                 : isPme
                 ? 'bg-blue-50 text-blue-700 border-blue-200'
                 : 'bg-indigo-50 text-indigo-700 border-indigo-200';
+
+              const fileNum = b.fileNumber || `IML-2026-${String(b.fileSeq || 1).padStart(4, '0')}`;
+              const sectorName = b.projects?.[0]?.sector?.name || 'Général';
+
               return (
                 <tr 
                   key={b.id}
-                  className={`transition-colors hover:bg-slate-50/70 ${isSelected ? 'bg-teal-50/20' : ''}`}
+                  className={`transition-colors hover:bg-slate-50/80 cursor-pointer ${isSelected ? 'bg-teal-50/20' : ''}`}
+                  onClick={() => navigate(`/beneficiaires/${b.id}`)}
                 >
                   
-                  {/* Case à cocher de ligne (Masqué pour le Coach) */}
-                  {!isCoach && (
-                    <td className="py-2.5 px-3 text-center border-r border-slate-100">
+                  {/* Case à cocher de ligne (Masqué pour le Coach et pour la Direction) */}
+                  {!isCoach && !isDirection && (
+                    <td className="py-2.5 px-3 text-center border-r border-slate-100" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -836,126 +862,59 @@ export default function BeneficiariesPage() {
                     </td>
                   )}
 
-                  {/* Nom & Structure avec chevron > */}
+                  {/* 1. Matricule (sa propre zone / case !) */}
+                  {visibleColumns.matricule && (
+                    <td className="py-2.5 px-3 border-r border-slate-100">
+                      <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 inline-block shadow-2xs">
+                        {fileNum}
+                      </span>
+                    </td>
+                  )}
+
+                  {/* 2. Bénéficiaire */}
                   {visibleColumns.nom && (
                     <td className="py-2.5 px-3 border-r border-slate-100">
-                      <Link
-                        to={`/beneficiaires/${b.id}`}
-                        className="flex items-center justify-between text-slate-800 hover:text-[#23c3b1] transition-colors group"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-slate-800">{b.firstName} {b.lastName}</span>
-                              <span className={`inline-block text-[10px] font-medium px-1.5 py-0.2 rounded border ${badgeClass}`}>
-                                {typeLabel}
-                              </span>
-                            </div>
-                            {projectName && (
-                              <p className="text-[11px] text-slate-500 font-normal">
-                                {projectName}
-                              </p>
-                            )}
-                          </div>
+                      <div className="flex items-start justify-between group">
+                        <div>
+                          <span className="font-bold text-slate-900 group-hover:text-[#23c3b1] transition-colors text-xs sm:text-[12.5px] block">
+                            {b.firstName} {b.lastName}
+                          </span>
+                          {projectName && (
+                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                              {projectName}
+                            </p>
+                          )}
                         </div>
-                        <ChevronRight className="size-3.5 text-slate-400 group-hover:text-[#23c3b1] transition-transform group-hover:translate-x-0.5 ml-2 shrink-0" />
-                      </Link>
+                        <ChevronRight className="size-3.5 text-slate-400 group-hover:text-[#23c3b1] transition-transform group-hover:translate-x-0.5 ml-2 shrink-0 self-center" />
+                      </div>
                     </td>
                   )}
 
-                  {/* Langue */}
-                  {visibleColumns.langue && (
+                  {/* 2. Structure (sa propre case !) */}
+                  {visibleColumns.structure && (
                     <td className="py-2.5 px-3 border-r border-slate-100 text-slate-700">
-                      <span>{b.language || 'Français'}</span>
+                      <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded border ${badgeClass}`}>
+                        {typeLabel}
+                      </span>
                     </td>
                   )}
 
-                  {/* Statut (badge Parcours à créer) */}
+                  {/* 3. Secteur d'activité */}
+                  {visibleColumns.secteur && (
+                    <td className="py-2.5 px-3 border-r border-slate-100 text-slate-700">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200">
+                        <Building2 className="size-2.5 text-slate-500" />
+                        <span>{sectorName}</span>
+                      </span>
+                    </td>
+                  )}
+
+                  {/* 3. Statut du dossier */}
                   {visibleColumns.statut && (
-                    <td className="py-2.5 px-3 border-r border-slate-100">
+                    <td className="py-2.5 px-3">
                       {getStatusBadge(b.status)}
                     </td>
                   )}
-
-                  {/* Compteur d'heures */}
-                  {visibleColumns.heures && (
-                    <td className="py-2.5 px-3 border-r border-slate-100 text-slate-600">
-                      {b.hoursSpent ? `${b.hoursSpent}h / ${b.hoursTotal || 0}h` : 'N/A'}
-                    </td>
-                  )}
-
-                  {/* Parcours */}
-                  {visibleColumns.parcours && (
-                    <td className="py-2.5 px-3 border-r border-slate-100 text-slate-600">
-                      {typeof b.pathway === 'string'
-                        ? b.pathway
-                        : b.pathway?.template?.name || (b.pathway ? 'Parcours actif' : 'Non assigné')}
-                    </td>
-                  )}
-
-                  {/* Etape */}
-                  {visibleColumns.etape && (
-                    <td className="py-2.5 px-3 border-r border-slate-100 text-slate-600">
-                      {Array.isArray(b.pathway?.steps) && b.pathway.steps.length > 0
-                        ? `${b.pathway.steps.filter((s: any) => s.status === 'VALIDE' || s.status === 'TERMINE').length}/${b.pathway.steps.length}`
-                        : b.currentStep !== undefined ? `${b.currentStep}/${b.totalSteps || 0}` : '0/0'}
-                    </td>
-                  )}
-
-                  {/* Progression du parcours */}
-                  {visibleColumns.progression && (
-                    <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100 font-medium">
-                      {(() => {
-                        const steps = b.pathway?.steps;
-                        if (Array.isArray(steps) && steps.length > 0) {
-                          const done = steps.filter((s: any) => s.status === 'VALIDE' || s.status === 'TERMINE').length;
-                          return `${Math.round((done / steps.length) * 100)}%`;
-                        }
-                        if (b.progressPercent !== undefined) return `${b.progressPercent}%`;
-                        if (b.pathway?.progress !== undefined) return `${b.pathway.progress}%`;
-                        return '0%';
-                      })()}
-                    </td>
-                  )}
-
-                  {/* Actions directes : Ouvrir dossier pour le coach, Modifier/Supprimer pour admin/agent */}
-                  <td className="py-2 px-3 text-right pr-4" onClick={(e) => e.stopPropagation()}>
-                    {isCoach ? (
-                      <Link
-                        to={`/beneficiaires/${b.id}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-teal-50 hover:bg-teal-100 text-[#0f766e] border border-teal-200 text-xs font-medium transition-colors shadow-2xs"
-                      >
-                        <span>Consulter le dossier</span>
-                        <ChevronRight className="size-3.5" />
-                      </Link>
-                    ) : (
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Modifier */}
-                        <Link
-                          to={`/beneficiaires/${b.id}/modifier`}
-                          className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer shadow-2xs inline-flex items-center justify-center"
-                          title="Modifier ce bénéficiaire"
-                          aria-label="Modifier"
-                        >
-                          <Pencil className="size-3.5 text-slate-600" />
-                        </Link>
-
-                        {/* Supprimer */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedIds([b.id]);
-                            setBatchAction('delete');
-                          }}
-                          className="p-1.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/70 transition-colors cursor-pointer shadow-2xs"
-                          title="Supprimer ce bénéficiaire"
-                          aria-label="Supprimer"
-                        >
-                          <Trash2 className="size-3.5 text-rose-600" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
 
                 </tr>
               );

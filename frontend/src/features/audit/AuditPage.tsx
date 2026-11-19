@@ -217,24 +217,10 @@ export default function AuditPage() {
           1. EN-TÊTE VALORISANT DU MODULE D'AUDIT
          ========================================================================= */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div className="flex items-center gap-3.5">
-          <div className="size-12 rounded-2xl bg-[#14233c] text-white flex items-center justify-center shadow-md">
-            <ShieldCheck className="size-7 text-[#23c3b1]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                Journal d'Audit & Traçabilité
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-emerald-500 animate-ping" />
-                Surveillance Active
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Historique inaltérable des actions de sécurité, validations d'étapes et accès système.
-            </p>
-          </div>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            Journal d'audit
+          </h1>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">

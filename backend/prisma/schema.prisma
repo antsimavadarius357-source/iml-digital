@@ -415,3 +415,67 @@ model FollowUpNote {
   @@index([beneficiaryId])
   @@index([authorId])
 }
+
+// ============ Location de salle & événements externes ============
+
+enum RoomBookingStatus {
+  EN_ATTENTE
+  CONFIRMEE
+  REFUSEE
+  ANNULEE
+}
+
+/// Demande de réservation de la salle IML par une personne externe (masterclass, formation, réunion).
+/// Indépendante du parcours d'incubation : aucun dossier bénéficiaire n'est créé.
+model RoomBooking {
+  id            String            @id @default(uuid())
+  reference     String            @unique
+  organizerName String
+  organization  String?
+  email         String
+  phone         String
+  eventType     String
+  attendees     Int
+  startAt       DateTime
+  endAt         DateTime
+  notes         String?
+  source        String            @default("FORMULAIRE") // FORMULAIRE | ASSISTANT
+  status        RoomBookingStatus @default(EN_ATTENTE)
+  decisionNote  String?
+  decidedById   String?
+  decidedAt     DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status])
+  @@index([startAt, endAt])
+}
+
+// ============ Demandes de contact publiques ============
+
+enum ContactMessageStatus {
+  NOUVEAU
+  EN_COURS
+  TRAITE
+  ARCHIVE
+}
+
+/// Messages et demandes d'information envoyés depuis le formulaire public /contact
+model ContactMessage {
+  id          String               @id @default(uuid())
+  name        String
+  email       String
+  phone       String?
+  subject     String
+  message     String
+  status      ContactMessageStatus @default(NOUVEAU)
+  replyNote   String?
+  repliedAt   DateTime?
+  repliedById String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+

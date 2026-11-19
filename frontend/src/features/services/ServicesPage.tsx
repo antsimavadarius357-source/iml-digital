@@ -39,7 +39,7 @@ interface PrestationItem {
 const DEFAULT_PRESTATIONS: PrestationItem[] = [
   {
     id: 'prest-1',
-    title: 'Diagnostic Stratégique & Cadrage 360°',
+    title: 'Diagnostic Stratégique & Cadrage global',
     category: 'Stratégie & Diagnostic',
     beneficiaryId: 'b-1',
     beneficiaryName: 'Sylvie NDONG',
@@ -51,7 +51,7 @@ const DEFAULT_PRESTATIONS: PrestationItem[] = [
     durationMinutes: 120,
     status: 'REALISE',
     summary: 'Analyse approfondie de la chaîne de valeur, forces/faiblesses et identification des leviers de croissance.',
-    deliverable: 'Rapport_Diagnostic_360_EcoGabon.pdf'
+    deliverable: 'Rapport_Diagnostic_Initial_EcoGabon.pdf'
   },
   {
     id: 'prest-2',
@@ -363,7 +363,7 @@ export default function ServicesPage() {
             <tr className="bg-slate-50/80 border-b border-slate-200 font-semibold text-slate-700">
               <th className="py-3 px-4">Prestation & Thématique</th>
               <th className="py-3 px-4">Bénéficiaire / Entreprise</th>
-              <th className="py-3 px-4">Conseiller Référent</th>
+              <th className="py-3 px-4">Coach / Intervenant</th>
               <th className="py-3 px-4">Date & Durée</th>
               <th className="py-3 px-4">Statut</th>
               <th className="py-3 px-4 text-right">Actions directes</th>

@@ -188,7 +188,7 @@ export default function BatchActionModals({
 
             <div className="p-6 space-y-4 overflow-y-auto">
               <div className="p-3 rounded-xl bg-orange-50/70 border border-orange-200/80 text-xs text-slate-700">
-                Vous vous apprêtez à assigner un conseiller référent pour <strong>{count} bénéficiaire(s)</strong> sélectionné(s).
+                Vous vous apprêtez à assigner un référent pour <strong>{count} bénéficiaire(s)</strong> sélectionné(s).
               </div>
 
               <div>
@@ -208,7 +208,7 @@ export default function BatchActionModals({
                     <option value="">Sélectionnez un accompagnant...</option>
                     {optionsQuery.data?.agents.map((agent) => (
                       <option key={agent.id} value={agent.id}>
-                        {agent.firstName} {agent.lastName} (Conseiller Espace PME)
+                        {agent.firstName} {agent.lastName} ({(agent as any).role?.label || 'Référent IML'})
                       </option>
                     ))}
                   </select>

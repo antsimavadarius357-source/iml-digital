@@ -36,3 +36,10 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   }
   return data as T;
 }
+
+api.get = <T>(path: string) => api<T>(path, { method: 'GET' });
+api.post = <T>(path: string, body?: unknown) => api<T>(path, { method: 'POST', body });
+api.patch = <T>(path: string, body?: unknown) => api<T>(path, { method: 'PATCH', body });
+api.put = <T>(path: string, body?: unknown) => api<T>(path, { method: 'PUT', body });
+api.delete = <T>(path: string) => api<T>(path, { method: 'DELETE' });
+

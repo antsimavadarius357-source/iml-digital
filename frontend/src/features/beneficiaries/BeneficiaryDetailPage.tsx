@@ -10,7 +10,6 @@ import {
   Phone, 
   User, 
   Calendar, 
-  Filter, 
   Download, 
   Trash2, 
   X, 
@@ -24,11 +23,13 @@ import {
   FileCheck, 
   HeartHandshake,
   Handshake,
-  MessageSquare,
   BookOpen,
   Video,
   ExternalLink,
-  Printer
+  Printer,
+  ShieldCheck,
+  Plus,
+  Eye
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { api } from '../../lib/api';
@@ -37,17 +38,7 @@ import { useSetBreadcrumbs } from '../../components/layout/AppBreadcrumb';
 import { useAuth } from '../auth/AuthContext';
 import CoachBeneficiaryDossier from './CoachBeneficiaryDossier';
 import CreateAppointmentWizardModal from '../appointments/CreateAppointmentWizardModal';
-
-interface PrestationItem {
-  id: string;
-  date: string;
-  beneficiaryName: string;
-  duration: string;
-  project: string;
-  pathway: string;
-  company: string;
-  description: string;
-}
+import BeneficiaryDossierModal, { type DocumentItem } from '../documents/BeneficiaryDossierModal';
 
 const FALLBACK_BENEFICIARIES: Record<string, BeneficiaryDetail> = {
   'aac47994-4788-4561-9697-d5a1d9eec49c': {
@@ -382,25 +373,46 @@ FALLBACK_BENEFICIARIES['b-5'] = {
   ]
 };
 
+function formatMissionTitle(title?: string, location?: string): string {
+  const raw = title || location || '';
+  if (!raw) return "Entretien d'accompagnement & cadrage";
+
+  const cleaned = raw
+    .replace(/\[https?:\/\/[^\s\]]+\]/g, '')
+    .replace(/https?:\/\/[^\s]+/g, '')
+    .replace(/\[[A-Z]+:[^\]]+\]/g, '')
+    .replace(/^Visioconf[ée]rence\s*[-–:]?\s*/i, '')
+    .replace(/\s*-\s*$/, '')
+    .replace(/^\s*-\s*/, '')
+    .trim();
+
+  if (!cleaned || cleaned.toLowerCase() === 'visio' || cleaned.toLowerCase() === 'visioconférence') {
+    return "Entretien d'accompagnement & cadrage";
+  }
+  if (cleaned.toLowerCase() === 'entretien') {
+    return "Entretien d'évaluation & cadrage";
+  }
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
 export default function BeneficiaryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const isCoach = user?.role === 'COACH';
+  const isDirection = user?.role === 'DIRECTION';
 
-  // Navigation Niveau 1 : Suivi | Documents | Historique | Présentation
+  // Navigation Niveau 1 : Suivi | Documents | Présentation
   const rawTab = searchParams.get('tab');
-  const mainTab: 'suivi' | 'documents' | 'historique' | 'presentation' = 
+  const mainTab: 'suivi' | 'documents' | 'presentation' = 
     rawTab === 'documents'
       ? 'documents'
-      : rawTab === 'historique'
-      ? 'historique'
       : rawTab === 'presentation'
       ? 'presentation'
       : 'suivi';
 
-  const handleMainTabChange = (tab: 'suivi' | 'documents' | 'historique' | 'presentation') => {
+  const handleMainTabChange = (tab: 'suivi' | 'documents' | 'presentation') => {
     setSearchParams(prev => {
       const p = new URLSearchParams(prev);
       p.set('tab', tab);
@@ -417,8 +429,27 @@ export default function BeneficiaryDetailPage() {
   const [reportNotesInput, setReportNotesInput] = useState<string>('');
   const [isSavingReportNote, setIsSavingReportNote] = useState<boolean>(false);
 
-  // État de prise de rendez-vous par le bénéficiaire
-  const [bookingEnabled, setBookingEnabled] = useState(false);
+  // État de prise de rendez-vous par le bénéficiaire (persistant)
+  const [bookingEnabled, setBookingEnabled] = useState<boolean>(() => {
+    if (!id) return true;
+    try {
+      const val = localStorage.getItem(`iml_booking_enabled_${id}`);
+      return val !== null ? val === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleBooking = () => {
+    const next = !bookingEnabled;
+    setBookingEnabled(next);
+    if (id) {
+      try {
+        localStorage.setItem(`iml_booking_enabled_${id}`, String(next));
+      } catch {}
+    }
+    showToast(`✓ Prise de rendez-vous autonome ${next ? 'activée' : 'désactivée'}`);
+  };
 
   // Notes rapides locales
   const [quickNote, setQuickNote] = useState<string>('');
@@ -430,10 +461,6 @@ export default function BeneficiaryDetailPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Filtres date onglet Historique / Prestations
-  const [historyStartDate, setHistoryStartDate] = useState<string>('');
-  const [historyEndDate, setHistoryEndDate] = useState<string>('');
-  const [localPrestations, setLocalPrestations] = useState<PrestationItem[]>([]);
 
   // 1. Récupération des données du bénéficiaire
   const { data: res, isLoading, refetch } = useQuery({
@@ -489,6 +516,78 @@ export default function BeneficiaryDetailPage() {
     }
   };
 
+  const handleDeleteDocument = async (docId: string) => {
+    if (!window.confirm('Voulez-vous vraiment supprimer ce document ?')) return;
+    try {
+      await api(`/documents/${docId}`, { method: 'DELETE' });
+      showToast('✓ Document supprimé');
+      refetchDocs();
+    } catch (err: any) {
+      showToast(`⚠️ ${err.message || 'Erreur lors de la suppression'}`);
+    }
+  };
+
+  const handleToggleDocStatus = async (docId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'VALIDE' ? 'EN_ATTENTE' : 'VALIDE';
+    try {
+      await api(`/documents/${docId}/status`, { method: 'PATCH', body: { status: nextStatus } });
+      showToast(nextStatus === 'VALIDE' ? '✓ Document marqué comme validé' : '✓ Document remis en attente');
+      refetchDocs();
+    } catch (err: any) {
+      showToast(`⚠️ ${err.message || 'Erreur lors de la mise à jour'}`);
+    }
+  };
+
+  // État de la visionneuse de document
+  const [selectedDocForFolder, setSelectedDocForFolder] = useState<DocumentItem | null>(null);
+
+  const beneficiaryDocsList: DocumentItem[] = useMemo(() => {
+    return (docsRes?.items || []).map((d: any) => {
+      const ext = (d.fileName ? d.fileName.split('.').pop() : d.title.split('.').pop())?.toUpperCase() || 'DOC';
+      let sizeLabel = '—';
+      if (d.sizeBytes) {
+        sizeLabel = d.sizeBytes < 1024 * 1024
+          ? `${(d.sizeBytes / 1024).toFixed(0)} Ko`
+          : `${(d.sizeBytes / (1024 * 1024)).toFixed(1)} Mo`;
+      }
+      return {
+        id: d.id,
+        title: d.title || d.fileName || 'Document',
+        category: d.category || 'Pièce justificative',
+        beneficiaryId: id || '',
+        beneficiaryName: b ? `${b.firstName} ${b.lastName}` : 'Bénéficiaire',
+        companyName: b?.projects?.[0]?.name || '',
+        beneficiaryPhone: b?.phone || '',
+        beneficiaryEmail: b?.email || '',
+        format: ext,
+        size: sizeLabel,
+        date: d.createdAt ? d.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10),
+        status: (d.status || 'EN_ATTENTE') as any,
+        url: `/api/v1/documents/${d.id}/download`,
+      };
+    });
+  }, [docsRes?.items, b, id]);
+
+  const handleOpenPreview = (doc: { id: string; title: string }) => {
+    const found = beneficiaryDocsList.find(d => d.id === doc.id);
+    if (found) {
+      setSelectedDocForFolder(found);
+    } else {
+      setSelectedDocForFolder({
+        id: doc.id,
+        title: doc.title,
+        category: 'Pièce justificative',
+        beneficiaryId: id || '',
+        beneficiaryName: b ? `${b.firstName} ${b.lastName}` : 'Bénéficiaire',
+        companyName: b?.projects?.[0]?.name || '',
+        format: 'DOCX',
+        size: '—',
+        date: new Date().toISOString().slice(0, 10),
+        status: 'EN_ATTENTE'
+      });
+    }
+  };
+
   // Initialisation note locale
   useEffect(() => {
     if (id) {
@@ -521,37 +620,6 @@ export default function BeneficiaryDetailPage() {
   });
   const followUpNotes = notesRes?.items || [];
 
-  // Construction de la liste des prestations
-  const allPrestations = useMemo<PrestationItem[]>(() => {
-    const apiItems: PrestationItem[] = (appointmentsRes?.items || [])
-      .filter((appt: any) => appt.session || appt.status === 'REALISE')
-      .map((appt: any) => {
-        const d = new Date(appt.datetime);
-        const hours = Math.floor(appt.duration / 60);
-        const mins = appt.duration % 60;
-        const durationStr = `${hours > 0 ? `${hours}h ` : ''}${mins > 0 ? `${mins}m` : hours === 0 ? '0m' : ''}`.trim();
-        return {
-          id: appt.id,
-          date: d.toLocaleDateString('fr-FR'),
-          beneficiaryName: b ? `${b.firstName} ${b.lastName}` : 'Marine LOUPE',
-          duration: durationStr || '1h 00m',
-          project: b?.projects?.[0]?.name || 'Projet emploi',
-          pathway: appt.session?.nextActions?.replace('Parcours: ', '') || b?.program?.name || "Création d'entreprise",
-          company: b?.type === 'ENTREPRISE' ? (b?.projects?.[0]?.name || 'IML Digit') : 'IML Digit',
-          description: appt.session?.summary || appt.location || "Session d'accompagnement"
-        };
-      });
-    return [...localPrestations, ...apiItems];
-  }, [appointmentsRes, localPrestations, b]);
-
-  // Filtrage des prestations
-  const filteredPrestations = useMemo(() => {
-    return allPrestations.filter(p => {
-      if (historyStartDate.trim() && !p.date.includes(historyStartDate.trim())) return false;
-      if (historyEndDate.trim() && !p.date.includes(historyEndDate.trim())) return false;
-      return true;
-    });
-  }, [allPrestations, historyStartDate, historyEndDate]);
 
   const [customMissions] = useState<any[]>(() => {
     if (typeof window !== 'undefined' && id) {
@@ -569,21 +637,25 @@ export default function BeneficiaryDetailPage() {
     ? `${b.assignedAgent.firstName} ${b.assignedAgent.lastName}` 
     : (b?.assignments?.[0]?.user ? `${b.assignments[0].user.firstName} ${b.assignments[0].user.lastName}` : 'Darius Coach IML');
 
-  // Liste unifiée des sessions d'accompagnement & missions d'experts
+  // Liste unifiée des sessions d'accompagnement & comptes-rendus d'experts
   const allExpertSessions = useMemo(() => {
     const list: any[] = [...customMissions];
 
+    // 1. Ajouter les rendez-vous planifiés
     (appointmentsRes?.items || []).forEach((appt: any) => {
       const loc = appt.location || '';
       const expertMatch = loc.match(/\[EXPERT:(.*?)\]/);
       const domMatch = loc.match(/\[DOM:(.*?)\]/);
       const missionMatch = loc.match(/\[MISSION:(.*?)\]/);
       const orgMatch = loc.match(/\[ORG:(.*?)\]/);
+      const videoMatch = loc.match(/https?:\/\/[^\s\]]+/);
+      const videoUrl = videoMatch ? videoMatch[0] : null;
 
       const expName = expertMatch ? expertMatch[1] : (appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : assignedCoachName);
       const domain = domMatch ? domMatch[1] : (b?.projects?.[0]?.priorityNeeds ? 'Finance & Business Plan' : 'Cadrage Accompagnement');
-      const mission = missionMatch ? missionMatch[1] : (appt.location || "Session d'accompagnement & expertise");
+      const mission = formatMissionTitle(missionMatch ? missionMatch[1] : loc);
       const organization = orgMatch ? orgMatch[1] : (expertMatch ? 'Intervenant Externe' : 'Coach Référent IML');
+      const isVisio = loc.toLowerCase().includes('visio') || !!videoUrl;
 
       const alreadyInList = list.some(m => m.id === appt.id || (m.datetime === appt.datetime && m.expert?.name === expName));
       if (!alreadyInList) {
@@ -601,8 +673,9 @@ export default function BeneficiaryDetailPage() {
             isExternal: !!orgMatch || !!expertMatch,
           },
           missionTitle: mission,
-          modality: loc.includes('Visio') ? 'VISIO' : 'PRESENTIEL',
-          location: loc.includes('Visio') ? 'Visioconférence IML Meet' : (loc || 'Espace PME Libreville'),
+          modality: isVisio ? 'VISIO' : 'PRESENTIEL',
+          location: isVisio ? 'Visioconférence IML Meet' : (loc || 'Espace PME Libreville'),
+          videoUrl: videoUrl,
           status: appt.status === 'PLANIFIE' ? 'CONFIRME' : appt.status || 'CONFIRME',
           session: appt.session,
           notes: appt.notes || appt.session?.summary,
@@ -613,31 +686,67 @@ export default function BeneficiaryDetailPage() {
       }
     });
 
-    return list;
-  }, [customMissions, appointmentsRes, assignedCoachName, b]);
+    // 2. Fusionner et répertorier TOUS les comptes-rendus rédigés par les coachs (followUpNotes)
+    (followUpNotes || []).forEach((note: any) => {
+      const noteDateStr = note.sessionDate ? new Date(note.sessionDate).toDateString() : (note.createdAt ? new Date(note.createdAt).toDateString() : '');
+      const noteAuthorName = note.author ? `${note.author.firstName} ${note.author.lastName}` : assignedCoachName;
 
-  // Export CSV
-  const handleExportCSV = () => {
-    const csvHeader = "Date;Bénéficiaire;Durée;Projet emploi;Parcours;Société;Description\n";
-    const rows = filteredPrestations.map(p => 
-      `"${p.date}";"${p.beneficiaryName}";"${p.duration}";"${p.project}";"${p.pathway}";"${p.company}";"${p.description}"`
-    ).join('\n');
-    
-    const blob = new Blob([csvHeader + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `feuille_prestations_${b?.firstName || 'beneficiaire'}_${b?.lastName || ''}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('✓ Export des prestations téléchargé (format CSV)');
-  };
+      // Chercher si un rendez-vous correspond à ce compte-rendu
+      const existing = list.find(m => 
+        m.id === note.id || 
+        (noteDateStr && m.datetime && new Date(m.datetime).toDateString() === noteDateStr)
+      );
 
-  const handleDeletePrestation = (pId: string) => {
-    setLocalPrestations(prev => prev.filter(p => p.id !== pId));
-    showToast('✓ Prestation supprimée de la liste');
-  };
+      if (existing) {
+        // Enrichir le rendez-vous existant avec le vrai compte-rendu du coach !
+        existing.notes = note.content;
+        if (note.nextSteps) existing.nextSteps = note.nextSteps;
+        if (note.topic && (!existing.missionTitle || existing.missionTitle.includes('http') || existing.missionTitle.includes('Visioconférence'))) {
+          existing.missionTitle = note.topic;
+        }
+        if (note.author) {
+          existing.expert.name = noteAuthorName;
+          existing.expert.avatarInitials = noteAuthorName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'EX';
+        }
+        existing.status = 'REALISE';
+        existing.hasReport = true;
+        existing.rawNote = note;
+      } else {
+        // Ajouter comme entrée distincte directement répertoriée dans le tableau
+        list.push({
+          id: note.id,
+          datetime: note.sessionDate || note.createdAt,
+          expert: {
+            name: noteAuthorName,
+            domain: note.topic || 'Mentorat & Suivi',
+            organization: 'Coach Référent IML',
+            avatarInitials: noteAuthorName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'CR',
+            color: 'from-teal-600 to-emerald-600',
+            phone: '+241 77 12 34 56',
+            email: 'coach@imldigit.com',
+            isExternal: false,
+          },
+          missionTitle: note.topic || "Séance d'accompagnement & mentorat",
+          modality: 'PRESENTIEL',
+          location: 'Espace PME Libreville',
+          status: 'REALISE',
+          notes: note.content,
+          nextSteps: note.nextSteps,
+          durationHours: 1,
+          hasReport: true,
+          rawNote: note,
+        });
+      }
+    });
+
+    // Trier les séances par date décroissante (les plus récentes en premier)
+    return list.sort((a, b) => {
+      const timeA = a.datetime ? new Date(a.datetime).getTime() : 0;
+      const timeB = b.datetime ? new Date(b.datetime).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [customMissions, appointmentsRes, followUpNotes, assignedCoachName, b]);
+
 
   const companyTitle = b?.projects?.[0]?.name ? ` · ${b.projects[0].name}` : '';
   useSetBreadcrumbs(
@@ -729,6 +838,21 @@ export default function BeneficiaryDetailPage() {
   return (
     <div className="max-w-[1400px] mx-auto pb-16 space-y-4 font-sans">
 
+      {/* Bannière de consultation Direction (Lecture seule & Pilotage) */}
+      {isDirection && (
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#137469] font-medium shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="size-4.5 text-[#23c3b1] shrink-0" />
+            <div>
+              <span className="font-bold">Espace Direction Générale • Dossier en observation stratégique</span>
+              <p className="text-[11px] text-teal-700 font-normal">Accès en lecture seule pour évaluer les indicateurs, les réalisations et les heures d'accompagnement.</p>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold bg-white text-teal-800 px-3 py-1 rounded-md border border-teal-200 shrink-0 self-start sm:self-auto">
+            Mode Consultation Seule
+          </span>
+        </div>
+      )}
 
       {/* =========================================================================
           2. CARTE EN-TÊTE DU DOSSIER BÉNÉFICIAIRE (Conforme exactement à la capture)
@@ -738,31 +862,33 @@ export default function BeneficiaryDetailPage() {
           
           {/* Bloc Gauche : Drapeau, 5 boutons corail d'action, Avatar & Nom */}
           <div className="p-4 sm:p-5 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200 min-w-[280px]">
-            {/* Rangée des 5 boutons corail */}
+            {/* Rangée des boutons d'action (Masqués pour la Direction qui est en lecture seule) */}
             <div className="flex items-center gap-1.5 mb-4">
-              {/* 1. Bouton Crayon (Modifier) */}
-              <button
-                type="button"
-                onClick={() => navigate(`/beneficiaires/${id}/modifier`)}
-                title="Modifier le dossier"
-                className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              >
-                <Pencil className="size-3" />
-              </button>
+              {!isDirection && (
+                <>
+                  {/* 1. Bouton Crayon (Modifier) */}
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/beneficiaires/${id}/modifier`)}
+                    title="Modifier le dossier"
+                    className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Pencil className="size-3" />
+                  </button>
 
+                  {/* 3. Bouton Clé (Accès portail) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsKeyModalOpen(true)}
+                    title="Gestion des identifiants et accès portail"
+                    className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Key className="size-3" />
+                  </button>
+                </>
+              )}
 
-
-              {/* 3. Bouton Clé (Accès portail) */}
-              <button
-                type="button"
-                onClick={() => setIsKeyModalOpen(true)}
-                title="Gestion des identifiants et accès portail"
-                className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              >
-                <Key className="size-3" />
-              </button>
-
-              {/* 4. Bouton Trois points (...) */}
+              {/* Bouton Trois points (...) : accessible à tous */}
               <button
                 type="button"
                 onClick={() => handleMainTabChange('presentation')}
@@ -772,15 +898,17 @@ export default function BeneficiaryDetailPage() {
                 <MoreHorizontal className="size-3" />
               </button>
 
-              {/* 5. Bouton Flèche de transfert (->|) */}
-              <button
-                type="button"
-                onClick={() => showToast('✓ Options de transfert et réassignation du dossier')}
-                title="Transférer ou réassigner le bénéficiaire"
-                className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              >
-                <ArrowRightToLine className="size-3" />
-              </button>
+              {!isDirection && (
+                /* 5. Bouton Flèche de transfert (->|) */
+                <button
+                  type="button"
+                  onClick={() => showToast('✓ Options de transfert et réassignation du dossier')}
+                  title="Transférer ou réassigner le bénéficiaire"
+                  className="size-6 rounded bg-[#f06553] hover:bg-[#e05341] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                >
+                  <ArrowRightToLine className="size-3" />
+                </button>
+              )}
             </div>
 
             {/* Avatar circulaire silhouette ou Photo de profil + Drapeau + Nom complet + Badge type + Entreprise/Structure */}
@@ -914,11 +1042,7 @@ export default function BeneficiaryDetailPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    const next = !bookingEnabled;
-                    setBookingEnabled(next);
-                    showToast(`✓ Prise de rendez-vous ${next ? 'activée' : 'désactivée'}`);
-                  }}
+                  onClick={handleToggleBooking}
                   className="px-2.5 py-1 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-[11px] font-medium shadow-2xs transition-colors cursor-pointer shrink-0"
                 >
                   {bookingEnabled ? 'Désactiver' : 'Activer'}
@@ -948,7 +1072,7 @@ export default function BeneficiaryDetailPage() {
         {/* NIVEAU 1 : Barre d'onglets principale foncé (#1e3347) */}
         <div className="bg-[#1e3347] flex flex-wrap items-center border-b border-[#182a3a]">
           
-          {/* Suivi */}
+          {/* Comptes-Rendus d'Experts & Suivi */}
           <button
             type="button"
             onClick={() => handleMainTabChange('suivi')}
@@ -958,10 +1082,10 @@ export default function BeneficiaryDetailPage() {
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
-            <span>Suivi</span>
-            {followUpNotes.length > 0 && (
+            <span>Comptes-Rendus d'Experts & Suivi</span>
+            {allExpertSessions.length > 0 && (
               <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#23c3b1] text-white">
-                {followUpNotes.length}
+                {allExpertSessions.length}
               </span>
             )}
           </button>
@@ -979,19 +1103,6 @@ export default function BeneficiaryDetailPage() {
             Documents
           </button>
 
-          {/* Historique */}
-          <button
-            type="button"
-            onClick={() => handleMainTabChange('historique')}
-            className={`px-6 py-3 text-xs font-normal transition-colors cursor-pointer ${
-              mainTab === 'historique'
-                ? 'bg-[#2a455f] text-[#23c3b1] border-b-2 border-[#23c3b1]'
-                : 'text-slate-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Historique
-          </button>
-
         </div>
 
         {/* =======================================================================
@@ -1005,36 +1116,31 @@ export default function BeneficiaryDetailPage() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <span>Sessions de Suivi & Rendez-vous d'Accompagnement</span>
+                    <span>Comptes-Rendus d'Experts & Suivi</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
-                      {allExpertSessions.length} session{allExpertSessions.length > 1 ? 's' : ''}
+                      {allExpertSessions.length} séance{allExpertSessions.length > 1 ? 's' : ''}
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Planning des interventions spécialisées et historique des échanges d'accompagnement.
+                    Comptes-rendus rédigés par les coachs et historique des séances d'accompagnement.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !bookingEnabled;
-                    setBookingEnabled(next);
-                    showToast(`✓ Prise de rendez-vous ${next ? 'activée' : 'désactivée'}`);
-                  }}
-                  className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition cursor-pointer ${
-                    bookingEnabled 
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  Portail bénéficiaire : prise de RDV {bookingEnabled ? 'activée ✓' : 'désactivée'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAppointmentModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Plus className="size-3.5" />
+                    <span>Planifier un rendez-vous</span>
+                  </button>
+                </div>
               </div>
 
               <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                 {allExpertSessions.length === 0 ? (
-                  <div className="py-12 px-6 text-center max-w-md mx-auto space-y-2">
+                  <div className="py-12 px-6 text-center max-w-md mx-auto space-y-3">
                     <div className="size-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
                       <Handshake className="size-6 text-slate-400" />
                     </div>
@@ -1042,21 +1148,31 @@ export default function BeneficiaryDetailPage() {
                       Aucune session de suivi enregistrée
                     </h4>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      Les rendez-vous, entretiens d'étape et séances d'accompagnement apparaîtront ici.
+                      Ce bénéficiaire vient d'être configuré. Les rendez-vous d'étape et séances de mentorat avec le coach apparaîtront ici dès leur planification.
                     </p>
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsAppointmentModalOpen(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                      >
+                        <Calendar className="size-4" />
+                        <span>Planifier le premier rendez-vous</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left border-collapse">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50/90 text-slate-700 uppercase text-[10px] font-bold tracking-wider">
-                          <th className="py-3 px-3.5 border-r border-slate-200/80">Date & Heure</th>
-                          <th className="py-3 px-3.5 border-r border-slate-200/80">Domaine d'expertise</th>
-                          <th className="py-3 px-3.5 border-r border-slate-200/80">Expert référent</th>
-                          <th className="py-3 px-3.5 border-r border-slate-200/80">Mission de suivi & Objectif</th>
-                          <th className="py-3 px-3.5 border-r border-slate-200/80">Modalité & Lieu</th>
-                          <th className="py-3 px-3.5 border-r border-slate-200/80">Statut</th>
-                          <th className="py-3 px-3.5 text-right">Actions</th>
+                          <th className="py-2.5 px-3">Date & Heure</th>
+                          <th className="py-2.5 px-3">Domaine d'expertise</th>
+                          <th className="py-2.5 px-3">Expert référent</th>
+                          <th className="py-2.5 px-3">Mission de suivi & Objectif</th>
+                          <th className="py-2.5 px-3">Modalité & Lieu</th>
+                          <th className="py-2.5 px-3">Statut</th>
+                          <th className="py-2.5 px-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1067,7 +1183,7 @@ export default function BeneficiaryDetailPage() {
                             <tr key={session.id} className="hover:bg-slate-50/70 transition-colors">
                               
                               {/* 1. Date */}
-                              <td className="py-3 px-3.5 border-r border-slate-100 font-medium whitespace-nowrap">
+                              <td className="py-2.5 px-3 font-medium whitespace-nowrap">
                                 {dateObj ? (
                                   <div>
                                     <span className="font-bold text-slate-900 block">
@@ -1085,23 +1201,23 @@ export default function BeneficiaryDetailPage() {
                               </td>
 
                               {/* 2. Domaine */}
-                              <td className="py-3 px-3.5 border-r border-slate-100 whitespace-nowrap">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200/80">
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <span className="font-semibold text-slate-700 text-xs">
                                   {exp.domain || 'Expertise générale'}
                                 </span>
                               </td>
 
                               {/* 3. Expert */}
-                              <td className="py-3 px-3.5 border-r border-slate-100 whitespace-nowrap">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="size-8 rounded-lg bg-gradient-to-tr from-[#14233c] to-[#2d4763] text-white font-bold text-xs flex items-center justify-center shrink-0">
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <div className="size-7 rounded-lg bg-gradient-to-tr from-[#14233c] to-[#2d4763] text-white font-bold text-[11px] flex items-center justify-center shrink-0">
                                     {exp.avatarInitials || 'EX'}
                                   </div>
                                   <div>
                                     <span className="font-bold text-slate-900 text-xs block leading-tight">
                                       {exp.name || coachName}
                                     </span>
-                                    <span className="text-[10px] text-slate-400 truncate max-w-[160px] block">
+                                    <span className="text-[10px] text-slate-400 truncate max-w-[140px] block">
                                       {exp.organization || 'Coach Référent IML'}
                                     </span>
                                   </div>
@@ -1109,14 +1225,14 @@ export default function BeneficiaryDetailPage() {
                               </td>
 
                               {/* 4. Mission */}
-                              <td className="py-3 px-3.5 border-r border-slate-100 max-w-xs">
+                              <td className="py-2.5 px-3 max-w-xs">
                                 <button
                                   type="button"
                                   onClick={() => setSelectedReportSession(session)}
                                   className="text-left font-bold text-slate-900 text-xs leading-snug hover:text-teal-700 cursor-pointer flex items-center gap-1.5 group"
                                   title="Consulter le compte-rendu de la séance"
                                 >
-                                  <span className="group-hover:underline">{session.missionTitle || session.location || "Session de cadrage & suivi"}</span>
+                                  <span className="group-hover:underline">{formatMissionTitle(session.missionTitle, session.location)}</span>
                                   <FileText className="size-3 text-slate-400 group-hover:text-teal-600 shrink-0" />
                                 </button>
                                 {session.notes && (
@@ -1127,7 +1243,7 @@ export default function BeneficiaryDetailPage() {
                               </td>
 
                               {/* 5. Modalité & Lieu */}
-                              <td className="py-3 px-3.5 border-r border-slate-100 whitespace-nowrap">
+                              <td className="py-2.5 px-3 whitespace-nowrap">
                                 <div className="flex items-center gap-1.5 text-xs text-slate-700">
                                   <MapPin className="size-3.5 text-emerald-600 shrink-0" />
                                   <span>{session.location || 'Espace PME'}</span>
@@ -1135,44 +1251,29 @@ export default function BeneficiaryDetailPage() {
                               </td>
 
                               {/* 6. Statut */}
-                              <td className="py-3 px-3.5 border-r border-slate-100 whitespace-nowrap">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                  <span>Mise en relation active</span>
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  session.notes || session.hasReport 
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                                    : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                }`}>
+                                  <span className={`size-1.5 rounded-full ${session.notes || session.hasReport ? 'bg-emerald-500' : 'bg-blue-500 animate-pulse'}`} />
+                                  <span>{session.notes || session.hasReport ? 'Compte-rendu disponible ✓' : 'Séance planifiée'}</span>
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedReportSession(session)}
-                                  className="block text-[10px] font-bold text-teal-700 hover:text-teal-900 hover:underline mt-1 cursor-pointer"
-                                >
-                                  Voir le compte-rendu &rarr;
-                                </button>
                               </td>
 
                               {/* 7. Actions */}
-                              <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                              <td className="py-2.5 px-3 text-right whitespace-nowrap">
                                 <div className="flex items-center justify-end gap-2">
                                   <button
                                     type="button"
                                     onClick={() => setSelectedReportSession(session)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#23c3b1] hover:bg-[#1fb3a2] text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
-                                    title="Consulter le compte-rendu et les notes du coach"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#23c3b1] hover:bg-[#1fb3a2] text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                                    title="Consulter le compte-rendu rédigé par le coach"
                                   >
-                                    <FileText className="size-3.5" />
-                                    <span>Compte-rendu</span>
+                                    <Eye className="size-3.5" />
+                                    <span>Voir le compte-rendu</span>
                                   </button>
-
-                                  {exp.phone && (
-                                    <a
-                                      href={`https://api.whatsapp.com/send?phone=${exp.phone.replace(/[^0-9]/g, '')}&text=${encodeURIComponent(`Bonjour ${exp.name}, concernant le compte-rendu d'accompagnement IML du bénéficiaire ${b.firstName} ${b.lastName} (${b.projects?.[0]?.name || ''})...`)}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
-                                      title="Contacter l'expert via WhatsApp"
-                                    >
-                                      <MessageSquare className="size-3.5" />
-                                    </a>
-                                  )}
                                 </div>
                               </td>
 
@@ -1272,122 +1373,6 @@ export default function BeneficiaryDetailPage() {
           </div>
         )}
 
-        {/* =======================================================================
-            ONGLET PRINCIPAL : HISTORIQUE
-           ======================================================================= */}
-        {mainTab === 'historique' && (
-          <div className="space-y-0">
-            
-            {/* Zone de commandes & filtres dates */}
-            <div className="bg-[#f8fafc] p-4 sm:p-5 border-b border-slate-200">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                
-                {/* Gauche : Filtres dates Du / Au / Filtrer */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-1 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="size-3.5 text-slate-500" />
-                    <span className="text-slate-600 font-medium">Du</span>
-                    <input
-                      type="text"
-                      value={historyStartDate}
-                      onChange={(e) => setHistoryStartDate(e.target.value)}
-                      placeholder="Ex : 00/00/..."
-                      className="w-28 h-7 px-2.5 bg-white rounded border border-slate-300 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#f06553] shadow-2xs"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="size-3.5 text-slate-500" />
-                    <span className="text-slate-600 font-medium">Au</span>
-                    <input
-                      type="text"
-                      value={historyEndDate}
-                      onChange={(e) => setHistoryEndDate(e.target.value)}
-                      placeholder="Ex : 00/00/..."
-                      className="w-28 h-7 px-2.5 bg-white rounded border border-slate-300 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#f06553] shadow-2xs"
-                    />
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => showToast(`✓ Filtre appliqué : ${filteredPrestations.length} prestation(s)`)}
-                    className="h-7 px-3.5 rounded bg-[#f06553] hover:bg-[#e05341] text-white font-medium text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                  >
-                    <Filter className="size-3 fill-white" />
-                    <span>Filtrer</span>
-                  </button>
-                </div>
-
-                {/* Droite : Bouton Exporter */}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="h-7 px-3.5 rounded bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-normal flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                  >
-                    <Download className="size-3.5" />
-                    <span>Exporter l'historique (CSV)</span>
-                  </button>
-                </div>
-
-              </div>
-            </div>
-
-            {/* Zone inférieure : Tableau d'historique des interventions */}
-            <div className="p-4 sm:p-5 space-y-3 bg-white">
-              
-              <div className="overflow-x-auto border border-slate-200 rounded">
-                <table className="w-full text-xs text-left border-collapse bg-white">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-white text-slate-700 font-normal">
-                      <th className="py-2.5 px-3 border-r border-slate-200 font-normal min-w-[90px]">Date</th>
-                      <th className="py-2.5 px-3 border-r border-slate-200 font-normal min-w-[140px]">Bénéficiaire</th>
-                      <th className="py-2.5 px-3 border-r border-slate-200 font-normal min-w-[70px]">Durée</th>
-                      <th className="py-2.5 px-3 border-r border-slate-200 font-normal min-w-[120px]">Projet</th>
-                      <th className="py-2.5 px-3 border-r border-slate-200 font-normal min-w-[120px]">Parcours</th>
-                      <th className="py-2.5 px-3 border-r border-slate-200 font-normal min-w-[80px]">Société</th>
-                      <th className="py-2.5 px-3 border-r border-slate-200 font-normal min-w-[180px]">Description</th>
-                      <th className="py-2.5 px-3 font-normal text-center min-w-[80px]">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredPrestations.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="py-12 text-center text-slate-500 font-normal">
-                          Aucun historique d'intervention enregistré pour ce bénéficiaire actuellement
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredPrestations.map((pr) => (
-                        <tr key={pr.id} className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors">
-                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap border-r border-slate-100">{pr.date}</td>
-                          <td className="py-2.5 px-3 font-medium text-slate-800 whitespace-nowrap border-r border-slate-100">{pr.beneficiaryName}</td>
-                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap border-r border-slate-100">{pr.duration}</td>
-                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap border-r border-slate-100">{pr.project}</td>
-                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap border-r border-slate-100">{pr.pathway}</td>
-                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap border-r border-slate-100">{pr.company}</td>
-                          <td className="py-2.5 px-3 text-slate-600 max-w-xs truncate border-r border-slate-100" title={pr.description}>{pr.description}</td>
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handleDeletePrestation(pr.id)}
-                              className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
-                              title="Supprimer cette prestation"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-            </div>
-
-          </div>
-        )}
 
 
         {/* =======================================================================
@@ -1406,25 +1391,27 @@ export default function BeneficiaryDetailPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <label className={`px-3.5 py-1.5 rounded bg-[#f06553] text-white font-medium hover:bg-[#e05341] flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors ${isUploadingBeneficiaryDoc ? 'opacity-70 pointer-events-none' : ''}`}>
-                  {isUploadingBeneficiaryDoc ? (
-                    <>
-                      <Loader2 className="size-3.5 animate-spin" />
-                      <span>Téléversement...</span>
-                    </>
-                  ) : (
-                    <>
-                      <UploadCloud className="size-3.5" />
-                      <span>Déposer un document</span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={handleBeneficiaryDocUpload}
-                    disabled={isUploadingBeneficiaryDoc}
-                  />
-                </label>
+                {!isDirection && (
+                  <label className={`px-3.5 py-1.5 rounded bg-[#f06553] text-white font-medium hover:bg-[#e05341] flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors ${isUploadingBeneficiaryDoc ? 'opacity-70 pointer-events-none' : ''}`}>
+                    {isUploadingBeneficiaryDoc ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin" />
+                        <span>Téléversement...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="size-3.5" />
+                        <span>Déposer un document</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleBeneficiaryDocUpload}
+                      disabled={isUploadingBeneficiaryDoc}
+                    />
+                  </label>
+                )}
               </div>
             </div>
 
@@ -1463,25 +1450,50 @@ export default function BeneficiaryDetailPage() {
                           {new Date(doc.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="py-3 px-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            doc.status === 'VALIDE' ? 'bg-emerald-100 text-emerald-800' :
-                            doc.status === 'REJETE' ? 'bg-red-100 text-red-800' :
-                            'bg-amber-100 text-amber-800'
-                          }`}>
-                            {doc.status === 'VALIDE' ? 'Validé' : doc.status === 'REJETE' ? 'Refusé' : 'En attente'}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDocStatus(doc.id, doc.status)}
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-transform hover:scale-105 ${
+                              doc.status === 'VALIDE' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' :
+                              doc.status === 'REJETE' ? 'bg-red-100 text-red-800' :
+                              'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                            }`}
+                            title="Cliquer pour basculer le statut (Validé / En attente)"
+                          >
+                            {doc.status === 'VALIDE' ? '✓ Validé' : doc.status === 'REJETE' ? 'Refusé' : 'En attente'}
+                          </button>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <a
-                            href={`/api/v1/documents/${doc.id}/download`}
-                            download
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors"
-                          >
-                            <Download className="size-3" />
-                            <span>Télécharger</span>
-                          </a>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPreview(doc)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-[#178578] font-semibold text-[11px] transition-colors cursor-pointer"
+                              title="Consulter et lire le document directement à l'écran"
+                            >
+                              <ExternalLink className="size-3" />
+                              <span>Consulter</span>
+                            </button>
+                            <a
+                              href={`/api/v1/documents/${doc.id}/download`}
+                              download
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors"
+                              title="Télécharger une copie sur votre ordinateur"
+                            >
+                              <Download className="size-3" />
+                              <span>Télécharger</span>
+                            </a>
+                            {!isDirection && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDocument(doc.id)}
+                                className="p-1 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Supprimer ce document du dossier"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1816,7 +1828,7 @@ export default function BeneficiaryDetailPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-                      Compte-Rendu d'Accompagnement
+                      Rapport de Séance du Coach
                     </h3>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                       Mise en relation active
@@ -1894,32 +1906,31 @@ export default function BeneficiaryDetailPage() {
                   </span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs text-slate-800 font-medium">
-                  {selectedReportSession.missionTitle || selectedReportSession.location || "Session de cadrage, diagnostic et plan d'action"}
+                  {formatMissionTitle(selectedReportSession.missionTitle, selectedReportSession.location)}
                 </div>
 
-                {/* Lien visio si disponible */}
+                {/* Modalité de la séance */}
                 {(() => {
                   const text = `${selectedReportSession.missionTitle || ''} ${selectedReportSession.location || ''}`;
-                  const match = text.match(/(https?:\/\/[^\s\]]+)/);
-                  const meetUrl = match ? match[1] : null;
+                  const isVisio = /visio|meet|zoom|teams/i.test(text) || !selectedReportSession.location || selectedReportSession.location.includes('http');
 
-                  return meetUrl ? (
-                    <div className="flex items-center justify-between p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs">
-                      <div className="flex items-center gap-2 text-emerald-900 font-medium truncate mr-2">
-                        <Video className="size-4 text-emerald-600 shrink-0" />
-                        <span className="truncate">Lien visio : <strong className="underline">{meetUrl}</strong></span>
+                  return (
+                    <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-700">
+                      <div className="flex items-center gap-2">
+                        {isVisio ? (
+                          <Video className="size-4 text-teal-600 shrink-0" />
+                        ) : (
+                          <MapPin className="size-4 text-teal-600 shrink-0" />
+                        )}
+                        <span>
+                          <strong>Modalité :</strong> {isVisio ? 'Visioconférence IML Digit' : (selectedReportSession.location || 'Présentiel : Espace PME')}
+                        </span>
                       </div>
-                      <a
-                        href={meetUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 transition-colors inline-flex items-center gap-1 shadow-2xs"
-                      >
-                        <span>Rejoindre</span>
-                        <ExternalLink className="size-3" />
-                      </a>
+                      <span className="text-[11px] text-teal-700 font-medium px-2 py-0.5 bg-teal-50 rounded-md border border-teal-200/60">
+                        {isVisio ? 'Accessible via les Espaces Coach & Bénéficiaire' : 'Accueil sur site'}
+                      </span>
                     </div>
-                  ) : null;
+                  );
                 })()}
               </div>
 
@@ -1939,12 +1950,13 @@ export default function BeneficiaryDetailPage() {
                     n.id === selectedReportSession.id || 
                     (selectedReportSession.datetime && n.sessionDate && new Date(n.sessionDate).toDateString() === new Date(selectedReportSession.datetime).toDateString())
                   );
-                  const summaryText = savedCustom || selectedReportSession.session?.summary || matchingNote?.content || selectedReportSession.notes || `Entretien d'évaluation et de cadrage initial d'accompagnement :
+                  const isFuture = selectedReportSession.datetime && new Date(selectedReportSession.datetime).getTime() > Date.now();
+                  const coachNameStr = selectedReportSession.expert?.name || (matchingNote?.author ? `${matchingNote.author.firstName} ${matchingNote.author.lastName}` : assignedCoachName);
+                  const defaultSummary = isFuture 
+                    ? `Séance planifiée avec ${coachNameStr}.\n\nL'entretien aura lieu à la date convenue. Le compte-rendu d'accompagnement, les points de blocage et les devoirs seront rédigés par l'expert après la séance.`
+                    : `Entretien d'évaluation et d'accompagnement mené par ${coachNameStr}.\n\n• Point d'étape et analyse des avancées du porteur de projet.\n• Recommandations stratégiques et opérationnelles formulées par l'expert.\n• Potentiel et progression confirmés.`;
 
-• Entretien mené avec succès par Alexandre Agent IML (Coach Référent IML) avec le porteur de projet.
-• Analyse du positionnement stratégique, validation du modèle économique et identification des besoins prioritaires d'accompagnement (structuration comptable, accès aux financements et commercialisation).
-• Validation de l'orientation et intégration active dans le parcours d'incubation sectoriel.
-• Avis du coach : Profil motivé et rigoureux. Potentiel de croissance confirmé.`;
+                  const summaryText = savedCustom || matchingNote?.content || selectedReportSession.notes || selectedReportSession.session?.summary || defaultSummary;
 
                   return (
                     <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs text-xs text-slate-800 leading-relaxed whitespace-pre-line space-y-2">
@@ -1961,9 +1973,15 @@ export default function BeneficiaryDetailPage() {
                   Engagements & Prochaines actions convenus :
                 </span>
                 <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100 text-xs text-emerald-950 leading-relaxed whitespace-pre-line">
-                  {selectedReportSession.session?.nextActions || selectedReportSession.nextSteps || `1. Transmettre les justificatifs et statuts de formalisation juridique d'ici le prochain point d'étape.
+                  {(() => {
+                    const matchingNote = followUpNotes.find((n: any) => 
+                      n.id === selectedReportSession.id || 
+                      (selectedReportSession.datetime && n.sessionDate && new Date(n.sessionDate).toDateString() === new Date(selectedReportSession.datetime).toDateString())
+                    );
+                    return matchingNote?.nextSteps || selectedReportSession.nextSteps || selectedReportSession.session?.nextActions || `1. Transmettre les justificatifs et statuts de formalisation juridique d'ici le prochain point d'étape.
 2. Finaliser le prévisionnel de trésorerie sur 12 mois avec les gabarits fournis.
-3. Programmer la séance de mentorat suivante sur le module de structuration commerciale.`}
+3. Programmer la séance de mentorat suivante sur le module de structuration commerciale.`;
+                  })()}
                 </div>
               </div>
 
@@ -1972,19 +1990,44 @@ export default function BeneficiaryDetailPage() {
                 <label className="block text-[11px] font-bold text-slate-700">
                   Ajouter une note ou mise à jour au compte-rendu :
                 </label>
-                <div className="flex gap-2">
+                <div>
                   <textarea
                     value={reportNotesInput}
                     onChange={(e) => setReportNotesInput(e.target.value)}
                     rows={2}
                     placeholder="Ajoutez une précision, un livrable remis ou un complément d'évaluation..."
-                    className="flex-1 text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-800 placeholder:text-slate-400"
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-800 placeholder:text-slate-400 resize-y"
                   />
-                  <button
-                    type="button"
-                    disabled={!reportNotesInput.trim() || isSavingReportNote}
-                    onClick={async () => {
-                      if (!reportNotesInput.trim() || !id) return;
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50/70">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-2xs transition-colors cursor-pointer"
+              >
+                <Printer className="size-3.5 text-slate-500" />
+                <span>Imprimer / PDF</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedReportSession(null);
+                    setReportNotesInput('');
+                  }}
+                  className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                >
+                  Fermer
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (reportNotesInput.trim() && id) {
                       setIsSavingReportNote(true);
                       try {
                         const prev = localStorage.getItem(`iml_session_report_${selectedReportSession.id}`) || '';
@@ -2002,58 +2045,43 @@ export default function BeneficiaryDetailPage() {
                           })
                         }).catch(() => {});
 
-                        showToast('✓ Compte-rendu mis à jour et enregistré !');
+                        showToast('✓ Compte-rendu enregistré avec succès !');
                         setReportNotesInput('');
                         refetchAppointments();
                       } finally {
                         setIsSavingReportNote(false);
+                        setSelectedReportSession(null);
                       }
-                    }}
-                    className="px-4 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-xs transition-colors shrink-0 shadow-xs cursor-pointer flex items-center justify-center"
-                  >
-                    {isSavingReportNote ? <Loader2 className="size-4 animate-spin" /> : 'Enregistrer'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50/70">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-2xs transition-colors cursor-pointer"
-              >
-                <Printer className="size-3.5 text-slate-500" />
-                <span>Imprimer / PDF</span>
-              </button>
-
-              <div className="flex items-center gap-2">
-                {selectedReportSession.expert?.phone && (
-                  <a
-                    href={`https://api.whatsapp.com/send?phone=${selectedReportSession.expert.phone.replace(/[^0-9]/g, '')}&text=${encodeURIComponent(`Bonjour ${selectedReportSession.expert.name}, voici le compte-rendu de séance IML Digit du bénéficiaire ${b?.firstName || ''} ${b?.lastName || ''}...`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
-                  >
-                    <MessageSquare className="size-3.5" />
-                    <span>WhatsApp Coach</span>
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedReportSession(null);
-                    setReportNotesInput('');
+                    } else {
+                      showToast('✓ Compte-rendu enregistré avec succès');
+                      setSelectedReportSession(null);
+                    }
                   }}
-                  className="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                  disabled={isSavingReportNote}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
                 >
-                  Fermer
+                  {isSavingReportNote ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                  <span>Enregistrer</span>
                 </button>
               </div>
             </div>
           </div>
         </div>,
+        document.body
+      )}
+
+      {/* =========================================================================
+          MODALE : EXPLORATEUR DE DOSSIER BÉNÉFICIAIRE COMPLET (STYLE ORDINATEUR)
+         ========================================================================= */}
+      {selectedDocForFolder && typeof document !== 'undefined' && createPortal(
+        <BeneficiaryDossierModal
+          initialDoc={selectedDocForFolder}
+          allDocs={beneficiaryDocsList}
+          onClose={() => setSelectedDocForFolder(null)}
+          onRefreshDocs={async () => {
+            await refetchDocs();
+          }}
+        />,
         document.body
       )}
 

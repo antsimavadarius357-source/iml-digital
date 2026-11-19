@@ -53,7 +53,7 @@ const SOLUTIONS_DATA: Record<string, SolutionConfig> = {
     description: 'Supervisez vos missions multi-coachs, consolidez les indicateurs de progrès pour vos commanditaires RH et professionnalisez votre facturation.',
     stats: [
       { value: '+40%', label: 'De capacité d’accompagnement' },
-      { value: '360°', label: 'Visibilité sur les parcours collaborateurs' },
+      { value: '100%', label: 'Visibilité complète sur les parcours collaborateurs' },
       { value: '0', label: 'Retard de reporting pour les clients RH' }
     ],
     painPoints: [

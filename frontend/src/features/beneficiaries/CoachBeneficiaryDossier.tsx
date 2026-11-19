@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Building2, 
   Mail, 
@@ -22,10 +23,13 @@ import {
   Trash2,
   Loader2,
   Video,
-  ExternalLink
+  ExternalLink,
+  X,
+  Bell
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { useAuth } from '../auth/AuthContext';
 import type { BeneficiaryDetail } from './types';
 import AddDocumentWizardModal from '../documents/AddDocumentWizardModal';
 
@@ -41,8 +45,33 @@ export default function CoachBeneficiaryDossier({
   showToast
 }: CoachBeneficiaryDossierProps) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'projet' | 'cadrage' | 'agenda' | 'documents' | 'notes'>('projet');
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
+
+  // État de prévisualisation en direct des documents
+  const [previewDoc, setPreviewDoc] = useState<{ id: string; title: string } | null>(null);
+  const [previewData, setPreviewData] = useState<any | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
+  const handleOpenPreview = async (doc: { id: string; title: string }) => {
+    setPreviewDoc(doc);
+    setIsLoadingPreview(true);
+    setPreviewData(null);
+    try {
+      const data = await api<any>(`/documents/${doc.id}/preview`);
+      setPreviewData(data);
+    } catch (err: any) {
+      setPreviewData({
+        previewType: 'unsupported',
+        title: doc.title,
+        message: "Erreur lors du chargement de l'aperçu.",
+        downloadUrl: `/api/v1/documents/${doc.id}/download`
+      });
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
 
   // État de validation de l'étape 3 (Mentorat & Livrables)
   const [isStep3Validated, setIsStep3Validated] = useState<boolean>(() => {
@@ -53,7 +82,7 @@ export default function CoachBeneficiaryDossier({
     }
   });
 
-  const handleToggleStep3 = () => {
+  const handleToggleStep3 = async () => {
     const nextVal = !isStep3Validated;
     setIsStep3Validated(nextVal);
     try {
@@ -62,7 +91,22 @@ export default function CoachBeneficiaryDossier({
       console.error(e);
     }
     if (nextVal) {
-      showToast('✓ Étape 3 validée : Travaux et livrables de mentorat certifiés par le coach');
+      showToast('✓ Étape 3 validée : Livrables certifiés & alerte transmise à l\'agent');
+      try {
+        await api(`/beneficiaries/${b.id}/circuit-step-alert`, {
+          method: 'POST',
+          body: {
+            stepNumber: 3,
+            stepName: 'Mentorat & Livrables',
+            statusText: 'Livrables certifiés par le coach',
+            comment: 'Livrables de mentorat validés. Dossier prêt pour la finalisation du Bilan & Sortie par l\'Agent IML.'
+          }
+        });
+        queryClient.invalidateQueries({ queryKey: ['beneficiary-notes', b.id] });
+        queryClient.invalidateQueries({ queryKey: ['recent-notes-alert'] });
+      } catch (e) {
+        console.error('Erreur alerte étape 3:', e);
+      }
     }
   };
   
@@ -135,16 +179,58 @@ export default function CoachBeneficiaryDossier({
       method: 'PATCH',
       body: { 
         status: 'ACTIF',
-        startDate: new Date().toISOString()
+        startDate: new Date().toISOString().slice(0, 10)
       }
     }),
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['beneficiary', b.id] });
       queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
-      showToast('✓ Prise en charge validée : accompagnement désormais Actif');
+      showToast('✓ Prise en charge validée : accompagnement désormais Actif & alerte envoyée');
+      try {
+        await api(`/beneficiaries/${b.id}/circuit-step-alert`, {
+          method: 'POST',
+          body: {
+            stepNumber: 2,
+            stepName: 'Cadrage & Prise en charge',
+            statusText: 'Prise en charge active démarrée par le coach',
+          }
+        });
+        queryClient.invalidateQueries({ queryKey: ['recent-notes-alert'] });
+      } catch (e) {
+        console.error('Erreur alerte étape 2:', e);
+      }
     },
     onError: (err: any) => {
-      showToast(`Erreur : ${err?.message || 'Impossible d\'activer le dossier'}`);
+      const detailMsg = err?.details ? (typeof err.details === 'object' ? JSON.stringify(err.details) : String(err.details)) : '';
+      showToast(`Erreur : ${err?.message || 'Impossible d\'activer le dossier'}${detailMsg ? ` (${detailMsg})` : ''}`);
+    }
+  });
+
+  // Mutation pour finaliser le Bilan & Sortie (Étape 4)
+  const closePathwayMut = useMutation({
+    mutationFn: () => api(`/beneficiaries/${b.id}`, {
+      method: 'PATCH',
+      body: { 
+        status: 'TERMINE'
+      }
+    }),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['beneficiary', b.id] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+      showToast('✓ Bilan finalisé avec succès : Dossier clôturé & Attestation délivrée !');
+      try {
+        await api(`/beneficiaries/${b.id}/circuit-step-alert`, {
+          method: 'POST',
+          body: {
+            stepNumber: 4,
+            stepName: 'Bilan & Sortie',
+            statusText: 'Bilan finalisé & Parcours clôturé avec succès',
+          }
+        });
+      } catch {}
+    },
+    onError: (err: any) => {
+      showToast(`Erreur : ${err?.message || 'Impossible de finaliser le bilan'}`);
     }
   });
 
@@ -363,10 +449,15 @@ export default function CoachBeneficiaryDossier({
                   </div>
                   <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5 flex-wrap">
                     <span>
-                      {nextAppointment.location?.includes('[')
-                        ? (nextAppointment.location.match(/\[MISSION:(.*?)\]/)?.[1] || nextAppointment.location)
-                        : (nextAppointment.location || (isNextVisio ? 'Lien de visioconférence sécurisé IML Meet' : 'Siège IML Digit'))
-                      }
+                      {(() => {
+                        const raw = nextAppointment.location || '';
+                        // Nettoyage de l'URL brute et des crochets pour un affichage institutionnel
+                        const cleaned = raw.replace(/\[https?:\/\/[^\]]+\]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+                        if (cleaned) {
+                          return cleaned.startsWith('-') ? cleaned.slice(1).trim() : cleaned;
+                        }
+                        return isNextVisio ? 'Visioconférence sécurisée IML Digit' : 'Siège IML Digit - Espace PME';
+                      })()}
                     </span>
                   </p>
                 </div>
@@ -378,21 +469,14 @@ export default function CoachBeneficiaryDossier({
                     href={nextVideoUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-4 py-2.5 rounded-xl bg-[#f06553] hover:bg-[#e04a27] text-white text-xs font-bold shadow-md shadow-[#f06553]/25 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-[#f06553] hover:bg-[#e04a27] text-white text-xs font-bold shadow-xs hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
                     title="Lancer ou rejoindre la visioconférence en 1 clic"
                   >
-                    <Video className="size-4 animate-pulse" />
-                    <span>Rejoindre la visio</span>
-                    <ExternalLink className="size-3.5 opacity-80" />
+                    <Video className="size-3.5 animate-pulse shrink-0" />
+                    <span>Rejoindre</span>
+                    <ExternalLink className="size-3 opacity-80 shrink-0" />
                   </a>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('agenda')}
-                  className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
-                >
-                  Voir le planning
-                </button>
               </div>
             </div>
           )}
@@ -533,10 +617,51 @@ export default function CoachBeneficiaryDossier({
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
                     Clôturé ✓
                   </span>
+                ) : user?.role !== 'COACH' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("Confirmez-vous la finalisation du Bilan et la clôture officielle de l'accompagnement pour cet entrepreneur ? Une attestation officielle sera délivrée.")) {
+                        closePathwayMut.mutate();
+                      }
+                    }}
+                    disabled={closePathwayMut.isPending}
+                    className="text-[10px] font-bold px-2.5 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-2xs shrink-0"
+                  >
+                    {closePathwayMut.isPending ? '...' : 'Finaliser le Bilan'}
+                  </button>
                 ) : (
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-200/70 text-slate-600 border border-slate-300/80 shrink-0" title="Cette étape de clôture officielle et d'attestation est réservée à l'Agent IML">
-                    Réservé Agent IML
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-200/70 text-slate-600 border border-slate-300/80" title="Cette étape de clôture officielle et d'attestation est réservée à l'Agent IML">
+                      Réservé Agent IML
+                    </span>
+                    {isStep3Validated && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await api(`/beneficiaries/${b.id}/circuit-step-alert`, {
+                              method: 'POST',
+                              body: {
+                                stepNumber: 3,
+                                stepName: 'Mentorat & Livrables',
+                                statusText: 'Demande de Bilan final transmise par le coach',
+                                comment: 'Le coach sollicite la finalisation du bilan officiel et la délivrance de l\'attestation.'
+                              }
+                            });
+                            showToast('✓ Alerte transmise à l\'agent de planification pour finaliser le Bilan !');
+                          } catch {
+                            showToast('Erreur transmission alerte');
+                          }
+                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white transition-all cursor-pointer shadow-2xs flex items-center gap-1"
+                        title="Envoyer une alerte à l'agent de planification pour finaliser le bilan"
+                      >
+                        <Bell className="size-2.5" />
+                        <span>Alerter</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5 truncate">
@@ -563,7 +688,7 @@ export default function CoachBeneficiaryDossier({
           }`}
         >
           <Building2 className="size-4 text-teal-600" />
-          <span>Fiche Entreprise & Dirigeant</span>
+          <span>Entreprise</span>
         </button>
 
         <button
@@ -576,7 +701,7 @@ export default function CoachBeneficiaryDossier({
           }`}
         >
           <Target className="size-4 text-teal-600" />
-          <span>Objectifs & Diagnostic Agent</span>
+          <span>Diagnostic</span>
         </button>
 
         <button
@@ -589,7 +714,7 @@ export default function CoachBeneficiaryDossier({
           }`}
         >
           <Calendar className="size-4 text-teal-600" />
-          <span>Séances & Planning ({appointments.length})</span>
+          <span>Rendez-vous ({appointments.length})</span>
         </button>
 
         <button
@@ -602,7 +727,7 @@ export default function CoachBeneficiaryDossier({
           }`}
         >
           <FileText className="size-4 text-teal-600" />
-          <span>Livrables & Documents ({realDocs.length})</span>
+          <span>Documents ({realDocs.length})</span>
         </button>
 
         <button
@@ -615,7 +740,7 @@ export default function CoachBeneficiaryDossier({
           }`}
         >
           <BookOpen className="size-4 text-teal-600" />
-          <span>Journal de Mentorat ({notes.length})</span>
+          <span>Mentorat ({notes.length})</span>
         </button>
       </div>
 
@@ -784,7 +909,7 @@ export default function CoachBeneficiaryDossier({
                 </div>
                 <p className="text-slate-600 text-[11px] leading-relaxed">
                   L'entrepreneur est reçu dans les locaux de l'Espace PME ou contacté directement par WhatsApp/Email pour ses séances. 
-                  Consignez chaque compte-rendu dans le <strong>Journal de Mentorat</strong> pour assurer la traçabilité.
+                  Consignez chaque compte-rendu dans l'onglet <strong>Mentorat</strong> pour assurer la traçabilité.
                 </p>
               </div>
             </div>
@@ -802,7 +927,7 @@ export default function CoachBeneficiaryDossier({
             <Target className="size-5 text-[#23c3b1]" />
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                Objectifs & Cadrage Initial de l'Agent
+                Diagnostic & Objectifs
               </h2>
               <p className="text-xs text-slate-500">
                 Lignes directrices formulées par {agentName} pour guider vos séances d'accompagnement.
@@ -901,7 +1026,7 @@ export default function CoachBeneficiaryDossier({
           <div className="p-5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
             <div>
               <h2 className="font-bold text-slate-900 text-sm">
-                Séances & Rendez-vous Programmés par l'Agent
+                Rendez-vous & Séances
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Consultez les créneaux fixés avec l'entrepreneur à l'Espace PME ou en visioconférence.
@@ -952,42 +1077,35 @@ export default function CoachBeneficiaryDossier({
                           <Clock className="size-3 text-teal-600" />
                           {new Date(app.datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} ({app.duration || 60} min)
                         </span>
-                        {app.location && (
-                          <span className="flex items-center gap-1 font-medium text-slate-700">
-                            {isVisio ? <Video className="size-3 text-[#f06553]" /> : <MapPin className="size-3 text-slate-400" />}
-                            <span>{app.location}</span>
-                          </span>
-                        )}
+                        {app.location && (() => {
+                          const cleanLoc = isVisio 
+                            ? (app.location.replace(/\[https?:\/\/[^\s\]]+\]/g, '').replace(/https?:\/\/[^\s]+/g, '').replace(/\s*-\s*$/, '').trim() || 'Visioconférence IML Meet')
+                            : app.location;
+                          return (
+                            <span className="flex items-center gap-1 font-medium text-slate-700">
+                              {isVisio ? <Video className="size-3 text-[#f06553]" /> : <MapPin className="size-3 text-slate-400" />}
+                              <span>{cleanLoc}</span>
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {isVisio && appVideoUrl && (
+                    {isVisio && appVideoUrl && (
+                      <div className="flex items-center gap-2">
                         <a
                           href={appVideoUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="px-3 py-1.5 rounded-lg bg-[#f06553] hover:bg-[#e05341] text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                          className="px-3 py-1.5 rounded-lg bg-[#f06553] hover:bg-[#e05341] text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs shrink-0 whitespace-nowrap"
                           title="Lancer ou rejoindre la visio"
                         >
-                          <Video className="size-3.5" />
+                          <Video className="size-3.5 shrink-0" />
                           <span>Rejoindre la visio</span>
-                          <ExternalLink className="size-3" />
+                          <ExternalLink className="size-3 opacity-80 shrink-0" />
                         </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('notes');
-                          setIsAddNoteOpen(true);
-                          setNoteDate(new Date(app.datetime).toISOString().split('T')[0]);
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-teal-200"
-                      >
-                        <Plus className="size-3.5" />
-                        <span>Saisir le compte-rendu</span>
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1004,7 +1122,7 @@ export default function CoachBeneficiaryDossier({
           <div className="p-5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between gap-4">
             <div>
               <h2 className="font-bold text-slate-900 text-sm">
-                Livrables & Documents du Dossier
+                Documents du Dossier
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Consultez, téléchargez et examinez les pièces justificatives rattachées à cet entrepreneur.
@@ -1068,15 +1186,14 @@ export default function CoachBeneficiaryDossier({
                         </button>
                       )}
 
-                      <a
-                        href={`/api/v1/documents/${doc.id}/download?inline=1`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors shadow-2xs"
-                        title="Aperçu dans le navigateur"
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPreview(doc)}
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors shadow-2xs cursor-pointer flex items-center justify-center"
+                        title="Consulter le document en ligne"
                       >
                         <Eye className="size-3.5" />
-                      </a>
+                      </button>
 
                       <a
                         href={`/api/v1/documents/${doc.id}/download`}
@@ -1103,7 +1220,7 @@ export default function CoachBeneficiaryDossier({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
             <div>
               <h2 className="font-bold text-slate-900 text-sm">
-                Journal de Mentorat & Observations de Séances
+                Mentorat & Comptes-rendus de séances
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Consignez vos remarques d'accompagnement, les points de blocage et les devoirs pour la prochaine séance.
@@ -1353,6 +1470,113 @@ export default function CoachBeneficiaryDossier({
           showToast('✓ Document déposé et rattaché avec succès');
         }}
       />
+
+      {/* =========================================================================
+          MODALE : VISIONNEUSE DE DOCUMENT EN LIGNE (Word docx, PDF, Image, etc.)
+         ========================================================================= */}
+      {previewDoc && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-teal-50 border border-teal-200 text-[#178578] flex items-center justify-center shrink-0">
+                  <FileText className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 truncate max-w-md" title={previewDoc.title}>
+                    {previewDoc.title}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Aperçu en ligne du document officiel de l'incubateur
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewDoc(null);
+                  setPreviewData(null);
+                }}
+                className="size-8 rounded-lg hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Corps de l'aperçu */}
+            <div className="p-6 flex-1 overflow-y-auto bg-slate-100/50">
+              {isLoadingPreview ? (
+                <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3">
+                  <Loader2 className="size-8 animate-spin text-[#23c3b1]" />
+                  <span className="text-xs font-semibold">Génération de l'aperçu du document...</span>
+                </div>
+              ) : previewData?.previewType === 'html' ? (
+                <div className="bg-white p-8 rounded-xl shadow-xs border border-slate-200 max-w-3xl mx-auto text-slate-800 text-sm leading-relaxed space-y-4">
+                  <div 
+                    className="prose prose-sm max-w-none [&_p]:mb-3 [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-bold [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_th]:bg-slate-50"
+                    dangerouslySetInnerHTML={{ __html: previewData.html }} 
+                  />
+                </div>
+              ) : previewData?.previewType === 'pdf' ? (
+                <iframe
+                  src={previewData.url}
+                  className="w-full h-[65vh] rounded-xl border border-slate-200 bg-white"
+                  title={previewData.title}
+                />
+              ) : previewData?.previewType === 'image' ? (
+                <div className="flex items-center justify-center p-4">
+                  <img
+                    src={previewData.url}
+                    alt={previewData.title}
+                    className="max-h-[65vh] max-w-full rounded-xl shadow-md border border-slate-200 object-contain"
+                  />
+                </div>
+              ) : previewData?.previewType === 'text' ? (
+                <pre className="p-6 bg-slate-900 text-slate-100 rounded-xl text-xs overflow-auto font-mono max-h-[65vh] whitespace-pre-wrap">
+                  {previewData.content}
+                </pre>
+              ) : (
+                <div className="p-12 text-center max-w-md mx-auto space-y-3 bg-white rounded-xl border border-slate-200">
+                  <FileText className="size-10 text-slate-400 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-800">Format non prévisualisable en ligne</h4>
+                  <p className="text-xs text-slate-500">
+                    {previewData?.message || "Ce fichier nécessite un logiciel dédié pour être ouvert."}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 bg-slate-50">
+              <span className="text-[11px] text-slate-500">
+                Incubateur Multisectoriel de Libreville — Espace documentaire
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewData?.downloadUrl || `/api/v1/documents/${previewDoc.id}/download`}
+                  download
+                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Download className="size-3.5" />
+                  <span>Télécharger une copie</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewDoc(null);
+                    setPreviewData(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
   Loader2, 
@@ -9,12 +9,12 @@ import {
   Mail, 
   Building2, 
   UserCheck, 
-  ArrowRight,
   Sparkles,
   Layers,
   Clock,
   CheckCircle,
-  FileText
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -79,6 +79,7 @@ function formatRelativeDate(dateString?: string | null) {
 }
 
 export default function ApplicationsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [f, setF] = useState({ search: '', status: '' });
   const [page, setPage] = useState(1);
@@ -116,6 +117,22 @@ export default function ApplicationsPage() {
     };
   }, [allList.data]);
 
+  // Trier les candidatures pour garantir que celles d'aujourd'hui sont toujours en haut
+  const sortedItems = useMemo(() => {
+    if (!data?.items) return [];
+    const now = new Date();
+    return [...data.items].sort((a, b) => {
+      const aDate = new Date(a.submittedAt || a.createdAt);
+      const bDate = new Date(b.submittedAt || b.createdAt);
+      const aIsToday = aDate.toDateString() === now.toDateString() ? 1 : 0;
+      const bIsToday = bDate.toDateString() === now.toDateString() ? 1 : 0;
+      if (aIsToday !== bIsToday) {
+        return bIsToday - aIsToday; // Aujourd'hui tout en haut
+      }
+      return bDate.getTime() - aDate.getTime();
+    });
+  }, [data?.items]);
+
   return (
     <div className="space-y-6 max-w-7xl pb-32 pr-1 sm:pr-8">
       
@@ -133,14 +150,16 @@ export default function ApplicationsPage() {
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            {user?.role === 'COACH'
+            {user?.role === 'DIRECTION'
+              ? 'Consultez les dossiers de candidatures et analysez les métriques de sélection et d\'admission.'
+              : user?.role === 'COACH'
               ? 'Consultez les dossiers de candidatures et prenez connaissance des projets soumis.'
               : 'Examen, évaluation et sélection des projets pour intégration aux parcours d\'incubation.'}
           </p>
         </div>
 
-        {/* Bouton d'action ou lien rapide (réservé agent / coordination) */}
-        {user?.role !== 'COACH' && (
+        {/* Action réservée exclusivement aux agents opérationnels */}
+        {user?.role !== 'COACH' && user?.role !== 'DIRECTION' && (
           <div className="flex items-center gap-2">
             <Link
               to="/candidatures/nouvelle"
@@ -149,6 +168,14 @@ export default function ApplicationsPage() {
               <Sparkles className="size-3.5 text-[#23c3b1]" />
               <span>Formulaire candidat</span>
             </Link>
+          </div>
+        )}
+
+        {/* Badge lecture seule pour la Direction */}
+        {user?.role === 'DIRECTION' && (
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-teal-50/80 border border-[#23c3b1]/40 text-[#137469] text-xs font-bold">
+            <ShieldCheck className="size-4 text-[#23c3b1]" />
+            <span>Consultation Direction • Lecture seule</span>
           </div>
         )}
       </div>
@@ -307,7 +334,6 @@ export default function ApplicationsPage() {
                 <th className="py-2.5 px-3 hidden md:table-cell">Soumis le</th>
                 <th className="py-2.5 px-3 hidden xl:table-cell">Conseiller assigné</th>
                 <th className="py-2.5 px-2 text-center">Statut</th>
-                <th className="py-2.5 px-3 text-right sticky right-0 bg-slate-50/95 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] z-10">Action</th>
               </tr>
             </thead>
 
@@ -317,7 +343,7 @@ export default function ApplicationsPage() {
               {/* État de chargement */}
               {list.isLoading && (
                 <tr>
-                  <td colSpan={7} className="p-10 text-center text-slate-500">
+                  <td colSpan={6} className="p-10 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Loader2 className="size-6 animate-spin text-[#23c3b1]" />
                       <span className="font-medium">Chargement des candidatures...</span>
@@ -329,7 +355,7 @@ export default function ApplicationsPage() {
               {/* État vide */}
               {!list.isLoading && data?.items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-500">
+                  <td colSpan={6} className="p-12 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                       <div className="size-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
                         <FileText className="size-6" />
@@ -355,18 +381,21 @@ export default function ApplicationsPage() {
               )}
 
               {/* Lignes du tableau */}
-              {!list.isLoading && data?.items.map((app) => {
+              {!list.isLoading && sortedItems.map((app) => {
                 const c = app.applicantData || {};
                 const p = app.projectData || {};
                 const name = `${c.firstName || ''} ${c.lastName || 'Candidat inconnu'}`.trim();
                 const projectName = c.companyName || p.title || p.name || 'Projet sans nom';
                 const structureType = c.structureType || 'PORTEUR_IDEE';
                 const statusStyle = APP_STATUS_STYLE[app.status] || APP_STATUS_STYLE.BROUILLON;
+                const d = new Date(app.submittedAt || app.createdAt);
+                const isToday = !isNaN(d.getTime()) && d.toDateString() === new Date().toDateString();
 
                 return (
                   <tr 
                     key={app.id} 
-                    className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
+                    onClick={() => navigate(`/candidatures/${app.id}`)}
+                    className={`hover:bg-slate-50/70 transition-colors group cursor-pointer ${isToday ? 'bg-rose-50/20' : ''}`}
                   >
                     
                     {/* N° Dossier */}
@@ -421,7 +450,13 @@ export default function ApplicationsPage() {
                     <td className="py-2.5 px-3 hidden md:table-cell text-slate-500 whitespace-nowrap">
                       <div className="flex items-center gap-1.5 text-slate-600 text-xs">
                         <Calendar className="size-3 text-slate-400" />
-                        <span>{formatRelativeDate(app.submittedAt || app.createdAt)}</span>
+                        <span className={isToday ? "font-bold text-slate-900" : ""}>{formatRelativeDate(app.submittedAt || app.createdAt)}</span>
+                        {isToday && (
+                          <span className="text-[9.5px] font-extrabold text-rose-700 bg-rose-100/90 px-1.5 py-0.5 rounded border border-rose-200/80 flex items-center gap-1">
+                            <span className="size-1 rounded-full bg-rose-500 animate-pulse" />
+                            Aujourd'hui
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -443,17 +478,6 @@ export default function ApplicationsPage() {
                         <span className={`size-1.5 rounded-full ${statusStyle.dot}`} />
                         {APP_STATUS_LABELS[app.status]}
                       </span>
-                    </td>
-
-                    {/* Action */}
-                    <td className="py-2 px-3 text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50 transition-colors shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] z-10">
-                      <Link
-                        to={`/candidatures/${app.id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#23c3b1] hover:bg-[#1fa99a] text-white font-bold text-xs transition-all shadow-xs hover:shadow-sm hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-                      >
-                        <span>Examiner</span>
-                        <ArrowRight className="size-3" />
-                      </Link>
                     </td>
 
                   </tr>

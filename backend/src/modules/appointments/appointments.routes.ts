@@ -2,10 +2,27 @@ import { Router } from 'express';
 import { requireAuth, requirePermission } from '../../middleware/auth';
 import { createAppointmentSchema, idParam, listAppointmentsSchema, updateAppointmentSchema, createSessionSchema } from './appointments.schemas';
 import { createAppointment, listAppointments, updateAppointment, submitSession, deleteAppointment } from './appointments.service';
+import { runDailyAppointmentReminders, sendManualAppointmentReminder } from './appointments-reminder.service';
 
 export const appointmentsRouter = Router();
 
 appointmentsRouter.use(requireAuth, requirePermission('appointments:manage'));
+
+appointmentsRouter.post('/reminders/run', async (req, res, next) => {
+  try {
+    const force = req.query.force === 'true';
+    const result = await runDailyAppointmentReminders(force);
+    res.json(result);
+  } catch (e) { next(e); }
+});
+
+appointmentsRouter.post('/:id/reminder', async (req, res, next) => {
+  try {
+    const id = idParam.parse(req.params.id);
+    const result = await sendManualAppointmentReminder(id);
+    res.json(result);
+  } catch (e) { next(e); }
+});
 
 appointmentsRouter.get('/', async (req, res, next) => {
   try { res.json({ items: await listAppointments(listAppointmentsSchema.parse(req.query), req.auth!) }); }

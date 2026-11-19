@@ -61,7 +61,7 @@ export async function deleteNote(beneficiaryId: string, noteId: string, auth: Au
   await prisma.followUpNote.delete({ where: { id: noteId } });
 }
 
-export async function listRecentNotes(auth: AuthContext) {
+export async function listRecentNotes(auth: AuthContext, limit: number = 20) {
   const isAgentOrManagement = ['ADMIN', 'DIRECTION', 'AGENT'].includes(auth.role);
   return prisma.followUpNote.findMany({
     where: isAgentOrManagement 
@@ -82,6 +82,6 @@ export async function listRecentNotes(auth: AuthContext) {
       }
     },
     orderBy: { createdAt: 'desc' },
-    take: 15,
+    take: limit,
   });
 }

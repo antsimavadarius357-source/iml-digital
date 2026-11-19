@@ -8,8 +8,8 @@ const prisma = new PrismaClient();
 const ROLES = [
   { code: 'ADMIN', label: 'Administrateur technique' },
   { code: 'DIRECTION', label: "Direction de l'IML" },
-  { code: 'AGENT', label: "Agent d'accompagnement" },
-  { code: 'COACH', label: 'Coach, mentor ou expert' },
+  { code: 'AGENT', label: "Chargé de dossier IML" },
+  { code: 'COACH', label: "Coach / Mentor" },
   { code: 'FORMATEUR', label: 'Formateur' },
   { code: 'BENEFICIAIRE', label: 'Bénéficiaire' },
 ];
@@ -36,10 +36,10 @@ async function main(): Promise<void> {
       name: "Idéation & Structuration",
       description: "Parcours initial pour structurer l'idée et valider l'opportunité.",
       steps: [
-        { title: "Diagnostic 360", description: "Évaluation initiale du profil et de l'idée", orderIndex: 1 },
-        { title: "Validation du besoin", description: "Analyse du marché et des cibles", orderIndex: 2 },
-        { title: "Business Model Canvas", description: "Modélisation économique", orderIndex: 3 },
-        { title: "Comité d'évaluation", description: "Pitch de pré-validation", orderIndex: 4 },
+        { title: "Cadrage de l'idée & Objectifs", description: "Clarifier votre idée, identifier vos forces et fixer votre feuille de route.", orderIndex: 1 },
+        { title: "Test du marché & Rencontre clients", description: "Aller sur le terrain pour vérifier l'intérêt des clients et leurs besoins réels.", orderIndex: 2 },
+        { title: "Modèle de vente & Rentabilité", description: "Construire vos offres, fixer vos prix et organiser vos futures ventes.", orderIndex: 3 },
+        { title: "Présentation finale & Lancement", description: "Présenter votre projet devant l'équipe d'accompagnement et démarrer l'activité.", orderIndex: 4 },
       ]
     },
     {

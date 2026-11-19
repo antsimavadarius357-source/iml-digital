@@ -121,6 +121,7 @@ export default function FollowUpNotesPage() {
   const [viewingNote, setViewingNote] = useState<FollowUpNote | null>(null);
 
   // Formulaire nouvelle note
+  const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState('');
   const [newBeneficiaryName, setNewBeneficiaryName] = useState('');
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newTopic, setNewTopic] = useState('Stratégie & Gouvernance');
@@ -135,6 +136,38 @@ export default function FollowUpNotesPage() {
   });
   const beneficiaries = bRes?.items || [];
 
+  // Notes réelles chargées depuis l'API et la base de données PostgreSQL
+  const { data: dbNotesRes, refetch: refetchDbNotes } = useQuery({ 
+    queryKey: ['recent-notes-journal'], 
+    queryFn: () => api<{ items: any[] }>('/beneficiaries/recent-notes?limit=100'),
+    refetchInterval: 15_000
+  });
+
+  const dbNotes: FollowUpNote[] = useMemo(() => {
+    return (dbNotesRes?.items || []).map((item: any) => ({
+      id: item.id,
+      beneficiaryId: item.beneficiary?.id || item.beneficiaryId || '',
+      beneficiaryName: item.beneficiary ? `${item.beneficiary.firstName} ${item.beneficiary.lastName}` : 'Porteur de projet',
+      companyName: item.beneficiary?.projects?.[0]?.name || 'Projet en incubation',
+      coachName: item.author ? `${item.author.firstName} ${item.author.lastName}` : 'Coach Référent',
+      date: item.sessionDate ? new Date(item.sessionDate).toISOString().split('T')[0] : (item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+      topic: item.topic || 'Mentorat & Suivi',
+      content: item.content || '',
+      nextSteps: item.nextSteps || '',
+      priority: (item.priority as any) || 'NORMALE'
+    }));
+  }, [dbNotesRes]);
+
+  // Fusionner les notes réelles de la base avec les notes locales (priorité à la base de données)
+  const allNotes = useMemo(() => {
+    const map = new Map<string, FollowUpNote>();
+    dbNotes.forEach(n => map.set(n.id, n));
+    notes.forEach(n => {
+      if (!map.has(n.id)) map.set(n.id, n);
+    });
+    return Array.from(map.values());
+  }, [dbNotes, notes]);
+
   // Sauvegarde
   const saveNotes = (updated: FollowUpNote[]) => {
     setNotes(updated);
@@ -146,23 +179,47 @@ export default function FollowUpNotesPage() {
   };
 
   // Suppression
-  const handleDeleteNote = (id: string) => {
+  const handleDeleteNote = async (id: string, benId?: string) => {
     if (window.confirm("Confirmez-vous la suppression de cette note de suivi ?")) {
+      const targetBeneficiaryId = benId || allNotes.find(n => n.id === id)?.beneficiaryId;
+      if (targetBeneficiaryId && !targetBeneficiaryId.startsWith('b-')) {
+        try {
+          await api.delete(`/beneficiaries/${targetBeneficiaryId}/notes/${id}`);
+          await refetchDbNotes();
+        } catch (err) {
+          console.error(err);
+        }
+      }
       const filtered = notes.filter(n => n.id !== id);
       saveNotes(filtered);
     }
   };
 
   // Création
-  const handleCreateNote = (e: React.FormEvent) => {
+  const handleCreateNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBeneficiaryName.trim() || !newContent.trim()) return;
+
+    if (selectedBeneficiaryId) {
+      try {
+        await api.post(`/beneficiaries/${selectedBeneficiaryId}/notes`, {
+          topic: newTopic,
+          content: newContent.trim(),
+          nextSteps: newNextSteps.trim() || undefined,
+          priority: newPriority,
+          sessionDate: new Date(),
+        });
+        await refetchDbNotes();
+      } catch (err: any) {
+        console.error(err);
+      }
+    }
 
     const authorName = user ? `${user.firstName} ${user.lastName}` : 'Dr. Guy Roger MBOUMBA';
 
     const newNote: FollowUpNote = {
       id: `note-${Date.now()}`,
-      beneficiaryId: `b-${Date.now()}`,
+      beneficiaryId: selectedBeneficiaryId || `b-${Date.now()}`,
       beneficiaryName: newBeneficiaryName.trim(),
       companyName: newCompanyName.trim() || 'Projet d\'entreprise',
       coachName: authorName,
@@ -175,6 +232,7 @@ export default function FollowUpNotesPage() {
 
     saveNotes([newNote, ...notes]);
     setIsAddModalOpen(false);
+    setSelectedBeneficiaryId('');
     setNewBeneficiaryName('');
     setNewCompanyName('');
     setNewContent('');
@@ -192,7 +250,7 @@ export default function FollowUpNotesPage() {
 
   // Filtrage
   const filteredNotes = useMemo(() => {
-    return notes.filter(n => {
+    return allNotes.filter(n => {
       const matchSearch = 
         n.content.toLowerCase().includes(search.toLowerCase()) ||
         n.beneficiaryName.toLowerCase().includes(search.toLowerCase()) ||
@@ -211,7 +269,7 @@ export default function FollowUpNotesPage() {
 
       return matchSearch && matchTopic && matchCoach;
     });
-  }, [notes, search, topicFilter, filterMyNotes, user]);
+  }, [allNotes, search, topicFilter, filterMyNotes, user]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16 animate-fade-in-up font-sans text-slate-800">
@@ -224,13 +282,13 @@ export default function FollowUpNotesPage() {
               <BookOpen className="size-5" />
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              {isCoach ? "Journal de Mentorat & Notes d'Accompagnement" : "Notes de Suivi & Journal d'Accompagnement"}
+              {isCoach ? "Journal de Mentorat & Notes d'Accompagnement" : "Comptes-Rendus d'Experts & Suivi"}
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {isCoach
               ? "Comptes-rendus de mentorat, observations et engagements convenus lors de vos entretiens d'accompagnement."
-              : "Comptes-rendus d'entretien, observations de coaching et engagements convenus avec les entrepreneurs."}
+              : "Comptes-rendus d'experts, observations de mentorat et points d'étape déposés pour chaque bénéficiaire."}
           </p>
         </div>
 
@@ -276,7 +334,7 @@ export default function FollowUpNotesPage() {
             Total Notes rédigées
           </span>
           <div className="text-2xl font-bold text-slate-900 mt-1">
-            {notes.length}
+            {allNotes.length}
           </div>
           <span className="text-[10px] text-teal-600 font-medium">Historique consolidé</span>
         </div>
@@ -286,7 +344,7 @@ export default function FollowUpNotesPage() {
             Bénéficiaires actifs
           </span>
           <div className="text-2xl font-bold text-teal-700 mt-1">
-            {new Set(notes.map(n => n.beneficiaryName)).size}
+            {new Set(allNotes.map(n => n.beneficiaryName)).size}
           </div>
           <span className="text-[10px] text-teal-600 font-medium">Suivis en temps réel</span>
         </div>
@@ -296,7 +354,7 @@ export default function FollowUpNotesPage() {
             Actions prioritaires
           </span>
           <div className="text-2xl font-bold text-rose-600 mt-1">
-            {notes.filter(n => n.priority === 'HAUTE').length}
+            {allNotes.filter(n => n.priority === 'HAUTE').length}
           </div>
           <span className="text-[10px] text-rose-600 font-medium">À contrôler d'urgence</span>
         </div>
@@ -306,7 +364,7 @@ export default function FollowUpNotesPage() {
             Coaches contributeurs
           </span>
           <div className="text-2xl font-bold text-[#101f2e] mt-1">
-            {new Set(notes.map(n => n.coachName)).size}
+            {new Set(allNotes.map(n => n.coachName)).size}
           </div>
           <span className="text-[10px] text-slate-400 font-medium">Équipe d'experts</span>
         </div>
@@ -471,11 +529,14 @@ export default function FollowUpNotesPage() {
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">Bénéficiaire existant (optionnel)</label>
                 <select
+                  value={selectedBeneficiaryId}
                   onChange={(e) => {
-                    const sel = beneficiaries.find((b: any) => b.id === e.target.value);
+                    const bId = e.target.value;
+                    setSelectedBeneficiaryId(bId);
+                    const sel = beneficiaries.find((b: any) => b.id === bId);
                     if (sel) {
                       setNewBeneficiaryName(`${sel.firstName} ${sel.lastName}`);
-                      setNewCompanyName(sel.projects?.[0]?.title || 'Entreprise accompagnée');
+                      setNewCompanyName(sel.projects?.[0]?.name || sel.projects?.[0]?.title || 'Entreprise accompagnée');
                     }
                   }}
                   className="w-full rounded-md border border-slate-300 p-2 text-xs focus:border-[#23c3b1] outline-none bg-white mb-2"
@@ -493,7 +554,7 @@ export default function FollowUpNotesPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Ex : Sylvie NDONG"
+                    placeholder="Nom du bénéficiaire"
                     value={newBeneficiaryName}
                     onChange={(e) => setNewBeneficiaryName(e.target.value)}
                     className="w-full rounded-md border border-slate-300 p-2 text-xs focus:border-[#23c3b1] outline-none"

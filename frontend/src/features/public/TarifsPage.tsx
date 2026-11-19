@@ -46,7 +46,7 @@ export default function TarifsPage() {
               <div className="pt-4 border-t border-stone-100 space-y-2.5 text-xs text-slate-700">
                 <div className="flex items-center gap-2">
                   <Check className="size-4 text-emerald-600 shrink-0" />
-                  <span>Diagnostic 360° initial complet</span>
+                  <span>Diagnostic initial complet</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="size-4 text-emerald-600 shrink-0" />

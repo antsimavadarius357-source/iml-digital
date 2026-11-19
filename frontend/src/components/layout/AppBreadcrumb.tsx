@@ -7,11 +7,9 @@ import {
   Calendar, 
   FileText, 
   Target, 
-  Network, 
   Contact,
   MessageSquare,
-  BookOpen,
-  CheckCircle2
+  BookOpen
 } from 'lucide-react';
 
 export interface BreadcrumbCrumb {
@@ -134,25 +132,6 @@ export default function AppBreadcrumb() {
           { label: 'Candidatures reçues', icon: Target }
         ];
       }
-    } else if (path.startsWith('/parcours')) {
-      if (path !== '/parcours') {
-        crumbs = [
-          { label: 'Parcours types', to: '/parcours', icon: Network },
-          { label: 'Détail du parcours' }
-        ];
-      } else {
-        crumbs = [
-          { label: 'Parcours types', icon: Network }
-        ];
-      }
-    } else if (path.startsWith('/validation-etapes')) {
-      crumbs = [
-        { label: 'Validation des étapes', icon: CheckCircle2 }
-      ];
-    } else if (path.startsWith('/audit')) {
-      crumbs = [
-        { label: "Journal d'audit", icon: FileText }
-      ];
     } else if (path.startsWith('/messages')) {
       crumbs = [
         { label: 'Messages reçus', icon: MessageSquare }

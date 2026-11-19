@@ -6,7 +6,7 @@ import type { createPathwaySchema, updatePathwaySchema, updateStepSchema } from 
 import { AppError } from '../../middleware/error';
 
 function scopeWhere(auth: AuthContext): Prisma.PathwayWhereInput {
-  const global = auth.permissions.includes('dashboard:global') || auth.permissions.includes('users:manage') || ['ADMIN', 'DIRECTION'].includes(auth.role);
+  const global = auth.permissions.includes('dashboard:global') || auth.permissions.includes('users:manage') || ['ADMIN', 'DIRECTION', 'AGENT'].includes(auth.role);
   if (global) return {};
   if (auth.role === 'AGENT') {
     return {
@@ -84,6 +84,9 @@ export async function getTemplates() {
 }
 
 export async function createPathway(data: z.infer<typeof createPathwaySchema>, auth: AuthContext) {
+  if (auth.role === 'DIRECTION') {
+    throw new AppError(403, 'INTERDIT', 'La Direction est en mode observation & statistiques (lecture seule) et ne peut pas créer de parcours.');
+  }
   // Récupérer le dossier bénéficiaire avec ses relations
   const ben = await prisma.beneficiary.findUnique({
     where: { id: data.beneficiaryId },
@@ -154,11 +157,17 @@ export async function createPathway(data: z.infer<typeof createPathwaySchema>, a
 }
 
 export async function updatePathway(id: string, data: z.infer<typeof updatePathwaySchema>, auth: AuthContext) {
+  if (auth.role === 'DIRECTION') {
+    throw new AppError(403, 'INTERDIT', 'La Direction est en mode observation & statistiques (lecture seule) et ne peut pas modifier les parcours.');
+  }
   await getPathway(id, auth); // Access check
   return prisma.pathway.update({ where: { id }, data });
 }
 
 export async function updateStep(stepId: string, data: z.infer<typeof updateStepSchema>, auth: AuthContext) {
+  if (auth.role === 'DIRECTION') {
+    throw new AppError(403, 'INTERDIT', 'La Direction est en mode observation & statistiques (lecture seule) et ne peut pas modifier ni valider les étapes.');
+  }
   const step = await prisma.pathwayStep.findUnique({
     where: { id: stepId },
     include: { pathway: true }

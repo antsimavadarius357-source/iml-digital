@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { 
   Search, 
   Download, 
@@ -15,17 +14,9 @@ import {
   Trash2,
   X,
   UserCheck,
-  Pencil,
-  Contact,
-  CheckCircle2,
-  Clock,
-  Sparkles,
-  ExternalLink,
-  Inbox,
-  MessageSquare,
-  CheckCheck
+  Pencil
 } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 
 
@@ -114,30 +105,6 @@ const PRESET_PARTNER_CONTACTS: ContactItem[] = [
 ];
 
 export default function ContactsPage() {
-  const qcContacts = useQueryClient();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') === 'messages' ? 'messages' : 'annuaire';
-  const selectedContactIdParam = searchParams.get('contactId');
-
-  // Récupération des messages de contact reçus depuis le formulaire public du site web
-  const { data: contactMsgsRes, refetch: refetchContactMsgs, isLoading: isLoadingMsgs } = useQuery({
-    queryKey: ['contact-messages-full-list'],
-    queryFn: () => api<{ items: any[]; total: number; unreadCount: number }>('/contacts'),
-  });
-
-  const contactMessages = contactMsgsRes?.items || [];
-  const unreadMsgsCount = contactMsgsRes?.unreadCount ?? contactMessages.filter((m: any) => m.status === 'NOUVEAU').length;
-
-  // Filtres pour l'onglet des demandes de contact
-  const [msgFilter, setMsgFilter] = useState<'ALL' | 'NOUVEAU' | 'TRAITE'>('ALL');
-  const [msgSearch, setMsgSearch] = useState('');
-  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (selectedContactIdParam) {
-      setActiveMessageId(selectedContactIdParam);
-    }
-  }, [selectedContactIdParam]);
 
   // Contacts personnalisés ajoutés manuellement (persistance localStorage)
   const [customContacts, setCustomContacts] = useState<ContactItem[]>(() => {
@@ -324,74 +291,7 @@ export default function ContactsPage() {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  // Filtrage des messages de contact
-  const filteredMessages = useMemo(() => {
-    let result = [...contactMessages];
-    if (msgFilter === 'NOUVEAU') {
-      result = result.filter(m => m.status === 'NOUVEAU');
-    } else if (msgFilter === 'TRAITE') {
-      result = result.filter(m => m.status === 'TRAITE');
-    }
-    if (msgSearch.trim()) {
-      const q = msgSearch.toLowerCase();
-      result = result.filter(m => 
-        m.name.toLowerCase().includes(q) ||
-        m.email.toLowerCase().includes(q) ||
-        (m.phone && m.phone.toLowerCase().includes(q)) ||
-        m.subject.toLowerCase().includes(q) ||
-        m.message.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [contactMessages, msgFilter, msgSearch]);
 
-  const handleToggleTreated = async (msgId: string, currentStatus: string) => {
-    const nextStatus = currentStatus === 'TRAITE' ? 'NOUVEAU' : 'TRAITE';
-    try {
-      await api(`/contacts/${msgId}`, {
-        method: 'PATCH',
-        body: { status: nextStatus },
-      });
-      showToast(nextStatus === 'TRAITE' ? '✓ Demande marquée comme traitée' : '✓ Demande réouverte (Nouveau)');
-      refetchContactMsgs();
-      qcContacts.invalidateQueries({ queryKey: ['dashboard-contact-messages'] });
-      qcContacts.invalidateQueries({ queryKey: ['contact-messages-alert'] });
-    } catch (e: any) {
-      alert(e?.message || 'Erreur lors de la mise à jour du statut.');
-    }
-  };
-
-  const handleMarkAllTreated = async () => {
-    const unread = contactMessages.filter((m: any) => m.status === 'NOUVEAU');
-    if (unread.length === 0) return;
-    try {
-      await Promise.all(unread.map(m => api(`/contacts/${m.id}`, { method: 'PATCH', body: { status: 'TRAITE' } })));
-      try {
-        const dismissed = JSON.parse(localStorage.getItem('iml_dismissed_contact_ids') || '[]');
-        const updated = Array.from(new Set([...dismissed, ...unread.map(m => m.id)]));
-        localStorage.setItem('iml_dismissed_contact_ids', JSON.stringify(updated));
-      } catch {}
-      showToast(`✓ ${unread.length} demande(s) marquée(s) comme traitée(s)`);
-      refetchContactMsgs();
-      qcContacts.invalidateQueries({ queryKey: ['dashboard-contact-messages'] });
-      qcContacts.invalidateQueries({ queryKey: ['contact-messages-alert'] });
-    } catch (e: any) {
-      alert(e?.message || 'Erreur lors de la mise à jour des demandes.');
-    }
-  };
-
-  const handleDeleteMessage = async (msgId: string, name: string) => {
-    if (window.confirm(`Confirmez-vous la suppression de la demande de "${name}" ?`)) {
-      try {
-        await api(`/contacts/${msgId}`, { method: 'DELETE' });
-        showToast('✓ Demande de contact supprimée');
-        if (activeMessageId === msgId) setActiveMessageId(null);
-        refetchContactMsgs();
-      } catch (e: any) {
-        alert(e?.message || 'Erreur lors de la suppression.');
-      }
-    }
-  };
 
 
   // Filtrage et tri
@@ -581,322 +481,9 @@ export default function ContactsPage() {
       )}
 
       {/* =========================================================================
-          ONGLETS MAÎTRES : ANNUAIRE DES ACTEURS VS DEMANDES DE CONTACT DU SITE
+          ANNUAIRE & RÉPERTOIRE GÉNÉRAL DES ACTEURS
          ========================================================================= */}
-      <div className="flex border-b border-slate-200 gap-2 sm:gap-6 text-xs sm:text-sm font-semibold">
-        <button
-          type="button"
-          onClick={() => {
-            const next = new URLSearchParams(searchParams);
-            next.delete('tab');
-            next.delete('contactId');
-            setSearchParams(next);
-          }}
-          className={`pb-3 px-2 sm:px-3 border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
-            activeTab === 'annuaire'
-              ? 'border-[#23c3b1] text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Contact className="size-4 text-[#23c3b1]" />
-          <span>Annuaire & Répertoire d'acteurs</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
-            {allContacts.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            const next = new URLSearchParams(searchParams);
-            next.set('tab', 'messages');
-            setSearchParams(next);
-          }}
-          className={`pb-3 px-2 sm:px-3 border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
-            activeTab === 'messages'
-              ? 'border-[#FF5B37] text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Mail className="size-4 text-[#FF5B37]" />
-          <span>Demandes de contact reçues (Site Web)</span>
-          {unreadMsgsCount > 0 ? (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#FF5B37] text-white animate-pulse shadow-2xs">
-              {unreadMsgsCount} nouvelle{unreadMsgsCount > 1 ? 's' : ''}
-            </span>
-          ) : (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
-              {contactMessages.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* =========================================================================
-          CONTENU DE L'ONGLET 1 : DEMANDES DE CONTACT DU SITE WEB (/contact)
-         ========================================================================= */}
-      {activeTab === 'messages' && (
-        <div className="space-y-4">
-          {/* En-tête de section */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-xl font-bold text-slate-900">Demandes d'information & Prises de contact</h2>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-50 text-[#FF5B37] border border-orange-200/80">
-                  Formulaire public /contact
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-                Messages et sollicitations déposés par les visiteurs, porteurs de projets et futurs partenaires sur la vitrine IML Digit.
-              </p>
-            </div>
-
-            {/* KPIs rapides */}
-            <div className="flex items-center gap-2 text-xs">
-              <div className="px-3.5 py-2 rounded-lg bg-slate-50 border border-slate-200 text-center">
-                <div className="text-[10px] text-slate-500 font-medium">Total reçus</div>
-                <div className="text-sm font-bold text-slate-900">{contactMessages.length}</div>
-              </div>
-              <div className="px-3.5 py-2 rounded-lg bg-orange-50 border border-orange-200 text-center">
-                <div className="text-[10px] text-[#FF5B37] font-bold">À traiter</div>
-                <div className="text-sm font-black text-[#FF5B37]">{unreadMsgsCount}</div>
-              </div>
-              <div className="px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
-                <div className="text-[10px] text-emerald-700 font-medium">Traités</div>
-                <div className="text-sm font-bold text-emerald-800">
-                  {contactMessages.filter((m: any) => m.status === 'TRAITE').length}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Barre de filtres & recherche */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-            <div className="flex items-center gap-1.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setMsgFilter('ALL')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-                  msgFilter === 'ALL'
-                    ? 'bg-[#101f2e] text-white shadow-2xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Tous ({contactMessages.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setMsgFilter('NOUVEAU')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  msgFilter === 'NOUVEAU'
-                    ? 'bg-[#FF5B37] text-white shadow-2xs'
-                    : 'bg-orange-50 text-[#FF5B37] border border-orange-200 hover:bg-orange-100'
-                }`}
-              >
-                <span className="size-2 rounded-full bg-[#FF5B37]" />
-                Nouveaux ({unreadMsgsCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setMsgFilter('TRAITE')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  msgFilter === 'TRAITE'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                }`}
-              >
-                <CheckCheck className="size-3 text-emerald-600" />
-                Traités ({contactMessages.filter((m: any) => m.status === 'TRAITE').length})
-              </button>
-
-              {unreadMsgsCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleMarkAllTreated}
-                  className="px-3 py-1.5 rounded-lg font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors cursor-pointer flex items-center gap-1.5 ml-1"
-                  title="Marquer toutes les demandes comme traitées"
-                >
-                  <CheckCircle2 className="size-3.5 text-emerald-600" />
-                  <span>Tout marquer comme traité ({unreadMsgsCount})</span>
-                </button>
-              )}
-            </div>
-
-            <div className="relative min-w-[240px] sm:min-w-[280px]">
-              <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Rechercher par nom, email, objet..."
-                value={msgSearch}
-                onChange={(e) => setMsgSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#FF5B37]"
-              />
-            </div>
-          </div>
-
-          {/* Liste des messages */}
-          {isLoadingMsgs ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
-              <Clock className="size-6 animate-spin mx-auto mb-2 text-[#FF5B37]" />
-              <p className="text-xs">Chargement des messages reçus...</p>
-            </div>
-          ) : filteredMessages.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
-              <Inbox className="size-8 mx-auto mb-2 text-slate-300" />
-              <p className="font-semibold text-slate-700 text-sm">Aucune demande de contact trouvée</p>
-              <p className="text-xs text-slate-400 mt-1">
-                {msgSearch ? 'Aucun résultat ne correspond à votre recherche.' : 'Les messages soumis depuis le site public apparaîtront ici automatiquement.'}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredMessages.map((m: any) => {
-                const isSelected = activeMessageId === m.id;
-                const isNew = m.status === 'NOUVEAU';
-                const dateStr = new Date(m.createdAt).toLocaleDateString('fr-FR', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
-                const cleanPhone = m.phone ? m.phone.replace(/[^0-9]/g, '') : '';
-                const waUrl = cleanPhone 
-                  ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Bonjour ${m.name}, l'équipe IML Digit a bien reçu votre demande concernant « ${m.subject} ».`)}`
-                  : null;
-                const mailUrl = `mailto:${m.email}?subject=${encodeURIComponent(`IML Digit - Réponse à votre demande: ${m.subject}`)}&body=${encodeURIComponent(`Bonjour ${m.name},\n\nSuite à votre message transmis à IML Digit :\n« ${m.message} »\n\n`)}`;
-
-                return (
-                  <div
-                    key={m.id}
-                    id={`contact-msg-${m.id}`}
-                    className={`bg-white rounded-xl border transition-all p-5 shadow-2xs space-y-3.5 ${
-                      isSelected ? 'ring-2 ring-[#FF5B37] border-transparent shadow-md' : 'border-slate-200 hover:border-slate-300'
-                    } ${isNew ? 'border-l-4 border-l-[#FF5B37] bg-amber-50/15' : 'border-l-4 border-l-emerald-500'}`}
-                  >
-                    {/* Ligne haute : Identité, Statut et Date */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`size-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                          isNew ? 'bg-orange-100 text-[#FF5B37]' : 'bg-emerald-100 text-emerald-700'
-                        }`}>
-                          {m.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 text-sm sm:text-base">{m.name}</span>
-                            {isNew ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1 shadow-2xs">
-                                <span className="size-1.5 rounded-full bg-rose-500 animate-pulse" />
-                                NOUVEAU
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                                <CheckCircle2 className="size-3 text-emerald-600" />
-                                TRAITÉ
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                            <span className="font-semibold text-slate-700">Objet :</span>
-                            <span className="font-bold text-[#FF5B37]">{m.subject}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-xs text-slate-400 self-end sm:self-auto">
-                        <Clock className="size-3.5" />
-                        <span>Reçu le {dateStr}</span>
-                      </div>
-                    </div>
-
-                    {/* Ligne coordonnées : Email, Téléphone / WhatsApp */}
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200/70">
-                      <div className="flex items-center gap-1.5">
-                        <Mail className="size-3.5 text-slate-400" />
-                        <a href={mailUrl} className="font-medium text-slate-800 hover:text-[#FF5B37] hover:underline">
-                          {m.email}
-                        </a>
-                      </div>
-                      {m.phone && (
-                        <div className="flex items-center gap-1.5">
-                          <Phone className="size-3.5 text-slate-400" />
-                          <a href={`tel:${m.phone}`} className="font-medium text-slate-800 hover:text-[#23c3b1] hover:underline">
-                            {m.phone}
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Contenu du message */}
-                    <div className="p-4 rounded-xl bg-stone-50 border border-stone-200/90 text-slate-800 text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">
-                      {m.message}
-                    </div>
-
-                    {/* Barre d'actions pour l'agent */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Répondre par WhatsApp */}
-                        {waUrl ? (
-                          <a
-                            href={waUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                          >
-                            <Phone className="size-3.5" />
-                            <span>Répondre sur WhatsApp</span>
-                          </a>
-                        ) : null}
-
-                        {/* Répondre par Email */}
-                        <a
-                          href={mailUrl}
-                          className="px-3 py-1.5 rounded-lg bg-[#101f2e] hover:bg-[#1a3148] text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                        >
-                          <Mail className="size-3.5 text-[#23c3b1]" />
-                          <span>Envoyer un E-mail</span>
-                        </a>
-
-                        {/* Bascule traité / non traité */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggleTreated(m.id, m.status)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                            isNew
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          }`}
-                        >
-                          <CheckCircle2 className="size-3.5" />
-                          <span>{isNew ? 'Marquer comme traité' : 'Rouvrir la demande'}</span>
-                        </button>
-                      </div>
-
-                      {/* Suppression */}
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteMessage(m.id, m.name)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                        title="Supprimer ce message"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* =========================================================================
-          CONTENU DE L'ONGLET 2 : ANNUAIRE & RÉPERTOIRE GÉNÉRAL
-         ========================================================================= */}
-      {activeTab === 'annuaire' && (
-        <div className="space-y-4">
+      <div className="space-y-4">
           {/* =========================================================================
               1. EN-TÊTE PRINCIPAL : TITRE, STATS & BOUTON NOUVEAU CONTACT
              ========================================================================= */}
@@ -1391,7 +978,6 @@ export default function ContactsPage() {
 
       </div>
     </div>
-  )}
 
       {/* =========================================================================
           6. MODALE D'AJOUT D'UN NOUVEAU CONTACT

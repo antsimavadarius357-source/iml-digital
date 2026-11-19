@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,6 +11,8 @@ import {
   Lightbulb, 
   Target, 
   Users, 
+  User,
+  Camera,
   Video, 
   Building2, 
   Briefcase, 
@@ -78,11 +80,33 @@ export default function PublicApplicationPage() {
   const [stage, setStage] = useState('');
 
   // Étape 2 : Dirigeant / Représentant
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('Libreville');
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setStepError('La photo ne doit pas dépasser 5 Mo.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoPreview(null);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
 
   // Étape 3 : Entreprise / Projet
   const [companyName, setCompanyName] = useState('');
@@ -190,6 +214,11 @@ export default function PublicApplicationPage() {
       const code = seq ? `IML-2026-${String(seq).padStart(4, '0')}` : 'IML-' + Math.floor(100000 + Math.random() * 900000);
       setReferenceCode(code);
       setSubmitted(true);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('iml_last_submission', Date.now().toString());
+        } catch {}
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     onError: (err: any) => {
@@ -207,11 +236,11 @@ export default function PublicApplicationPage() {
     setStepError('');
     if (stepNumber === 1) {
       if (!structureType) {
-        setStepError('Veuillez sélectionner le profil de votre structure.');
+        setStepError('Veuillez choisir votre situation parmi les 4 options.');
         return false;
       }
       if (!stage) {
-        setStepError('Veuillez sélectionner votre stade de développement actuel.');
+        setStepError('Veuillez indiquer où en est votre projet aujourd’hui.');
         return false;
       }
       return true;
@@ -284,6 +313,7 @@ export default function PublicApplicationPage() {
       applicantData: {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        photo: photoPreview || undefined,
         email: email.trim(),
         phone: phone.trim(),
         city: city.trim() || 'Libreville',
@@ -310,31 +340,31 @@ export default function PublicApplicationPage() {
   };
 
   const stagesList = structureType === 'PME' ? [
-    { id: 'DEMARRAGE', label: '1 à 3 ans', desc: 'Consolidation & premiers bilans' },
-    { id: 'CROISSANCE', label: 'En développement', desc: 'Expansion commerciale & recrutements' },
-    { id: 'RESTRUCTURATION', label: 'Mise à niveau', desc: 'Digitalisation & restructuration' },
-    { id: 'MATURITE', label: 'Maturité (> 5 ans)', desc: 'Diversification & investissements' },
+    { id: 'DEMARRAGE', label: '1 à 3 ans', desc: 'Premières années d\'activité' },
+    { id: 'CROISSANCE', label: 'En développement', desc: 'Plus de clients et nouveaux recrutements' },
+    { id: 'RESTRUCTURATION', label: 'Mise à niveau', desc: 'Passer au numérique et s\'organiser' },
+    { id: 'MATURITE', label: 'Maturité (> 5 ans)', desc: 'Nouveaux marchés et investissements' },
   ] : [
-    { id: 'IDEE', label: 'Idée & Cadrage', desc: 'Concept en cours de réflexion' },
-    { id: 'PROTOTYPE', label: 'Prototype / MVP', desc: 'Première version en test' },
-    { id: 'COMMERCIAL', label: 'Lancement marché', desc: 'Premiers clients & ventes' },
-    { id: 'CROISSANCE', label: 'En développement', desc: 'Recherche d’échelle & fonds' },
+    { id: 'IDEE', label: 'Idée & Cadrage', desc: 'Je réfléchis encore à mon projet' },
+    { id: 'PROTOTYPE', label: 'Prototype / MVP', desc: 'Première version ou maquette en test' },
+    { id: 'COMMERCIAL', label: 'Lancement marché', desc: 'Premiers clients et premières ventes' },
+    { id: 'CROISSANCE', label: 'En développement', desc: 'L\'activité grandit et recherche de financements' },
   ];
 
   const availableNeeds = structureType === 'PME' ? [
-    'Diagnostic stratégique & Financier',
-    'Mise à niveau organisationnelle & RH',
-    'Transition numérique & Outils digitaux',
-    'Accès aux financements & Banques',
-    'Conformité fiscale & Juridique',
-    'Accès aux marchés & Partenariats'
+    { label: 'Diagnostic stratégique & Financier', desc: 'Analyser la santé de l\'entreprise et optimiser les finances' },
+    { label: 'Mise à niveau organisationnelle & RH', desc: 'Mieux organiser les équipes et recruter le bon personnel' },
+    { label: 'Transition numérique & Outils digitaux', desc: 'Adopter des outils informatiques pour gagner du temps' },
+    { label: 'Accès aux financements & Banques', desc: 'Préparer un dossier solide pour obtenir un crédit bancaire' },
+    { label: 'Conformité fiscale & Juridique', desc: 'Être en règle avec les impôts, les contrats et les lois' },
+    { label: 'Accès aux marchés & Partenariats', desc: 'Trouver de gros clients et signer des partenariats commerciaux' }
   ] : [
-    'Diagnostic & Stratégie',
-    'Accompagnement méthodologique',
-    'Mentorat & Coaching individuel',
-    'Recherche de financements & Subventions',
-    'Développement commercial & Pitch',
-    'Réseau & Partenariats'
+    { label: 'Diagnostic & Stratégie', desc: 'Faire le point sur mon projet et définir les bonnes priorités' },
+    { label: 'Accompagnement méthodologique', desc: 'Apprendre à bien structurer mon travail étape par étape' },
+    { label: 'Mentorat & Coaching individuel', desc: 'Être conseillé et guidé par un expert expérimenté' },
+    { label: 'Recherche de financements & Subventions', desc: 'Trouver des aides financières, prêts ou investisseurs' },
+    { label: 'Développement commercial & Pitch', desc: 'Trouver des clients, vendre et bien présenter son projet' },
+    { label: 'Réseau & Partenariats', desc: 'Rencontrer des professionnels et nouer des collaborations' }
   ];
 
   const stepsList = [
@@ -410,7 +440,7 @@ export default function PublicApplicationPage() {
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="size-5 rounded-full bg-[#14233c] text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</span>
-                  <span>Restitution du diagnostic de maturité et intégration dans la cohorte d'accompagnement.</span>
+                  <span>Restitution du diagnostic de maturité et intégration dans la promotion d'incubation.</span>
                 </li>
               </ul>
             </div>
@@ -675,17 +705,17 @@ export default function PublicApplicationPage() {
                           <h2 className="text-lg font-bold text-slate-900">1. Quel est le profil de votre structure ?</h2>
                         </div>
                         <p className="text-xs text-slate-500">
-                          Sélectionnez la catégorie qui décrit le mieux votre activité pour calibrer le parcours d'incubation.
+                          Sélectionnez la catégorie qui décrit le mieux votre activité pour adapter votre accompagnement.
                         </p>
                       </div>
 
                       {/* 4 Cartes de sélection en Grille Horizontale */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         {[
-                          { id: 'PORTEUR_IDEE', label: "Porteur d'Idée", desc: "Création / Idéation", icon: Lightbulb, badge: 'Phase 1' },
-                          { id: 'STARTUP', label: "Startup Tech", desc: "Produit innovant / Scale", icon: Rocket, badge: 'Tech / MVP' },
-                          { id: 'PME', label: "TPE / PME", desc: "Entreprise en activité", icon: Building2, badge: 'Croissance' },
-                          { id: 'ORGANISATION', label: "Organisation / Coop", desc: "Groupement / GIE", icon: Layers, badge: 'Filière' }
+                          { id: 'PORTEUR_IDEE', label: "Porteur d'Idée", desc: "Projet pas encore lancé", icon: Lightbulb, badge: 'Phase 1' },
+                          { id: 'STARTUP', label: "Startup Tech", desc: "Site web, application mobile ou service innovant", icon: Rocket, badge: 'Tech / MVP' },
+                          { id: 'PME', label: "TPE / PME", desc: "Boutique, atelier ou entreprise en activité", icon: Building2, badge: 'Croissance' },
+                          { id: 'ORGANISATION', label: "Organisation / Coop", desc: "Groupement de producteurs, artisans ou coopérative", icon: Layers, badge: 'Filière' }
                         ].map((type) => {
                           const IconComp = type.icon;
                           const isSelected = structureType === type.id;
@@ -767,6 +797,61 @@ export default function PublicApplicationPage() {
                         </p>
                       </div>
 
+                      {/* Photo d'identité / Portrait du candidat (comme sur la fiche agent) */}
+                      <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center gap-4">
+                        <div className="relative size-16 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-inner group">
+                          {photoPreview ? (
+                            <img src={photoPreview} alt="Aperçu photo" className="size-full object-cover" />
+                          ) : (
+                            <User className="size-8 text-slate-400" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="block text-xs font-bold text-slate-800">
+                              Photo du porteur de projet / dirigeant
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">
+                              Recommandé
+                            </span>
+                          </div>
+                          <span className="block text-[11px] text-slate-400 mt-0.5 mb-2">
+                            Prise ou fichier (JPG, PNG – max 5 Mo)
+                          </span>
+
+                          <input 
+                            type="file" 
+                            ref={photoInputRef}
+                            accept="image/*"
+                            onChange={handlePhotoChange}
+                            className="hidden" 
+                          />
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => photoInputRef.current?.click()}
+                              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer hover:text-[#f06553] shadow-2xs"
+                            >
+                              <Camera className="size-3.5 text-[#f06553]" />
+                              <span>{photoPreview ? 'Changer la photo' : 'Prendre / Charger'}</span>
+                            </button>
+
+                            {photoPreview && (
+                              <button
+                                type="button"
+                                onClick={handleRemovePhoto}
+                                className="px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-semibold transition cursor-pointer"
+                                title="Supprimer la photo"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="grid sm:grid-cols-2 gap-5">
                         <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -776,7 +861,7 @@ export default function PublicApplicationPage() {
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
                             required 
-                            placeholder="Ex: Jean-Marc"
+                            placeholder="Prénom"
                             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
@@ -788,7 +873,7 @@ export default function PublicApplicationPage() {
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
                             required 
-                            placeholder="Ex: Ondo"
+                            placeholder="Nom de famille"
                             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
@@ -1135,20 +1220,23 @@ export default function PublicApplicationPage() {
                           Vos priorités (cochez les plus pertinentes)
                         </label>
                         <div className="grid sm:grid-cols-2 gap-2.5">
-                          {availableNeeds.map((need) => {
-                            const isSelected = needs.includes(need);
+                          {availableNeeds.map((item) => {
+                            const isSelected = needs.includes(item.label);
                             return (
                               <button
                                 type="button"
-                                key={need}
-                                onClick={() => toggleNeed(need)}
+                                key={item.label}
+                                onClick={() => toggleNeed(item.label)}
                                 className={`p-3.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left w-full ${
                                   isSelected
-                                    ? 'border-[#f06553] bg-orange-50/70 text-slate-900 font-bold shadow-2xs ring-2 ring-[#f06553]/20'
-                                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs'
+                                    ? 'border-[#f06553] bg-orange-50/70 text-slate-900 shadow-2xs ring-2 ring-[#f06553]/20'
+                                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
                                 }`}
                               >
-                                <span className="text-xs">{need}</span>
+                                <div className="flex flex-col min-w-0 pr-3">
+                                  <span className="text-xs font-bold text-slate-900 leading-tight">{item.label}</span>
+                                  <span className="text-[11px] text-slate-500 mt-1 leading-snug">{item.desc}</span>
+                                </div>
                                 <input 
                                   type="checkbox" 
                                   readOnly 

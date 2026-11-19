@@ -11,3 +11,8 @@ backups/
 *.log
 uploads/
 .DS_Store
+~$*
+test_clean.zip
+backend/test_copy.zip
+extracted_clean/
+backend/extracted_docx/

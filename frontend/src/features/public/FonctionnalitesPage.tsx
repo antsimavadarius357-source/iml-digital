@@ -135,7 +135,7 @@ const MODULES_DATA: ModuleDetail[] = [
     keyFeatures: [
       'Éditeur riche avec insertion d’objectifs, de pièces jointes et d’indicateurs chiffrés',
       'Classification par degré de confidentialité (partagé avec le porteur ou note interne superviseur)',
-      'Historique chronologique complet disponible sur la fiche 360° du porteur',
+      'Historique chronologique complet disponible sur le dossier du porteur',
       'Notification automatique par email au bénéficiaire avec la synthèse des actions convenues',
       'Suivi du taux de respect des engagements d’une séance à l’autre'
     ],
@@ -205,7 +205,7 @@ const MODULES_DATA: ModuleDetail[] = [
     badge: 'Diagnostic & Coffre-fort',
     badgeColor: 'bg-teal-100 text-[#178578] border-teal-200',
     category: 'BÉNÉFICIAIRES & ACCRÉDITATION',
-    title: 'Porteurs & PME 360°',
+    title: 'Dossiers Porteurs & PME',
     shortDesc: 'Fiches d’entreprises complètes, diagnostic entrepreneurial, conformité légale et coffre-fort documentaire.',
     longDesc: 'Une vue panoramique exhaustive sur chaque entrepreneur et structure accompagnée. De l’immatriculation RCCM au diagnostic de maturité initiale, toutes les informations clés sont réunies en un point unique et sécurisé.',
     icon: Users,
@@ -240,11 +240,11 @@ const MODULES_DATA: ModuleDetail[] = [
     operationalBenefits: [
       { label: 'Temps de constitution dossier', value: '-70%' },
       { label: 'Exhaustivité documentaire', value: '99%' },
-      { label: 'Visibilité équipe', value: '360° unifiée' }
+      { label: 'Visibilité équipe', value: 'Vue unifiée' }
     ],
     deliverables: [
       'Rapport de diagnostic d’entrée',
-      'Fiche d’entreprise certifiée 360°',
+      'Fiche d’entreprise certifiée et complète',
       'Dossier de conformité légale',
       'Bilan annuel d’évolution PME'
     ]
@@ -519,7 +519,7 @@ export default function FonctionnalitesPage() {
                 BÉNÉFICIAIRES & ACCRÉDITATION
               </h4>
 
-              {/* Tile 4 : Porteurs & PME 360° (Highlighted border card matching exact image!) */}
+              {/* Tile 4 : Dossiers Porteurs & PME */}
               <button 
                 type="button"
                 onClick={() => {
@@ -533,7 +533,7 @@ export default function FonctionnalitesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[14px] font-bold text-[#178578]">
-                    Porteurs & PME 360°
+                    Dossiers Porteurs & PME
                   </div>
                   <p className="text-[12px] text-slate-600 leading-snug mt-1">
                     Fiches d'entreprises, diagnostic entrepreneurial, conformité légale et documents.

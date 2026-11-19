@@ -1057,7 +1057,7 @@ export default function CoachDetailPage() {
                     <span>PME & Entreprises</span>
                   </div>
                   <p className="text-slate-500 text-[11px] leading-relaxed">
-                    Diagnostic 360°, restructuration opérationnelle, plans de trésorerie, digitalisation des processus et optimisation de rentabilité.
+                    Diagnostic stratégique, restructuration opérationnelle, plans de trésorerie, digitalisation des processus et optimisation de rentabilité.
                   </p>
                 </div>
 
@@ -1136,7 +1136,7 @@ export default function CoachDetailPage() {
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   className="w-full h-9 px-3 rounded border border-slate-200 focus:border-[#f06553] focus:ring-1 focus:ring-[#f06553] outline-hidden text-slate-800 text-xs transition-colors"
-                  placeholder="Ex : ALEXANDRE AGENT IML"
+                  placeholder="Nom et prénom"
                 />
               </div>
 

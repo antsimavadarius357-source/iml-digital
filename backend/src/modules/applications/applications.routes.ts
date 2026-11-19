@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import { requireAuth, requirePermission } from '../../middleware/auth';
+import { AppError } from '../../middleware/error';
 import { createApplicationSchema, idParam, listApplicationsSchema, updateApplicationSchema } from './applications.schemas';
 import { createApplication, getApplication, listApplications, updateApplication, trackApplicationPublic } from './applications.service';
 
@@ -90,20 +91,32 @@ applicationsRouter.get('/attachments/:fileId', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Routes protégées pour la gestion interne (Direction / Agents)
-applicationsRouter.use(requireAuth, requirePermission('applications:review'));
+// Routes protégées pour la consultation et la gestion interne
+applicationsRouter.use(requireAuth);
 
 applicationsRouter.get('/', async (req, res, next) => {
-  try { res.json(await listApplications(listApplicationsSchema.parse(req.query), req.auth!)); }
-  catch (e) { next(e); }
+  try {
+    if (!['ADMIN', 'DIRECTION', 'AGENT', 'COACH'].includes(req.auth!.role)) {
+      throw new AppError(403, 'Accès non autorisé aux candidatures', 'INTERDIT');
+    }
+    res.json(await listApplications(listApplicationsSchema.parse(req.query), req.auth!));
+  } catch (e) { next(e); }
 });
 
 applicationsRouter.get('/:id', async (req, res, next) => {
-  try { res.json({ application: await getApplication(idParam.parse(req.params.id), req.auth!) }); }
-  catch (e) { next(e); }
+  try {
+    if (!['ADMIN', 'DIRECTION', 'AGENT', 'COACH'].includes(req.auth!.role)) {
+      throw new AppError(403, 'Accès non autorisé aux candidatures', 'INTERDIT');
+    }
+    res.json({ application: await getApplication(idParam.parse(req.params.id), req.auth!) });
+  } catch (e) { next(e); }
 });
 
 applicationsRouter.patch('/:id', async (req, res, next) => {
-  try { res.json({ application: await updateApplication(idParam.parse(req.params.id), updateApplicationSchema.parse(req.body), req.auth!, req.ip) }); }
-  catch (e) { next(e); }
+  try {
+    if (!['ADMIN', 'AGENT', 'DIRECTION'].includes(req.auth!.role)) {
+      throw new AppError(403, 'Évaluation et modification des candidatures réservées aux administrateurs et agents IML.', 'INTERDIT');
+    }
+    res.json({ application: await updateApplication(idParam.parse(req.params.id), updateApplicationSchema.parse(req.body), req.auth!, req.ip) });
+  } catch (e) { next(e); }
 });

@@ -4,7 +4,8 @@ import {
   ArrowRight, 
   CheckCircle2, 
   ChevronDown, 
-  Check
+  Check,
+  Building2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -12,6 +13,9 @@ import heroIncubatorHub from '../../assets/hero_incubator_hub.jpg';
 import heroExecutiveCoaching from '../../assets/hero_executive_coaching.jpg';
 import heroAgrobusinessMakers from '../../assets/hero_agrobusiness_makers.jpg';
 import heroCertificationSuccess from '../../assets/hero_certification_success.jpg';
+import photoBertrandOndo from '../../assets/bertrand_ondo.jpg';
+import photoDariusNze from '../../assets/darius_nze.jpg';
+import photoNathalieEssono from '../../assets/nathalie_essono.jpg';
 
 import {
   LogoGEW,
@@ -181,7 +185,7 @@ const PARTNERS = [
   { 
     name: "EDN'COMM", 
     short: "EDN'COMM",
-    badge: "Communication 360° & Événementiel",
+    badge: "Communication Globale & Événementiel",
     category: "Communication & Publicité",
     color: "#84cc16",
     Logo: LogoEDNComm
@@ -255,6 +259,10 @@ export default function LandingPage() {
     {
       q: "La plateforme IML Digit m'aide-t-elle à trouver des financements ?",
       a: "Oui. Le passage réussi des 4 jalons donne lieu à une attestation officielle d'incubation et à la constitution d'un dossier bancable certifié, présenté directement aux guichets partenaires de crédit et aux fonds d'amorçage."
+    },
+    {
+      q: "Peut-on louer la salle de réunion pour une masterclass ou une formation sans candidater ?",
+      a: "Absolument. La salle de réunion et d'innovation IML Digit (située à Awendjé, Libreville) est disponible à la location horaire ou journalière pour vos masterclasses, ateliers et séminaires. Vous pouvez vérifier les disponibilités en temps réel et réserver directement depuis la page 'Louer la Salle', sans déposer de dossier d'incubation."
     }
   ];
 
@@ -336,8 +344,16 @@ export default function LandingPage() {
                 to="/candidater"
                 className="w-full sm:w-auto px-8 py-4 rounded-full bg-gradient-to-r from-[#FF5B37] to-[#FA4620] hover:from-[#e94d29] hover:to-[#df3711] text-white font-bold text-sm sm:text-base shadow-xl shadow-orange-500/30 hover:shadow-orange-500/50 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 group cursor-pointer"
               >
-                <span>Candidater à une cohorte</span>
+                <span>Déposer ma candidature</span>
                 <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+
+              <Link
+                to="/salle"
+                className="w-full sm:w-auto px-7 py-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-sm sm:text-base border border-white/25 hover:border-white/50 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+              >
+                <Building2 className="size-4.5 text-[#FF5B37]" />
+                <span>Réserver la salle</span>
               </Link>
 
 
@@ -392,14 +408,9 @@ export default function LandingPage() {
          ========================================================================= */}
       <section className="py-10 border-y border-stone-200/80 bg-white overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Ils soutiennent, financent et accompagnent l'écosystème entrepreneurial avec IML Digit
-            </p>
-            <span className="text-[11px] font-semibold text-[#FF5B37] bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200/60 shrink-0">
-              Écosystème GEW 2025 Libreville
-            </span>
-          </div>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Ils soutiennent, financent et accompagnent l'écosystème entrepreneurial avec IML Digit
+          </p>
         </div>
 
         {/* Conteneur défilant de droite à gauche avec masques en dégradé sur les bords */}
@@ -455,7 +466,7 @@ export default function LandingPage() {
                 <div className="size-12 rounded-2xl bg-orange-50 text-[#FF5B37] border border-orange-100 flex items-center justify-center font-black text-xl group-hover:scale-105 transition-transform">
                   01
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">Diagnostic & Diagnostic 360°</h3>
+                <h3 className="text-lg font-bold text-slate-900">Diagnostic initial complet</h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   Évaluation approfondie de l'adéquation porteur/projet, audit des forces, identification des freins réglementaires et fixation de la feuille de route.
                 </p>
@@ -640,7 +651,7 @@ export default function LandingPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="size-4 text-[#FF5B37] shrink-0" />
-                    <span>Audit 360° et plan de redressement de trésorerie</span>
+                    <span>Audit global et plan de redressement de trésorerie</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="size-4 text-[#FF5B37] shrink-0" />
@@ -706,25 +717,25 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="p-7 rounded-3xl bg-slate-800/80 border border-slate-700/80 text-center space-y-2">
-              <div className="text-4xl sm:text-5xl font-black text-[#FF5B37]">520+</div>
+              <div className="text-4xl sm:text-5xl font-black text-[#FF5B37]">60+</div>
               <h4 className="text-sm font-bold text-white uppercase tracking-wide">Entreprises Accompagnées</h4>
-              <p className="text-xs text-slate-400">Dossiers instruits avec succès sur tout le territoire.</p>
+              <p className="text-xs text-slate-400">Porteurs de projets et PME suivis depuis le lancement.</p>
             </div>
 
             <div className="p-7 rounded-3xl bg-slate-800/80 border border-slate-700/80 text-center space-y-2">
-              <div className="text-4xl sm:text-5xl font-black text-emerald-400">88%</div>
+              <div className="text-4xl sm:text-5xl font-black text-emerald-400">70%</div>
               <h4 className="text-sm font-bold text-white uppercase tracking-wide">Taux de Pérennité</h4>
-              <p className="text-xs text-slate-400">Des entreprises toujours en activité après 3 années.</p>
+              <p className="text-xs text-slate-400">Des entreprises accompagnées toujours en activité.</p>
             </div>
 
             <div className="p-7 rounded-3xl bg-slate-800/80 border border-slate-700/80 text-center space-y-2">
-              <div className="text-4xl sm:text-5xl font-black text-blue-400">45+</div>
+              <div className="text-4xl sm:text-5xl font-black text-blue-400">12</div>
               <h4 className="text-sm font-bold text-white uppercase tracking-wide">Coachs & Experts</h4>
               <p className="text-xs text-slate-400">Mobilisés sur la finance, le juridique et le commercial.</p>
             </div>
 
             <div className="p-7 rounded-3xl bg-slate-800/80 border border-slate-700/80 text-center space-y-2">
-              <div className="text-4xl sm:text-5xl font-black text-amber-400">2,4 Mds</div>
+              <div className="text-4xl sm:text-5xl font-black text-amber-400">150 M</div>
               <h4 className="text-sm font-bold text-white uppercase tracking-wide">FCFA Mobilisés</h4>
               <p className="text-xs text-slate-400">De crédits, subventions et financements partenaires.</p>
             </div>
@@ -755,11 +766,13 @@ export default function LandingPage() {
                 « Avant d'intégrer IML Digit, nous avions d'excellents produits agroalimentaires mais aucune comptabilité structurée. Notre coach nous a guidés pas à pas. Nous avons obtenu notre financement de 15 millions en 4 mois. »
               </p>
               <div className="flex items-center gap-3 pt-4 border-t border-stone-100">
-                <div className="size-11 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-sm">
-                  BO
-                </div>
+                <img
+                  src={photoBertrandOndo}
+                  alt="Bertrand ONDO"
+                  className="size-11 rounded-full object-cover shadow-xs ring-2 ring-emerald-500/20"
+                />
                 <div>
-                  <h4 className="font-bold text-xs text-slate-900">Bertrand Ondo</h4>
+                  <h4 className="font-bold text-xs text-slate-900">Bertrand ONDO</h4>
                   <p className="text-[11px] text-slate-500">Fondateur ManiBio • Cohorte 2025</p>
                 </div>
               </div>
@@ -770,12 +783,14 @@ export default function LandingPage() {
                 « En tant que coach certifié, la plateforme IML Digit m'a fait gagner un temps précieux. Fini les comptes-rendus Word éparpillés : chaque séance est horodatée, les jalons sont clairs et l'entrepreneur sait exactement ce qu'il doit livrer. »
               </p>
               <div className="flex items-center gap-3 pt-4 border-t border-stone-100">
-                <div className="size-11 rounded-full bg-orange-100 text-[#FF5B37] font-bold flex items-center justify-center text-sm">
-                  DM
-                </div>
+                <img
+                  src={photoDariusNze}
+                  alt="Darius NZÉ"
+                  className="size-11 rounded-full object-cover shadow-xs ring-2 ring-orange-500/20"
+                />
                 <div>
-                  <h4 className="font-bold text-xs text-slate-900">Darius M.</h4>
-                  <p className="text-[11px] text-slate-500">Coach Consultant en Stratégie Financière</p>
+                  <h4 className="font-bold text-xs text-slate-900">Darius NZÉ</h4>
+                  <p className="text-[11px] text-slate-500">Coach Consultant en Stratégie Financière & Mentor IML</p>
                 </div>
               </div>
             </div>
@@ -785,11 +800,13 @@ export default function LandingPage() {
                 « Nous avons pu fédérer 40 planteurs de café et cacao dans le Woleu-Ntem. Grâce au programme Filières, notre coopérative dispose aujourd'hui d'un agrément officiel et d'un contrat direct d'approvisionnement avec Libreville. »
               </p>
               <div className="flex items-center gap-3 pt-4 border-t border-stone-100">
-                <div className="size-11 rounded-full bg-blue-100 text-blue-800 font-bold flex items-center justify-center text-sm">
-                  NE
-                </div>
+                <img
+                  src={photoNathalieEssono}
+                  alt="Nathalie ESSONO"
+                  className="size-11 rounded-full object-cover shadow-xs ring-2 ring-blue-500/20"
+                />
                 <div>
-                  <h4 className="font-bold text-xs text-slate-900">Nathalie Essono</h4>
+                  <h4 className="font-bold text-xs text-slate-900">Nathalie ESSONO</h4>
                   <p className="text-[11px] text-slate-500">Présidente Coopérative Agricole d'Oyem</p>
                 </div>
               </div>
@@ -797,6 +814,33 @@ export default function LandingPage() {
 
           </div>
 
+        </div>
+      </section>
+
+      {/* =========================================================================
+          SECTION SPÉCIALE : LOCATION DE SALLE & MASTERCLASSES
+         ========================================================================= */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white relative overflow-hidden">
+        <div className="max-w-5xl mx-auto rounded-3xl bg-slate-800/60 border border-slate-700/80 p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 backdrop-blur-md shadow-2xl">
+          <div className="space-y-3 max-w-xl">
+            <span className="px-3 py-1 rounded-full bg-[#FF5B37]/20 text-[#FF7A5C] text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5 border border-[#FF5B37]/30">
+              <Building2 className="size-3.5" /> Espace & Privatisation
+            </span>
+            <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              Vous animez une masterclass ou une formation ?
+            </h3>
+            <p className="text-sm text-slate-300 leading-relaxed font-normal">
+              IML Digit met à votre disposition sa salle de réunion et d'innovation tout équipée (20 places, vidéoprojecteur, visioconférence HD, fibre optique, climatisation) à Libreville Awendjé. Réservez en ligne en direct ou échangez avec notre assistant IA.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+            <Link
+              to="/salle"
+              className="px-6 py-3.5 rounded-full bg-[#FF5B37] hover:bg-[#e94d29] text-white font-bold text-xs uppercase tracking-wider text-center transition-all shadow-lg shadow-orange-500/25 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Réserver la salle
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -845,45 +889,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* =========================================================================
-          8. BANNIÈRE D'APPEL À L'ACTION FINALE (Grande immersion)
-         ========================================================================= */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-[#FAF9F5]">
-        <div className="max-w-6xl mx-auto rounded-3xl bg-gradient-to-r from-slate-900 via-[#18283d] to-slate-900 p-8 sm:p-14 text-white text-center relative overflow-hidden shadow-2xl border border-slate-800">
-          
-          <div className="absolute top-0 right-0 w-80 h-80 bg-[#FF5B37]/15 rounded-full blur-[90px] pointer-events-none" />
-          
-          <div className="max-w-2.5xl mx-auto space-y-6 relative z-10">
-            <span className="px-3.5 py-1.5 rounded-full bg-[#FF5B37]/20 border border-[#FF5B37]/30 text-[#FF8E75] text-xs font-bold uppercase tracking-wider inline-block">
-              Lancez-vous dès aujourd'hui
-            </span>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
-              Prêt à concrétiser et financer votre projet d'entreprise ?
-            </h2>
-            <p className="text-slate-300 text-sm sm:text-base max-w-xl mx-auto">
-              Rejoignez les centaines d'entrepreneurs gabonais accompagnés par nos experts certifiés. 
-              Le formulaire de candidature ne prend que 5 minutes.
-            </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-4">
-              <Link
-                to="/candidater"
-                className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[#FF5B37] hover:bg-[#e94d29] text-white font-bold text-sm sm:text-base shadow-lg shadow-orange-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>Déposer ma candidature (Gratuit)</span>
-                <ArrowRight className="size-4" />
-              </Link>
-              <Link
-                to="/contact"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm sm:text-base border border-slate-700 transition-all flex items-center justify-center gap-2"
-              >
-                <span>Poser une question</span>
-              </Link>
-            </div>
-          </div>
-
-        </div>
-      </section>
 
     </div>
   );

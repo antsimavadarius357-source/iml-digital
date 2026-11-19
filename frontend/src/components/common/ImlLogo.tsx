@@ -4,7 +4,7 @@ interface ImlLogoProps {
   className?: string;
   variant?: 'full' | 'compact' | 'icon';
   theme?: 'light' | 'dark';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 /**
@@ -125,7 +125,7 @@ export default function ImlLogo({
   const isDark = theme === 'dark';
 
   // Tailles du symbole (plus généreux et visible sans le texte)
-  const symbolSize = size === 'sm' ? 36 : size === 'lg' ? 52 : 44;
+  const symbolSize = size === 'sm' ? 36 : size === 'lg' ? 52 : size === 'xl' ? 68 : 44;
 
   if (variant === 'icon') {
     return (

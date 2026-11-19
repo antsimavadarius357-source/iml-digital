@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Calendar as CalendarIcon, 
@@ -12,7 +12,9 @@ import {
   ExternalLink, 
   Pencil, 
   Trash2, 
-  X
+  X,
+  MoreVertical,
+  ChevronDown
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -49,6 +51,18 @@ export default function AppointmentsPage() {
   const [showRequiredModal, setShowRequiredModal] = useState(false);
   const [convocationData, setConvocationData] = useState<ConvocationData | null>(null);
   const [isConvocationOpen, setIsConvocationOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-appointment-menu]')) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['appointments'],
@@ -275,7 +289,7 @@ export default function AppointmentsPage() {
             {sortedAppointments.map(app => (
               <div key={app.id} className="p-5 hover:bg-slate-50 transition-colors">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2 min-w-0 flex-1">
                     <div className="flex items-center gap-3">
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[app.status]}`}>
                         {STATUS_LABELS[app.status]}
@@ -298,7 +312,7 @@ export default function AppointmentsPage() {
                         const lower = app.location.toLowerCase();
                         const isVisio = lower.includes('visio') || lower.includes('meet') || lower.includes('zoom') || lower.includes('teams') || app.location.includes('http');
                         
-                        // Nettoyage visuel si balises structurées [EXPERT:...]
+                        // Nettoyage visuel si balises structurées [EXPERT:...] ou URL brute
                         let cleanLocation = app.location;
                         if (app.location.includes('[EXPERT:') || app.location.includes('[MISSION:')) {
                           const missionMatch = app.location.match(/\[MISSION:(.*?)\]/);
@@ -309,24 +323,31 @@ export default function AppointmentsPage() {
                           if (formatMatch) parts.push(formatMatch[1]);
                           if (expertMatch) parts.push(`Expert : ${expertMatch[1]}`);
                           if (parts.length > 0) cleanLocation = parts.join(' • ');
+                        } else if (isVisio) {
+                          cleanLocation = cleanLocation
+                            .replace(/\[https?:\/\/[^\s\]]+\]/g, '')
+                            .replace(/https?:\/\/[^\s]+/g, '')
+                            .replace(/\s*-\s*$/, '')
+                            .trim();
+                          if (!cleanLocation) cleanLocation = 'Visioconférence';
                         }
 
                         return (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             {isVisio ? (
-                              <Video className="size-4 text-[#f06553]" />
+                              <Video className="size-4 text-[#f06553] shrink-0" />
                             ) : (
-                              <MapPin className="size-4 text-slate-400" />
+                              <MapPin className="size-4 text-slate-400 shrink-0" />
                             )}
-                            <span className={isVisio ? "font-medium text-slate-700" : ""}>{cleanLocation}</span>
+                            <span className={`truncate ${isVisio ? "font-medium text-slate-700" : ""}`}>{cleanLocation}</span>
                           </div>
                         );
                       })()}
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Bouton Rejoindre la visio affiché pour toutes les séances avec indicateur visio */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Bouton Rejoindre visio compact et sans rupture de ligne */}
                     {app.location && (() => {
                       const lower = app.location.toLowerCase();
                       const isVisio = lower.includes('visio') || lower.includes('meet') || lower.includes('zoom') || lower.includes('teams') || app.location.includes('http');
@@ -341,87 +362,124 @@ export default function AppointmentsPage() {
                           href={url}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f06553] hover:bg-[#e05341] text-white rounded-md text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#f06553] hover:bg-[#e05341] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-2xs shrink-0 whitespace-nowrap"
                           title="Rejoindre la salle de visioconférence en 1 clic"
                         >
-                          <Video className="size-3.5" />
-                          <span>Rejoindre la visio</span>
-                          <ExternalLink className="size-3" />
+                          <Video className="size-3.5 shrink-0" />
+                          <span>Rejoindre</span>
+                          <ExternalLink className="size-3 shrink-0 opacity-80" />
                         </a>
                       );
                     })()}
 
-                    {/* Bouton Lettre de Convocation Officielle */}
-                    {!isCoach && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const isVideo = app.location && (app.location.includes('http') || app.location.toLowerCase().includes('visio'));
-                          const coachFullName = app.user ? `${app.user.firstName} ${app.user.lastName}` : (user ? `${user.firstName} ${user.lastName}` : 'Coach IML');
-                          setConvocationData({
-                            appointmentId: app.id,
-                            recipientName: `${app.beneficiary.firstName} ${app.beneficiary.lastName}`,
-                            recipientEmail: app.beneficiary.email,
-                            recipientPhone: app.beneficiary.phone,
-                            projectName: app.beneficiary?.projects?.[0]?.name,
-                            datetime: app.datetime,
-                            durationMinutes: app.duration || 60,
-                            sessionType: isVideo ? 'video' : 'in_person',
-                            locationOrUrl: app.location || 'Siège IML Digit, Libreville',
-                            coachName: coachFullName,
-                            coachEmail: app.user?.email,
-                            createdAt: app.createdAt,
-                            initialTab: 'convocation',
-                          });
-                          setIsConvocationOpen(true);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
-                        title="Visualiser et imprimer la lettre de convocation officielle"
-                      >
-                        <FileText className="size-3.5 text-slate-500" />
-                        <span>Convocation</span>
-                      </button>
-                    )}
-
-                    {/* Actions de planification (réservées au chargé de projet / agent) */}
-                    {!isCoach && (
-                      <>
-                        {app.status === 'PLANIFIE' && (
-                          <button onClick={() => statusMut.mutate({ id: app.id, status: 'ANNULE' })} className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-600 hover:bg-slate-100 rounded-md text-xs transition-colors cursor-pointer">
-                            <XCircle className="size-3.5" /> Annuler
-                          </button>
-                        )}
-
-                        {/* Bouton Modifier */}
-                        <button 
-                          type="button"
-                          onClick={() => handleOpenEditAppt(app)}
-                          className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-medium transition-colors cursor-pointer shadow-2xs"
-                          title="Modifier les détails du rendez-vous"
-                        >
-                          <Pencil className="size-3 text-slate-600" />
-                          <span className="hidden sm:inline">Modifier</span>
-                        </button>
-
-                        {/* Bouton Supprimer */}
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Confirmez-vous la suppression définitive de ce rendez-vous ?`)) {
-                              deleteMut.mutate(app.id);
-                            }
-                          }}
-                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/70 rounded-md text-xs transition-colors cursor-pointer shadow-2xs"
-                          title="Supprimer définitivement ce rendez-vous"
-                        >
-                          <Trash2 className="size-3.5 text-rose-600" />
-                        </button>
-                      </>
-                    )}
+                    {/* Statut si séance réalisée */}
                     {app.session && (
-                      <div className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-md flex items-center gap-1.5">
+                      <div className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0">
                         <CheckCircle2 className="size-3.5 text-emerald-600" />
                         <span>Séance réalisée ({app.session.durationHours}h)</span>
+                      </div>
+                    )}
+
+                    {/* Menu d'actions unique compact (Convocation, Modifier, Annuler, Supprimer) */}
+                    {!isCoach && (
+                      <div className="relative" data-appointment-menu>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(openMenuId === app.id ? null : app.id);
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+                            openMenuId === app.id 
+                              ? 'bg-slate-100 border-slate-300 text-slate-900 ring-2 ring-[#FF5B37]/20' 
+                              : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                          }`}
+                          title="Actions et options pour ce rendez-vous"
+                        >
+                          <MoreVertical className="size-3.5 text-slate-500" />
+                          <span>Actions</span>
+                          <ChevronDown className={`size-3 text-slate-400 transition-transform ${openMenuId === app.id ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {openMenuId === app.id && (
+                          <div className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                            {/* Action 1 : Convocation Officielle */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                const isVideo = app.location && (app.location.includes('http') || app.location.toLowerCase().includes('visio'));
+                                const coachFullName = app.user ? `${app.user.firstName} ${app.user.lastName}` : (user ? `${user.firstName} ${user.lastName}` : 'Coach IML');
+                                setConvocationData({
+                                  appointmentId: app.id,
+                                  recipientName: `${app.beneficiary.firstName} ${app.beneficiary.lastName}`,
+                                  recipientEmail: app.beneficiary.email,
+                                  recipientPhone: app.beneficiary.phone,
+                                  projectName: app.beneficiary?.projects?.[0]?.name,
+                                  datetime: app.datetime,
+                                  durationMinutes: app.duration || 60,
+                                  sessionType: isVideo ? 'video' : 'in_person',
+                                  locationOrUrl: app.location || 'Siège IML Digit, Libreville',
+                                  coachName: coachFullName,
+                                  coachEmail: app.user?.email,
+                                  createdAt: app.createdAt,
+                                  initialTab: 'convocation',
+                                });
+                                setIsConvocationOpen(true);
+                              }}
+                              className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <FileText className="size-4 text-slate-500 shrink-0" />
+                              <span>Lettre de convocation</span>
+                            </button>
+
+                            {/* Action 2 : Modifier */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                handleOpenEditAppt(app);
+                              }}
+                              className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <Pencil className="size-4 text-slate-500 shrink-0" />
+                              <span>Modifier la date / heure</span>
+                            </button>
+
+                            {/* Séparateur pour actions critiques */}
+                            <div className="my-1 border-t border-slate-100" />
+
+                            {/* Action 3 : Annuler */}
+                            {app.status === 'PLANIFIE' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  statusMut.mutate({ id: app.id, status: 'ANNULE' });
+                                }}
+                                className="w-full text-left px-3.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                              >
+                                <XCircle className="size-4 text-amber-600 shrink-0" />
+                                <span>Annuler le rendez-vous</span>
+                              </button>
+                            )}
+
+                            {/* Action 4 : Supprimer */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                if (window.confirm('Confirmez-vous la suppression définitive de ce rendez-vous ?')) {
+                                  deleteMut.mutate(app.id);
+                                }
+                              }}
+                              className="w-full text-left px-3.5 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="size-4 text-rose-500 shrink-0" />
+                              <span>Supprimer définitivement</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

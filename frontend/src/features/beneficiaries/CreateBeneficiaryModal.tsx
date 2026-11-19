@@ -12,10 +12,8 @@ import {
   Building, 
   Compass, 
   Camera, 
-  FileText, 
-  Upload, 
   Trash2, 
-  Paperclip
+  Sparkles
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { TYPE_LABELS, STATUS_LABELS, PRIORITY_LABELS, STAGE_LABELS, SIZE_LABELS, type Options } from './types';
@@ -32,6 +30,7 @@ const schema = z.object({
     name: z.string().trim().min(1, 'Nom du projet requis').max(200),
     description: z.string().optional(),
     sectorId: z.string().optional(),
+    customSectorName: z.string().optional(),
     projectType: z.string().optional(),
     stage: z.enum(['IDEE', 'PROTOTYPE', 'LANCEMENT', 'CROISSANCE', 'MATURITE']),
     companyCreatedAt: z.string().optional(),
@@ -58,13 +57,6 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-interface AttachedDocumentItem {
-  id: string;
-  file: File;
-  title: string;
-  category: 'IDENTITE' | 'BUSINESS_PLAN' | 'JURIDIQUE' | 'FINANCIER' | 'AUTRE';
-}
-
 interface CreateBeneficiaryModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -77,7 +69,6 @@ const lbl = "block text-[11px] font-medium text-slate-600";
 export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: CreateBeneficiaryModalProps) {
   const queryClient = useQueryClient();
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
 
   const options = useQuery({ 
     queryKey: ['beneficiary-options'], 
@@ -92,9 +83,6 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
   // Gestion de la Photo du bénéficiaire (prise ou téléversée en présentiel)
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-
-  // Gestion des Documents physiques déposés en présentiel
-  const [attachedDocs, setAttachedDocs] = useState<AttachedDocumentItem[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
   const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<FormData>({
@@ -123,40 +111,6 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
     setPhotoFile(null);
     setPhotoPreview(null);
     if (photoInputRef.current) photoInputRef.current.value = '';
-  };
-
-  const handleAddDocuments = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const newDocs: AttachedDocumentItem[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      const lower = f.name.toLowerCase();
-      let cat: 'IDENTITE' | 'BUSINESS_PLAN' | 'JURIDIQUE' | 'FINANCIER' | 'AUTRE' = 'AUTRE';
-      if (lower.includes('cni') || lower.includes('passeport') || lower.includes('identite')) cat = 'IDENTITE';
-      else if (lower.includes('bp') || lower.includes('plan') || lower.includes('business')) cat = 'BUSINESS_PLAN';
-      else if (lower.includes('statut') || lower.includes('rccm') || lower.includes('nif') || lower.includes('kbis')) cat = 'JURIDIQUE';
-      else if (lower.includes('devis') || lower.includes('bilan') || lower.includes('financier') || lower.includes('banque')) cat = 'FINANCIER';
-
-      newDocs.push({
-        id: `doc-${Date.now()}-${i}`,
-        file: f,
-        title: f.name,
-        category: cat,
-      });
-    }
-
-    setAttachedDocs(prev => [...prev, ...newDocs]);
-    if (docInputRef.current) docInputRef.current.value = '';
-  };
-
-  const handleRemoveDoc = (id: string) => {
-    setAttachedDocs(prev => prev.filter(d => d.id !== id));
-  };
-
-  const handleUpdateDocCategory = (id: string, category: any) => {
-    setAttachedDocs(prev => prev.map(d => d.id === id ? { ...d, category } : d));
   };
 
   const createMut = useMutation({
@@ -192,32 +146,16 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
               body: photoData,
             }).catch(console.warn);
           }
-
-          // 3. Téléversement de tous les documents physiques joints
-          for (const doc of attachedDocs) {
-            const docData = new FormData();
-            docData.append('file', doc.file);
-            docData.append('title', doc.title || doc.file.name);
-            docData.append('category', doc.category);
-            docData.append('ownerType', 'BENEFICIARY');
-            docData.append('ownerId', bId);
-
-            await fetch('/api/v1/documents', {
-              method: 'POST',
-              headers: { 'X-Requested-With': 'iml-digital' },
-              body: docData,
-            }).catch(console.warn);
-          }
         } finally {
           setIsUploadingFiles(false);
         }
       }
 
       queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiary-options'] });
       reset();
       setPhotoFile(null);
       setPhotoPreview(null);
-      setAttachedDocs([]);
       setApiError(null);
 
       if (onSuccess) onSuccess();
@@ -235,6 +173,9 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
 
   const type = watch('type');
   const isEnterprise = type === 'ENTREPRISE';
+  const watchedSectorId = watch('project.sectorId');
+  const selectedSector = options.data?.sectors.find(s => s.id === watchedSectorId);
+  const isOtherSector = watchedSectorId === '__OTHER__' || (selectedSector && selectedSector.name.toLowerCase() === 'autre');
 
   if (!isOpen) return null;
 
@@ -358,12 +299,12 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className={lbl}>Prénom <span className="text-red-500">*</span></label>
-                    <input {...register('firstName')} placeholder="Ex : Jean" className={inp} />
+                    <input {...register('firstName')} placeholder="Prénom" className={inp} />
                     {errors.firstName && <p className="mt-0.5 text-[10px] text-red-600">{errors.firstName.message}</p>}
                   </div>
                   <div>
                     <label className={lbl}>Nom <span className="text-red-500">*</span></label>
-                    <input {...register('lastName')} placeholder="Ex : Dupont" className={inp} />
+                    <input {...register('lastName')} placeholder="Nom" className={inp} />
                     {errors.lastName && <p className="mt-0.5 text-[10px] text-red-600">{errors.lastName.message}</p>}
                   </div>
                 </div>
@@ -425,6 +366,9 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
                       {options.data?.sectors.map(s => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
+                      {!options.data?.sectors.some(s => s.name.toLowerCase() === 'autre') && (
+                        <option value="__OTHER__">Autre (préciser)...</option>
+                      )}
                     </select>
                   </div>
                   <div>
@@ -436,6 +380,25 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
                     </select>
                   </div>
                 </div>
+
+                {/* Saisie d'un secteur personnalisé si absent de la liste ou sélection 'Autre' */}
+                {isOtherSector && (
+                  <div className="p-2.5 bg-teal-50/80 border border-teal-200/90 rounded-xl space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <label className="block text-[11px] font-bold text-teal-900 flex items-center gap-1.5">
+                      <Sparkles className="size-3 text-[#23c3b1]" />
+                      Préciser le secteur d'activité <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      {...register('project.customSectorName')}
+                      placeholder="Ex : Intelligence Artificielle, Aquaculture, Fintech..."
+                      className="w-full text-xs bg-white border border-teal-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium placeholder:text-slate-400 text-slate-800"
+                      autoFocus
+                    />
+                    <p className="text-[10px] text-teal-700">
+                      Ce secteur sera automatiquement enregistré dans le référentiel de l'incubateur.
+                    </p>
+                  </div>
+                )}
 
                 {/* Description */}
                 <div>
@@ -502,20 +465,20 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
 
                 {/* Référent assigné */}
                 <div>
-                  <label className={lbl}>Conseiller référent (Coach, Agent, Direction)</label>
+                  <label className={lbl}>Référent assigné (Chargé de dossier ou Coach)</label>
                   <select {...register('assignedAgentId')} className={inp}>
                     <option value="">Non assigné (Attribution ultérieure)</option>
-                    {options.data?.agents?.filter(a => a.role?.code === 'COACH').length ? (
-                      <optgroup label="🎯 Coachs & Mentors">
-                        {options.data.agents.filter(a => a.role?.code === 'COACH').map(a => (
-                          <option key={a.id} value={a.id}>Coach : {a.firstName} {a.lastName}</option>
+                    {options.data?.agents?.filter(a => a.role?.code === 'AGENT' || !a.role?.code).length ? (
+                      <optgroup label="📋 Chargés de dossier IML (Suivi & Coordination)">
+                        {options.data.agents.filter(a => a.role?.code === 'AGENT' || !a.role?.code).map(a => (
+                          <option key={a.id} value={a.id}>Chargé de dossier : {a.firstName} {a.lastName}</option>
                         ))}
                       </optgroup>
                     ) : null}
-                    {options.data?.agents?.filter(a => a.role?.code === 'AGENT' || !a.role?.code).length ? (
-                      <optgroup label="📋 Agents IML (Coordination)">
-                        {options.data.agents.filter(a => a.role?.code === 'AGENT' || !a.role?.code).map(a => (
-                          <option key={a.id} value={a.id}>Agent : {a.firstName} {a.lastName}</option>
+                    {options.data?.agents?.filter(a => a.role?.code === 'COACH').length ? (
+                      <optgroup label="🎯 Coachs & Mentors (Expertise pratique)">
+                        {options.data.agents.filter(a => a.role?.code === 'COACH').map(a => (
+                          <option key={a.id} value={a.id}>Coach : {a.firstName} {a.lastName}</option>
                         ))}
                       </optgroup>
                     ) : null}
@@ -536,103 +499,6 @@ export default function CreateBeneficiaryModal({ isOpen, onClose, onSuccess }: C
                 </div>
               </div>
 
-            </div>
-
-            {/* -------------------------------------------------------------------
-                SECTION 4 : DOCUMENTS PHYSIQUES DÉPOSÉS EN PRÉSENTIEL
-               ------------------------------------------------------------------- */}
-            <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-slate-50 to-emerald-50/20 border border-slate-200/90 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="size-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <FileText className="size-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span>4. Documents & Pièces justificatives apportées en présentiel</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                        {attachedDocs.length} pièce{attachedDocs.length > 1 ? 's' : ''}
-                      </span>
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Numérisation ou fichiers apportés par le porteur : CNI, Statuts, Business Plan papier, Devis...
-                    </p>
-                  </div>
-                </div>
-
-                <input 
-                  type="file" 
-                  ref={docInputRef}
-                  multiple
-                  onChange={handleAddDocuments}
-                  className="hidden" 
-                />
-
-                <button
-                  type="button"
-                  onClick={() => docInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer self-start sm:self-auto"
-                >
-                  <Upload className="size-3.5 text-[#23c3b1]" />
-                  <span>Joindre des documents</span>
-                </button>
-              </div>
-
-              {/* Liste des documents ajoutés */}
-              {attachedDocs.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {attachedDocs.map((doc) => (
-                    <div 
-                      key={doc.id}
-                      className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center justify-between gap-2 shadow-2xs text-xs"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Paperclip className="size-3.5 text-slate-400 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <span className="font-semibold text-slate-800 truncate block text-[11px]" title={doc.title}>
-                            {doc.title}
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            {(doc.file.size / 1024).toFixed(0)} Ko
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <select
-                          value={doc.category}
-                          onChange={(e) => handleUpdateDocCategory(doc.id, e.target.value)}
-                          className="text-[10px] font-semibold py-1 px-2 rounded border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-[#23c3b1]"
-                        >
-                          <option value="IDENTITE">Pièce d'identité (CNI / Passeport)</option>
-                          <option value="BUSINESS_PLAN">Business Plan / Prévisionnel</option>
-                          <option value="JURIDIQUE">Statuts / RCCM / NIF</option>
-                          <option value="FINANCIER">Devis / Relevé bancaire</option>
-                          <option value="AUTRE">Autre pièce jointe</option>
-                        </select>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveDoc(doc.id)}
-                          className="size-6 rounded text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition cursor-pointer"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div 
-                  onClick={() => docInputRef.current?.click()}
-                  className="py-3 px-4 border border-dashed border-slate-300 rounded-lg text-center cursor-pointer hover:bg-slate-100/50 transition bg-white/50"
-                >
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    Glissez-déposez ici ou <strong className="text-[#23c3b1] underline">cliquez pour sélectionner</strong> les fichiers scannés (CNI, statuts, projet papier...)
-                  </p>
-                </div>
-              )}
             </div>
 
           </form>

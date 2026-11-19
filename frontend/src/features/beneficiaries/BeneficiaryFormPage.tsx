@@ -31,6 +31,7 @@ const schema = z.object({
     name: z.string().trim().min(1, 'Nom du projet requis').max(200),
     description: z.string().optional(),
     sectorId: z.string().optional(),
+    customSectorName: z.string().optional(),
     projectType: z.string().optional(),
     stage: z.enum(['IDEE', 'PROTOTYPE', 'LANCEMENT', 'CROISSANCE', 'MATURITE']),
     companyCreatedAt: z.string().optional(),
@@ -223,6 +224,7 @@ export default function BeneficiaryFormPage() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiary-options'] });
       
       if (actionType === 'save_and_schedule' && bId) {
         navigate(`/beneficiaires/${bId}?tab=suivi`);
@@ -239,6 +241,9 @@ export default function BeneficiaryFormPage() {
 
   const type = watch('type');
   const isEnterprise = type === 'ENTREPRISE';
+  const watchedSectorId = watch('project.sectorId');
+  const selectedSector = options.data?.sectors.find(s => s.id === watchedSectorId);
+  const isOtherSector = watchedSectorId === '__OTHER__' || (selectedSector && selectedSector.name.toLowerCase() === 'autre');
 
   return (
     <div className="max-w-4xl mx-auto pb-12">
@@ -387,6 +392,9 @@ export default function BeneficiaryFormPage() {
               <select {...register('project.sectorId')} className={inp}>
                 <option value="">Sélectionner un secteur...</option>
                 {options.data?.sectors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {!options.data?.sectors.some(s => s.name.toLowerCase() === 'autre') && (
+                  <option value="__OTHER__">Autre (préciser)...</option>
+                )}
               </select>
             </div>
             <div>
@@ -395,6 +403,24 @@ export default function BeneficiaryFormPage() {
                 {Object.entries(STAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
+
+            {isOtherSector && (
+              <div className="md:col-span-2 p-3 bg-teal-50/80 border border-teal-200/90 rounded-xl space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                <label className="block text-xs font-bold text-teal-900 flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 text-[#23c3b1]" />
+                  Préciser le secteur d'activité <span className="text-red-500">*</span>
+                </label>
+                <input
+                  {...register('project.customSectorName')}
+                  placeholder="Ex : Intelligence Artificielle, Aquaculture, Fintech..."
+                  className="w-full text-sm bg-white border border-teal-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium placeholder:text-slate-400 text-slate-800"
+                  autoFocus
+                />
+                <p className="text-xs text-teal-700">
+                  Ce secteur sera automatiquement enregistré dans le référentiel de l'incubateur.
+                </p>
+              </div>
+            )}
             
             {isEnterprise && (
               <>

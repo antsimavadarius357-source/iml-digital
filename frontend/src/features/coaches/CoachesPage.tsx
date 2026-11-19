@@ -220,7 +220,6 @@ export default function CoachesPage() {
 
     setCoaches(prev => [newCoach, ...prev]);
 
-    // Tentative d'enregistrement API backend
     try {
       await api('/users', {
         method: 'POST',
@@ -229,21 +228,21 @@ export default function CoachesPage() {
           lastName: newLastName.trim(),
           email: newEmail.trim().toLowerCase(),
           role: 'COACH',
-          temporaryPassword: newTempPassword || 'Password123!'
+          temporaryPassword: newTempPassword || 'ImlDigit2026!'
         }
       });
       queryClient.invalidateQueries({ queryKey: ['team-users-list'] });
       queryClient.invalidateQueries({ queryKey: ['beneficiary-options'] });
-    } catch {
-      // Maintenu dans la persistance locale
+      setToastMessage(`✓ Coach enregistré avec succès : ${fullName}`);
+      setNewFirstName('');
+      setNewLastName('');
+      setNewEmail('');
+      setNewTempPassword('ImlDigit2026!');
+      setIsAddCoachOpen(false);
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors de l'enregistrement du coach sur le serveur.");
+      return;
     }
-
-    setToastMessage(`✓ Nouveau coach enregistré avec succès : ${fullName}`);
-    setNewFirstName('');
-    setNewLastName('');
-    setNewEmail('');
-    setNewTempPassword('Password123!');
-    setIsAddCoachOpen(false);
   };
 
   // Ouverture modale modification
@@ -714,7 +713,7 @@ export default function CoachesPage() {
                     required
                     value={newFirstName}
                     onChange={(e) => setNewFirstName(e.target.value)}
-                    placeholder="Ex: Jean"
+                    placeholder="Prénom"
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-[#23c3b1]"
                   />
                 </div>
@@ -727,7 +726,7 @@ export default function CoachesPage() {
                     required
                     value={newLastName}
                     onChange={(e) => setNewLastName(e.target.value)}
-                    placeholder="Ex: Dupont"
+                    placeholder="Nom"
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-[#23c3b1]"
                   />
                 </div>
@@ -764,14 +763,19 @@ export default function CoachesPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Mot de passe temporaire
+                  Mot de passe temporaire <span className="text-[#f06553]">*</span>
                 </label>
                 <input
                   type="text"
+                  required
                   value={newTempPassword}
                   onChange={(e) => setNewTempPassword(e.target.value)}
+                  placeholder="Ex: ImlDigit2026!"
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono bg-slate-50 focus:outline-none focus:border-[#23c3b1]"
                 />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Requis pour la 1ère connexion : minimum 12 caractères (majuscule, minuscule, chiffre).
+                </p>
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">

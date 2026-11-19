@@ -17,6 +17,8 @@ import { settingsRouter } from './modules/settings/settings.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
 import { healthRouter } from './modules/health/health.routes';
 import { usersRouter } from './modules/users/users.routes';
+import { roomsRouter } from './modules/rooms/rooms.routes';
+import { contactsRouter } from './modules/contacts/contacts.routes';
 
 export function createApp(): express.Express {
   const app = express();
@@ -43,6 +45,8 @@ export function createApp(): express.Express {
   v1.use('/documents', documentsRouter);
   v1.use('/audit', auditRouter);
   v1.use('/settings', settingsRouter);
+  v1.use('/rooms', roomsRouter);
+  v1.use('/contacts', contactsRouter);
   app.use('/api/v1', v1);
 
   // Route d'accueil informative pour éviter une erreur 404 si l'URL est visitée directement

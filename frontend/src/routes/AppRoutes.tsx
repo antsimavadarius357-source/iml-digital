@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react';
-import { Navigate, Route, Routes, Link } from 'react-router-dom';
+import { Navigate, Route, Routes, Link, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import { useAuth } from '../features/auth/AuthContext';
@@ -70,9 +70,15 @@ function RequirePermission({ permission, children }: { permission: string; child
   return <>{children}</>;
 }
 
+function DashboardRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/tableau-de-bord${location.search}`} replace />;
+}
+
 export default function AppRoutes() {
   return (
     <Routes>
+      <Route path="/dashboard" element={<DashboardRedirect />} />
       <Route element={<PublicLayout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/candidater" element={<PublicApplicationPage />} />
@@ -97,6 +103,7 @@ export default function AppRoutes() {
       
       <Route element={<Protected />}>
         <Route path="tableau-de-bord" element={<DashboardPage />} />
+        <Route path="dashboard" element={<DashboardRedirect />} />
         
         {/* Cockpit Direction & Statistiques Stratégiques */}
         <Route path="direction" element={<DirectorDashboardPage />} />

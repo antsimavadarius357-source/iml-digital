@@ -422,7 +422,7 @@ export default function ConnectExpertModal({
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
                     required={expertMode === 'CUSTOM'}
-                    placeholder="Ex: Patrick Nguema ou Marie-Claire Mba"
+                    placeholder="Nom et prénom de l'expert"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:border-[#23c3b1]"
                   />
                 </div>

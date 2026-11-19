@@ -28,7 +28,7 @@ import {
   Building2
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAuth } from '../../features/auth/AuthContext';
 import AppBreadcrumb, { BreadcrumbProvider } from './AppBreadcrumb';
@@ -40,7 +40,21 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Écoute des soumissions de formulaires publics (inter-onglets ou intra-navigateur)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'iml_last_submission') {
+        qc.invalidateQueries({ queryKey: ['pending-applications-alert'] });
+        qc.invalidateQueries({ queryKey: ['pending-room-bookings-alert'] });
+        qc.invalidateQueries({ queryKey: ['contact-messages-alert'] });
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [qc]);
 
   // Modales et actions des boutons flottants globaux (WhatsApp, E-mail, Support)
   const [isQuickWhatsAppOpen, setIsQuickWhatsAppOpen] = useState(false);
@@ -240,15 +254,15 @@ export default function AppLayout() {
       api<{ items: any[] } | any[]>('/rooms/bookings?status=EN_ATTENTE')
         .then((res) => (Array.isArray(res) ? res : res?.items || []))
         .catch(() => []),
-    refetchInterval: 10_000,
+    refetchInterval: 8_000,
     enabled: !isCoach,
   });
 
-  // Récupérer les nouvelles candidatures pour notifier l'équipe agent/direction
+  // Récupérer les nouvelles candidatures (accessible à l'Agent et à la Direction)
   const { data: pendingAppsData } = useQuery({
     queryKey: ['pending-applications-alert'],
     queryFn: () => api<{ items: any[]; total: number }>('/applications?pageSize=30').catch(() => ({ items: [], total: 0 })),
-    refetchInterval: 10_000,
+    refetchInterval: 8_000,
     enabled: !isCoach,
   });
 
@@ -264,7 +278,7 @@ export default function AppLayout() {
   const { data: recentNotesData } = useQuery({
     queryKey: ['recent-notes-alert'],
     queryFn: () => api<{ items: any[] }>('/beneficiaries/recent-notes').then(r => r.items || []).catch(() => []),
-    refetchInterval: 10_000,
+    refetchInterval: 8_000,
     enabled: !isCoach,
   });
 
@@ -272,7 +286,7 @@ export default function AppLayout() {
   const { data: coachApptsData } = useQuery({
     queryKey: ['coach-notifications-appts', user?.id],
     queryFn: () => api<{ items: any[] }>('/appointments').then(r => r.items || []).catch(() => []),
-    refetchInterval: 10_000,
+    refetchInterval: 8_000,
     enabled: isCoach,
   });
 
@@ -284,9 +298,16 @@ export default function AppLayout() {
     : (pendingRoomBookingsRes as any)?.items || [];
   const unreadRoomBookings = pendingRoomBookings.filter((b: any) => !readRoomAlertIds.includes(b.id));
 
-  // Candidatures éligibles à l'alerte : celles soumises ou reçues aujourd'hui
+  // Filtrer les anciens dossiers de démonstration (seqNumber <= 33 ou créés avant le 12 nov 2026) pour ne pas encombrer les alertes
+  const isSeedApp = (a: any) => {
+    if (a.seqNumber && a.seqNumber <= 33) return true;
+    const d = new Date(a.createdAt || a.submittedAt);
+    return !isNaN(d.getTime()) && d.getTime() < new Date('2026-11-12T00:00:00Z').getTime();
+  };
+
+  // Candidatures éligibles à l'alerte : réelles nouvelles candidatures reçues
   const pendingApps = (pendingAppsData?.items || []).filter((a: any) => 
-    a.status === 'SOUMISE' || isDateToday(a.submittedAt || a.createdAt)
+    !isSeedApp(a) && (a.status === 'SOUMISE' || isDateToday(a.submittedAt || a.createdAt))
   );
   const unreadApps = pendingApps.filter((a: any) => !readAlertIds.includes(a.id));
 
@@ -307,7 +328,7 @@ export default function AppLayout() {
   const { data: contactsRes } = useQuery({
     queryKey: ['contact-messages-alert'],
     queryFn: () => api<{ items: any[]; total: number; unreadCount: number }>('/contacts').catch(() => ({ items: [], total: 0, unreadCount: 0 })),
-    refetchInterval: 10_000,
+    refetchInterval: 8_000,
     enabled: !isCoach,
   });
 
@@ -892,7 +913,9 @@ export default function AppLayout() {
                         <div className="p-6 text-center text-slate-400">
                           <CheckCircle2 className="size-7 mx-auto mb-2 text-[#23c3b1]" />
                           <p className="font-semibold text-slate-700">Toutes les alertes ont été consultées</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Aucune demande de contact, réservation de salle, compte-rendu ni candidature en attente</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Aucune nouvelle demande de candidature, réservation de salle, compte-rendu ni contact en attente
+                          </p>
                         </div>
                       ) : (
                         <div className="divide-y divide-slate-100">
@@ -939,7 +962,7 @@ export default function AppLayout() {
 
                                 <div className="flex items-center gap-2 pt-1">
                                   <Link
-                                    to={`/contacts?tab=messages&contactId=${c.id}`}
+                                    to="/contacts"
                                     onClick={() => {
                                       markContactAlertAsRead(c.id);
                                       setIsNotificationsOpen(false);
@@ -953,7 +976,7 @@ export default function AppLayout() {
                               </div>
                             );
                           })}
-                          {/* 1. CANDIDATURES REÇUES AUJOURD'HUI (PRIORITÉ ABSOLUE TOUT EN HAUT) */}
+                          {/* 1. CANDIDATURES REÇUES AUJOURD'HUI */}
                           {todayApps.map((a: any) => {
                             const applicant = a.applicantData || {};
                             const project = a.projectData || {};
@@ -1052,9 +1075,16 @@ export default function AppLayout() {
                                 </div>
 
                                 <div>
-                                  <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                                  <Link
+                                    to={`/tableau-de-bord?tab=salle&bookingId=${b.id}`}
+                                    onClick={() => {
+                                      markRoomAlertAsRead(b.id);
+                                      setIsNotificationsOpen(false);
+                                    }}
+                                    className="font-bold text-slate-900 hover:text-[#FF5B37] text-xs sm:text-sm block transition-colors cursor-pointer"
+                                  >
                                     {b.organizerName} {b.organization ? <span className="text-slate-500 font-normal">({b.organization})</span> : null}
-                                  </div>
+                                  </Link>
                                   <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
                                     <Calendar className="size-3 text-[#FF5B37]" />
                                     <span>Créneau : <strong>{date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} à {timeStr}</strong> ({b.attendees} participants)</span>
@@ -1063,7 +1093,7 @@ export default function AppLayout() {
 
                                 <div className="flex items-center gap-2 pt-1">
                                   <Link
-                                    to={`/dashboard?tab=salle&bookingId=${b.id}`}
+                                    to={`/tableau-de-bord?tab=salle&bookingId=${b.id}`}
                                     onClick={() => {
                                       markRoomAlertAsRead(b.id);
                                       setIsNotificationsOpen(false);
@@ -1071,7 +1101,7 @@ export default function AppLayout() {
                                     className="px-2.5 py-1 rounded bg-[#FF5B37] hover:bg-[#e94d29] text-white text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                                   >
                                     <Building2 className="size-3" />
-                                    <span>Traiter la réservation (Direction)</span>
+                                    <span>Traiter la réservation</span>
                                   </Link>
                                 </div>
                               </div>
@@ -1139,14 +1169,14 @@ export default function AppLayout() {
                             );
                           })}
 
-                          {/* 4. AUTRES CANDIDATURES NON LUES (ANTÉRIEURES) */}
+                          {/* 4. AUTRES CANDIDATURES EN ATTENTE */}
                           {olderApps.map((a: any) => {
                             const applicant = a.applicantData || {};
                             const project = a.projectData || {};
                             const name = `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() || 'Porteur de projet';
                             const company = applicant.companyName || project.title || 'Projet sans nom';
                             const code = `IML-2026-${String(a.seqNumber).padStart(4, '0')}`;
-                            const formattedDate = formatNotificationDate(a.submittedAt);
+                            const formattedDate = formatNotificationDate(a.submittedAt || a.createdAt);
 
                             return (
                               <div key={a.id} className="p-3 hover:bg-slate-50 transition-colors space-y-1.5 group relative">
@@ -1214,13 +1244,23 @@ export default function AppLayout() {
                         Consulter mon planning complet de séances →
                       </Link>
                     ) : (
-                      <Link
-                        to="/candidatures"
-                        onClick={() => setIsNotificationsOpen(false)}
-                        className="text-[11px] font-semibold text-[#23c3b1] hover:underline"
-                      >
-                        Voir toutes les candidatures reçues →
-                      </Link>
+                      <div className="flex items-center justify-center gap-3 text-[11px]">
+                        <Link
+                          to="/beneficiaires"
+                          onClick={() => setIsNotificationsOpen(false)}
+                          className="font-semibold text-[#23c3b1] hover:underline"
+                        >
+                          Répertoire des bénéficiaires →
+                        </Link>
+                        <span className="text-slate-300">•</span>
+                        <Link
+                          to="/candidatures"
+                          onClick={() => setIsNotificationsOpen(false)}
+                          className="font-semibold text-[#102a43] hover:underline"
+                        >
+                          Toutes les candidatures →
+                        </Link>
+                      </div>
                     )}
                   </div>
                 </div>

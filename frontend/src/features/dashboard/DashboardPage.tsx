@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   User, 
@@ -126,15 +126,34 @@ export default function DashboardPage() {
     ? 'coach'
     : 'agent';
 
+  const [searchParams] = useSearchParams();
+  const bookingIdParam = searchParams.get('bookingId');
+
   // Récupération des réservations de salle & masterclasses
   const { data: roomBookingsRes, refetch: refetchRoomBookings } = useQuery({
     queryKey: ['room-bookings'],
     queryFn: () => api<{ items: any[] }>('/rooms/bookings').catch(() => ({ items: [] })),
-    enabled: activeVue === 'agent',
+    enabled: activeVue === 'agent' || !!bookingIdParam,
   });
   const roomBookings = roomBookingsRes?.items || [];
   const pendingRoomBookings = useMemo(() => roomBookings.filter((b: any) => b.status === 'EN_ATTENTE'), [roomBookings]);
   const [selectedRoomBooking, setSelectedRoomBooking] = useState<RoomBookingItem | null>(null);
+
+  // Auto-sélection et affichage du modal si bookingId est dans l'URL (ex: clic notification)
+  useEffect(() => {
+    if (bookingIdParam && roomBookings.length > 0) {
+      const match = roomBookings.find((b: any) => b.id === bookingIdParam);
+      if (match) {
+        setSelectedRoomBooking(match);
+        setTimeout(() => {
+          const el = document.getElementById('reservations-salle');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 150);
+      }
+    }
+  }, [bookingIdParam, roomBookings]);
 
   // Récupération des demandes de contact reçues depuis le formulaire public
   const qcDashboard = useQueryClient();
@@ -268,26 +287,38 @@ export default function DashboardPage() {
     if (!assignmentModalTarget) return;
     setIsSavingAssignment(true);
     try {
+      const assignedAgentId = selectedAgentId && selectedAgentId.trim() ? selectedAgentId.trim() : null;
+      const coachId = selectedCoachId && selectedCoachId.trim() ? selectedCoachId.trim() : null;
+
       await api(`/beneficiaries/${assignmentModalTarget.id}`, {
         method: 'PATCH',
         body: {
-          assignedAgentId: selectedAgentId || null,
-          coachId: selectedCoachId || null,
+          assignedAgentId,
+          coachId,
         },
       });
 
-      if (sendBriefingEmail && selectedCoachId) {
-        await api(`/beneficiaries/${assignmentModalTarget.id}/notify-coach`, {
-          method: 'POST',
-          body: { coachId: selectedCoachId },
-        }).catch(() => {});
+      let briefingSent = false;
+      if (sendBriefingEmail && coachId) {
+        try {
+          await api(`/beneficiaries/${assignmentModalTarget.id}/notify-coach`, {
+            method: 'POST',
+            body: { coachId },
+          });
+          briefingSent = true;
+        } catch {
+          // Si le service mail échoue, l'affectation reste enregistrée
+        }
       }
 
-      setDashboardToast(`Affectation enregistrée ${sendBriefingEmail && selectedCoachId ? 'et briefing e-mail transmis au coach ' : ''}avec succès.`);
+      setDashboardToast(
+        `Affectation enregistrée${briefingSent ? ' et briefing e-mail transmis au coach' : ''} avec succès.`
+      );
       setAssignmentModalTarget(null);
       void refetchBeneficiaries();
-    } catch {
-      setDashboardToast(`Erreur lors de la mise à jour de l'affectation.`);
+    } catch (err: any) {
+      const errMsg = err?.message || err?.error?.message || "Erreur lors de la mise à jour de l'affectation.";
+      setDashboardToast(errMsg);
     } finally {
       setIsSavingAssignment(false);
     }
@@ -1038,7 +1069,7 @@ export default function DashboardPage() {
 
               <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
                 <Link
-                  to="/contacts?tab=messages"
+                  to="/contacts"
                   onClick={() => {
                     const ids = unreadContactMessages.map((m: any) => m.id);
                     if (ids.length > 0) dismissAndMarkAllAsRead(ids);
@@ -1161,7 +1192,7 @@ export default function DashboardPage() {
             </button>
 
 
-            {/* 6. Suivi des parcours & jalons bénéficiaires */}
+            {/* 6. Suivi des dossiers bénéficiaires */}
             <button 
               type="button"
               onClick={() => navigate('/beneficiaires')}
@@ -1171,8 +1202,8 @@ export default function DashboardPage() {
                 <CheckCircle2 className="size-5 stroke-[1.75] transition-transform duration-200 ease-out group-hover:scale-110 group-hover:-rotate-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-[13px] font-bold text-slate-800 group-hover:text-[#178578] leading-tight transition-colors duration-200">Suivi des jalons</div>
-                <div className="text-[11px] text-slate-500 group-hover:text-slate-700 font-normal leading-tight mt-0.5 transition-colors duration-200">Dossiers bénéficiaires</div>
+                <div className="text-[13px] font-bold text-slate-800 group-hover:text-[#178578] leading-tight transition-colors duration-200">Suivi des dossiers</div>
+                <div className="text-[11px] text-slate-500 group-hover:text-slate-700 font-normal leading-tight mt-0.5 transition-colors duration-200">Bénéficiaires & PME</div>
               </div>
             </button>
 
@@ -1418,7 +1449,7 @@ export default function DashboardPage() {
             </div>
 
               {/* Section 5 : Demandes de Salle & Masterclasses (Indépendantes de l'incubation) */}
-              <div className="mt-6 pt-5 border-t border-slate-200">
+              <div id="reservations-salle" className="mt-6 pt-5 border-t border-slate-200">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="size-7 rounded-lg bg-orange-50 text-[#FF5B37] flex items-center justify-center">

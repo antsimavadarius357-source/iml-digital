@@ -268,7 +268,7 @@ export default function QuickWhatsAppModal({
                 <label className="text-[11px] text-slate-500 font-medium">Nom du destinataire</label>
                 <input
                   type="text"
-                  placeholder="Ex: Marine LOUPE"
+                  placeholder="Nom du destinataire"
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
                   className="w-full px-3 py-1.5 mt-0.5 rounded-lg border border-slate-200 text-xs focus:ring-1 focus:ring-emerald-500"

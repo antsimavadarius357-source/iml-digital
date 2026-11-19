@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Sparkles } from 'lucide-react';
 import { TYPE_LABELS, STATUS_LABELS, PRIORITY_LABELS, STAGE_LABELS, SIZE_LABELS, type Options, type BeneficiaryDetail } from './types';
 
 const schema = z.object({
@@ -19,6 +19,7 @@ const schema = z.object({
     name: z.string().trim().min(1, 'Nom du projet requis').max(200),
     description: z.string().optional(),
     sectorId: z.string().optional().nullable(),
+    customSectorName: z.string().optional().nullable(),
     projectType: z.string().optional(),
     stage: z.enum(['IDEE', 'PROTOTYPE', 'LANCEMENT', 'CROISSANCE', 'MATURITE']),
     companyCreatedAt: z.string().optional(),
@@ -32,15 +33,6 @@ const schema = z.object({
   initialObjectives: z.string().optional(),
   priority: z.enum(['BASSE', 'NORMALE', 'HAUTE', 'URGENTE']).default('NORMALE'),
   status: z.enum(['EN_ATTENTE', 'ACTIF', 'EN_PAUSE', 'TERMINE', 'ABANDONNE']).default('EN_ATTENTE'),
-}).superRefine((v, ctx) => {
-  if (v.type === 'ENTREPRISE') {
-    if (!v.project.companyCreatedAt) {
-      ctx.addIssue({ code: 'custom', path: ['project', 'companyCreatedAt'], message: "Date de création requise" });
-    }
-    if (!v.project.legalStatus) {
-      ctx.addIssue({ code: 'custom', path: ['project', 'legalStatus'], message: 'Statut juridique requis' });
-    }
-  }
 });
 
 type FormData = z.infer<typeof schema>;
@@ -83,23 +75,25 @@ export default function BeneficiaryEditPage() {
         initialObjectives: b.initialObjectives || '',
         priority: b.priority as any,
         status: b.status as any,
-        project: p ? {
-          name: p.name,
-          description: p.description || '',
-          sectorId: p.sector?.id || '',
-          projectType: p.projectType || '',
-          stage: p.stage as any,
-          companyCreatedAt: p.companyCreatedAt ? p.companyCreatedAt.substring(0, 10) : '',
-          legalStatus: p.legalStatus || '',
-          companySize: p.companySize as any || '',
-          priorityNeeds: p.priorityNeeds || '',
-        } : undefined as any,
+        project: {
+          name: p?.name || 'Nouveau projet',
+          description: p?.description || '',
+          sectorId: p?.sector?.id || '',
+          customSectorName: '',
+          projectType: p?.projectType || '',
+          stage: (p?.stage === 'COMMERCIAL' ? 'LANCEMENT' : (p?.stage || 'IDEE')) as any,
+          companyCreatedAt: p?.companyCreatedAt ? p.companyCreatedAt.substring(0, 10) : '',
+          legalStatus: p?.legalStatus || '',
+          companySize: (p?.companySize as any) || '',
+          priorityNeeds: p?.priorityNeeds || '',
+        },
       });
     }
   }, [b, p, reset]);
 
   const updateMut = useMutation({
     mutationFn: async (data: FormData) => {
+      setApiError('');
       const { project, ...beneficiaryData } = data;
       // Convert empty strings to null for backend expectations
       Object.keys(beneficiaryData).forEach((k) => {
@@ -110,21 +104,40 @@ export default function BeneficiaryEditPage() {
         Object.keys(project).forEach((k) => {
           if ((project as any)[k] === '') (project as any)[k] = null;
         });
+        if (project.sectorId === '__OTHER__') {
+          project.sectorId = null;
+        }
         await api(`/beneficiaries/${id}/projects/${p.id}`, { method: 'PATCH', body: project });
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
       queryClient.invalidateQueries({ queryKey: ['beneficiary', id] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiary-options'] });
       navigate(`/beneficiaires/${id}`);
     },
     onError: (err: any) => {
-      setApiError(err.message || 'Une erreur est survenue.');
+      setApiError(err.message || 'Une erreur est survenue lors de l\'enregistrement.');
     }
   });
 
+  const onInvalid = (formErrors: any) => {
+    console.warn('Erreurs de validation formulaire:', formErrors);
+    let msg = 'Veuillez vérifier les champs obligatoires du formulaire.';
+    if (formErrors.firstName) msg = formErrors.firstName.message;
+    else if (formErrors.lastName) msg = formErrors.lastName.message;
+    else if (formErrors.email) msg = formErrors.email.message;
+    else if (formErrors.project?.name) msg = formErrors.project.name.message;
+    else if (formErrors.project?.companyCreatedAt) msg = formErrors.project.companyCreatedAt.message;
+    else if (formErrors.project?.legalStatus) msg = formErrors.project.legalStatus.message;
+    setApiError(msg);
+  };
+
   const type = watch('type');
   const isEnterprise = type === 'ENTREPRISE';
+  const watchedSectorId = watch('project.sectorId');
+  const selectedSector = options.data?.sectors.find(s => s.id === watchedSectorId);
+  const isOtherSector = watchedSectorId === '__OTHER__' || (selectedSector && selectedSector.name.toLowerCase() === 'autre');
 
   if (isLoadingB) {
     return <div className="flex justify-center p-12"><Loader2 className="size-8 animate-spin text-iml-500" /></div>;
@@ -144,7 +157,7 @@ export default function BeneficiaryEditPage() {
 
       {apiError && <div className="mb-6 p-4 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{apiError}</div>}
 
-      <form onSubmit={handleSubmit((d) => updateMut.mutate(d as any))} className="space-y-8">
+      <form onSubmit={handleSubmit((d) => updateMut.mutate(d as any), onInvalid)} className="space-y-8">
         {/* SECTION A: Informations personnelles */}
         <section className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden">
           <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
@@ -203,6 +216,9 @@ export default function BeneficiaryEditPage() {
               <select {...register('project.sectorId')} className={sel}>
                 <option value="">Sélectionner un secteur...</option>
                 {options.data?.sectors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {!options.data?.sectors.some(s => s.name.toLowerCase() === 'autre') && (
+                  <option value="__OTHER__">Autre (préciser)...</option>
+                )}
               </select>
             </div>
             <div>
@@ -211,6 +227,24 @@ export default function BeneficiaryEditPage() {
                 {Object.entries(STAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
+
+            {isOtherSector && (
+              <div className="md:col-span-2 p-3 bg-teal-50/80 border border-teal-200/90 rounded-xl space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                <label className="block text-xs font-bold text-teal-900 flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 text-[#23c3b1]" />
+                  Préciser le secteur d'activité <span className="text-red-500">*</span>
+                </label>
+                <input
+                  {...register('project.customSectorName')}
+                  placeholder="Ex : Intelligence Artificielle, Aquaculture, Fintech..."
+                  className="w-full text-sm bg-white border border-teal-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium placeholder:text-slate-400 text-slate-800"
+                  autoFocus
+                />
+                <p className="text-xs text-teal-700">
+                  Ce secteur sera automatiquement enregistré dans le référentiel de l'incubateur.
+                </p>
+              </div>
+            )}
             
             {isEnterprise && (
               <>
@@ -295,6 +329,13 @@ export default function BeneficiaryEditPage() {
             </div>
           </div>
         </section>
+
+        {apiError && (
+          <div className="p-4 rounded-xl bg-red-50 text-red-700 text-sm border border-red-200 font-medium flex items-center gap-2">
+            <span>⚠️</span>
+            <span>{apiError}</span>
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 pt-4">
           <button type="button" onClick={() => navigate(-1)} className="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors">

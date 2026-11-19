@@ -21,6 +21,8 @@ Write-Host ""
 Write-Host "========================================================" -ForegroundColor Green
 Write-Host "Tous les services sont lances !" -ForegroundColor Green
 Write-Host "Rendez-vous sur votre navigateur a : http://localhost:5173" -ForegroundColor Green
-Write-Host "Identifiants : agent@imldigit.com / ImlDigit2026!" -ForegroundColor White
+Write-Host "Identifiants Directeur : directeur@imldigit.com / ImlDigit2026!" -ForegroundColor Cyan
+Write-Host "Identifiants Agent     : agent@imldigit.com / ImlDigit2026!" -ForegroundColor White
+Write-Host "Identifiants Coach     : coach@imldigit.com / ImlDigit2026!" -ForegroundColor Gray
 Write-Host "========================================================" -ForegroundColor Green
 Write-Host ""

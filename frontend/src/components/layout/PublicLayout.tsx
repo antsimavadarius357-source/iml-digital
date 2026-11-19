@@ -4,22 +4,40 @@ import {
   Menu, 
   X, 
   ArrowRight, 
-  ShieldCheck, 
   MapPin, 
   Mail, 
   Phone, 
   LogIn, 
-  CheckCircle2
+  Globe, 
+  Clock 
 } from 'lucide-react';
 import AuthModal from '../../features/auth/AuthModal';
 import ImlLogo from '../common/ImlLogo';
+
+const LinkedinIcon = () => (
+  <svg className="size-4 fill-current" viewBox="0 0 24 24">
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9h2.79v8.37H6.46v-8.37M7.86 6.3a1.62 1.62 0 1 0 0 3.24 1.62 1.62 0 0 0 0-3.24Z" />
+  </svg>
+);
+
+const FacebookIcon = () => (
+  <svg className="size-4 fill-current" viewBox="0 0 24 24">
+    <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95Z" />
+  </svg>
+);
+
+const InstagramIcon = () => (
+  <svg className="size-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
 
 export default function PublicLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'inscription' | 'connexion'>('connexion');
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [newsletterSent, setNewsletterSent] = useState(false);
   const location = useLocation();
 
   // Close mobile menu on route change
@@ -38,15 +56,6 @@ export default function PublicLayout() {
     return () => window.removeEventListener('open-auth-modal', handleOpenAuth);
   }, []);
 
-  const handleNewsletter = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newsletterEmail) {
-      setNewsletterSent(true);
-      setNewsletterEmail('');
-      setTimeout(() => setNewsletterSent(false), 4000);
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col font-sans bg-[#FAF9F5] text-slate-900 selection:bg-[#FF5B37] selection:text-white antialiased">
       
@@ -58,7 +67,7 @@ export default function PublicLayout() {
           
           {/* Logo Brand */}
           <Link to="/" className="flex items-center group py-1" title="Accueil IML Digit">
-            <ImlLogo variant="icon" theme="light" size="lg" />
+            <ImlLogo variant="icon" theme="light" size="xl" />
           </Link>
 
           {/* Desktop Navigation Links */}
@@ -80,25 +89,20 @@ export default function PublicLayout() {
             </a>
 
             <a 
-              href="/#methodologie" 
-              className="px-3.5 py-2 rounded-full text-[13.5px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-200/40 transition-colors"
-            >
-              Méthodologie
-            </a>
-
-            <a 
               href="/#impact" 
               className="px-3.5 py-2 rounded-full text-[13.5px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-200/40 transition-colors"
             >
               Impact & Chiffres
             </a>
 
-            <a 
-              href="/#temoignages" 
-              className="px-3.5 py-2 rounded-full text-[13.5px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-200/40 transition-colors"
+            <Link 
+              to="/salle" 
+              className={`px-3.5 py-2 rounded-full text-[13.5px] font-semibold transition-colors ${
+                location.pathname === '/salle' || location.pathname === '/espaces' ? 'text-slate-900 bg-stone-200/60' : 'text-slate-600 hover:text-slate-900 hover:bg-stone-200/40'
+              }`}
             >
-              Témoignages
-            </a>
+              Réserver la salle
+            </Link>
 
             <Link 
               to="/contact" 
@@ -153,26 +157,19 @@ export default function PublicLayout() {
                 Programmes
               </a>
               <a 
-                href="/#methodologie" 
-                onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-2.5 rounded-xl font-bold text-sm text-slate-800 hover:bg-stone-200/50"
-              >
-                Méthodologie
-              </a>
-              <a 
                 href="/#impact" 
                 onClick={() => setMobileMenuOpen(false)}
                 className="px-4 py-2.5 rounded-xl font-bold text-sm text-slate-800 hover:bg-stone-200/50"
               >
                 Impact & Chiffres
               </a>
-              <a 
-                href="/#temoignages" 
+              <Link 
+                to="/salle" 
                 onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-2.5 rounded-xl font-bold text-sm text-slate-800 hover:bg-stone-200/50"
+                className="px-4 py-2.5 rounded-xl font-bold text-sm text-[#FF5B37] hover:bg-stone-200/50"
               >
-                Témoignages
-              </a>
+                Réserver la salle
+              </Link>
               <Link 
                 to="/contact" 
                 className="px-4 py-2.5 rounded-xl font-bold text-sm text-slate-800 hover:bg-stone-200/50"
@@ -195,7 +192,7 @@ export default function PublicLayout() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-full text-center py-2.5 rounded-xl font-bold text-sm bg-slate-900 hover:bg-slate-800 text-white shadow-md flex items-center justify-center gap-2 transition-all"
               >
-                <span>Candidater à une cohorte</span>
+                <span>Déposer ma candidature</span>
                 <ArrowRight className="size-4" />
               </Link>
             </div>
@@ -211,37 +208,73 @@ export default function PublicLayout() {
       </main>
 
       {/* =========================================================================
-          4. FOOTER NOBLE & MODERNE
+          4. FOOTER NOBLE & MODERNE (DESIGN REVISITÉ & ÉPURÉ)
          ========================================================================= */}
-      <footer className="bg-slate-900 text-slate-300 pt-16 pb-12 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <footer className="bg-[#0b1320] text-slate-300 pt-10 pb-8 border-t border-slate-800/80 relative overflow-hidden">
+        {/* Lueur d'ambiance discrète */}
+        <div className="absolute top-0 left-1/4 w-96 h-32 bg-[#FF5B37]/5 blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-1/4 w-96 h-32 bg-[#23c3b1]/5 blur-3xl pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 mb-8">
             
-            {/* Colonne 1 : Présentation & Mission */}
-            <div className="lg:col-span-2 space-y-4">
-              <Link to="/" className="inline-block" title="Accueil IML Digit">
-                <ImlLogo variant="icon" theme="dark" size="lg" />
-              </Link>
-              <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
-                Dispositif national et souverain d'incubation et d'accélération. 
-                Nous structurons l'écosystème entrepreneurial pour transformer les talents en entreprises durables, financées et génératrices d'emplois.
+            {/* Colonne 1 : Présentation & Mission (Span 5) */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <ImlLogo variant="icon" theme="dark" size="sm" />
+                <span className="font-bold text-white text-base tracking-tight">IML Digit</span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-sm leading-relaxed">
+                Incubateur et accélérateur d'entreprises innovantes de Libreville — Mugheli Lab. Accompagnement, structuration et accès aux financements pour les entrepreneurs gabonais.
               </p>
-              
-              <div className="flex items-center gap-2 pt-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/90 border border-slate-700 text-xs text-slate-300">
-                  <ShieldCheck className="size-4 text-emerald-400" />
-                  <span>Données souveraines & hébergées en conformité</span>
-                </div>
+
+              {/* Réseaux Sociaux */}
+              <div className="flex items-center gap-2 pt-1">
+                <a
+                  href="https://linkedin.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="LinkedIn Mugheli Lab"
+                  className="size-8 rounded-lg bg-slate-800/80 hover:bg-[#FF5B37] text-slate-400 hover:text-white border border-slate-700/70 hover:border-[#FF5B37] flex items-center justify-center transition-all duration-200 shadow-xs hover:scale-105"
+                >
+                  <LinkedinIcon />
+                </a>
+                <a
+                  href="https://facebook.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Facebook Mugheli Lab"
+                  className="size-8 rounded-lg bg-slate-800/80 hover:bg-[#FF5B37] text-slate-400 hover:text-white border border-slate-700/70 hover:border-[#FF5B37] flex items-center justify-center transition-all duration-200 shadow-xs hover:scale-105"
+                >
+                  <FacebookIcon />
+                </a>
+                <a
+                  href="https://instagram.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Instagram Mugheli Lab"
+                  className="size-8 rounded-lg bg-slate-800/80 hover:bg-[#FF5B37] text-slate-400 hover:text-white border border-slate-700/70 hover:border-[#FF5B37] flex items-center justify-center transition-all duration-200 shadow-xs hover:scale-105"
+                >
+                  <InstagramIcon />
+                </a>
+                <a
+                  href="/"
+                  aria-label="Portail Web IML Digit"
+                  className="size-8 rounded-lg bg-slate-800/80 hover:bg-[#23c3b1] text-slate-400 hover:text-white border border-slate-700/70 hover:border-[#23c3b1] flex items-center justify-center transition-all duration-200 shadow-xs hover:scale-105"
+                >
+                  <Globe className="size-3.5" />
+                </a>
               </div>
             </div>
 
-            {/* Colonne 2 : Programmes d'incubation */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            {/* Colonne 2 : Programmes d'incubation (Span 2) */}
+            <div className="lg:col-span-2 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-[#FF5B37]" />
                 Programmes
               </h4>
-              <ul className="space-y-2 text-sm text-slate-400">
+              <ul className="space-y-2 text-xs text-slate-400">
                 <li>
                   <a href="/#programmes" className="hover:text-white transition-colors">
                     Programme Émergence
@@ -249,7 +282,7 @@ export default function PublicLayout() {
                 </li>
                 <li>
                   <a href="/#programmes" className="hover:text-white transition-colors">
-                    Accélération PME
+                    Accélération PME & Scale
                   </a>
                 </li>
                 <li>
@@ -259,21 +292,27 @@ export default function PublicLayout() {
                 </li>
                 <li>
                   <a href="/#methodologie" className="hover:text-white transition-colors">
-                    Cahier des 4 Jalons
+                    Méthodologie des 4 Jalons
                   </a>
                 </li>
               </ul>
             </div>
 
-            {/* Colonne 3 : Accès & Candidature */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white">
-                Espace & Accès
+            {/* Colonne 3 : Espaces & Accès (Span 2) */}
+            <div className="lg:col-span-2 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-[#23c3b1]" />
+                Espaces & Accès
               </h4>
-              <ul className="space-y-2 text-sm text-slate-400">
+              <ul className="space-y-2 text-xs text-slate-400">
                 <li>
-                  <Link to="/candidater" className="hover:text-white text-[#FF8E75] font-semibold transition-colors flex items-center gap-1">
-                    <span>Déposer un dossier</span>
+                  <Link to="/salle" className="text-white hover:text-[#FF8E75] font-semibold transition-colors flex items-center gap-1.5 group">
+                    <span>Réserver une salle</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/candidater" className="text-white hover:text-[#FF8E75] font-semibold transition-colors flex items-center gap-1">
+                    <span>Candidater au programme</span>
                     <ArrowRight className="size-3" />
                   </Link>
                 </li>
@@ -295,71 +334,52 @@ export default function PublicLayout() {
               </ul>
             </div>
 
-            {/* Colonne 4 : Contact & Siège */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            {/* Colonne 4 : Contact & Siège (Span 3) */}
+            <div className="lg:col-span-3 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-amber-400" />
                 Contact & Siège
               </h4>
               <ul className="space-y-2.5 text-xs text-slate-400">
                 <li className="flex items-start gap-2">
-                  <MapPin className="size-4 text-[#FF5B37] shrink-0 mt-0.5" />
-                  <span>Immeuble IML Digit, Libreville, Gabon</span>
+                  <MapPin className="size-3.5 text-[#FF5B37] shrink-0 mt-0.5" />
+                  <span>Immeuble Espace PME, Quartier Awendjé, Libreville</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <Mail className="size-4 text-[#FF5B37] shrink-0" />
-                  <span>contact@imldigit.com</span>
+                  <Mail className="size-3.5 text-[#FF5B37] shrink-0" />
+                  <a href="mailto:imlGabon2@gmail.com" className="hover:text-white transition-colors">
+                    imlGabon2@gmail.com
+                  </a>
                 </li>
                 <li className="flex items-center gap-2">
-                  <Phone className="size-4 text-[#FF5B37] shrink-0" />
-                  <span>+241 01 00 00 00</span>
+                  <Phone className="size-3.5 text-[#FF5B37] shrink-0" />
+                  <a href="tel:+241066648488" className="hover:text-white transition-colors">
+                    +241 066 64 84 88
+                  </a>
+                </li>
+                <li className="flex items-center gap-2 text-[11px] text-slate-400 pt-0.5">
+                  <Clock className="size-3 text-slate-400 shrink-0" />
+                  <span>Lun – Sam : 08h00 – 18h00</span>
                 </li>
               </ul>
             </div>
 
           </div>
 
-          {/* Newsletter Box */}
-          <div className="p-6 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex flex-col md:flex-row items-center justify-between gap-4 mb-10">
-            <div>
-              <h4 className="text-sm font-bold text-white">Restez informé des prochains appels à projets</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Recevez le calendrier des cohortes et les opportunités d'accompagnement.</p>
-            </div>
-            {newsletterSent ? (
-              <div className="px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="size-4 text-emerald-400" />
-                <span>Merci ! Vous êtes bien inscrit aux alertes de cohorte.</span>
-              </div>
-            ) : (
-              <form onSubmit={handleNewsletter} className="flex items-center gap-2 w-full md:w-auto">
-                <input 
-                  type="email"
-                  value={newsletterEmail}
-                  onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder="Votre adresse email professionnelle"
-                  required
-                  className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#FF5B37] w-full sm:w-72"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-[#FF5B37] hover:bg-[#e94d29] text-white text-xs font-bold transition-all shrink-0 cursor-pointer"
-                >
-                  S'abonner
-                </button>
-              </form>
-            )}
-          </div>
-
           {/* Copyright & Mentions */}
-          <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
             <div>
-              © 2026 IML Digit. Tous droits réservés. Plateforme Numérique d'Incubation & Accélération.
+              © 2026 IML Digit • Incubateur Mugheli Lab. Tous droits réservés.
             </div>
             <div className="flex items-center gap-6">
               <Link to="/contact" className="hover:text-slate-300 transition-colors">
                 Support & Contact
               </Link>
+              <Link to="/contact" className="hover:text-slate-300 transition-colors">
+                Mentions légales
+              </Link>
               <Link to="/connexion" className="hover:text-slate-300 transition-colors">
-                Connexion
+                Connexion Membre
               </Link>
             </div>
           </div>

@@ -4,7 +4,7 @@ import type { AuthContext } from '../../middleware/auth';
 import type { z } from 'zod';
 import type { createAppointmentSchema, updateAppointmentSchema, createSessionSchema, listAppointmentsSchema } from './appointments.schemas';
 import { AppError } from '../../middleware/error';
-import { sendAppointmentNotificationEmail } from '../email/email.service';
+import { sendAppointmentNotificationEmail, sendCoachBriefingEmail } from '../email/email.service';
 
 function scopeWhere(auth: AuthContext): Prisma.AppointmentWhereInput {
   const global = auth.permissions.includes('dashboard:global') || auth.permissions.includes('users:manage');
@@ -64,12 +64,19 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
   // Déterminer le coach référent désigné pour la séance (ou l'agent connecté par défaut)
   const targetCoachId = data.coachId || auth.userId;
 
-  // Récupérer les informations du coach pour les convocations et emails
-  const coachUser = await prisma.user.findUnique({
-    where: { id: targetCoachId },
-    select: { id: true, firstName: true, lastName: true, email: true },
-  });
+  // Récupérer les informations du coach et de l'agent qui planifie
+  const [coachUser, schedulingUser] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: targetCoachId },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { firstName: true, lastName: true, email: true },
+    }),
+  ]);
   const coachFullName = coachUser ? `${coachUser.firstName} ${coachUser.lastName}` : 'Votre Coach IML Digit';
+  const schedulingAgentName = schedulingUser ? `${schedulingUser.firstName} ${schedulingUser.lastName}` : 'Coordination IML Digit';
 
   // Liste des IDs de bénéficiaires cibles
   const targetBeneficiaryIds: string[] = [];
@@ -248,6 +255,22 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
     } else {
       isDelivered = false;
       deliveryError = 'Adresse e-mail manquante ou non valide';
+    }
+
+    // 4. Envoi automatique de l'ordre de mission / notification par e-mail au coach désigné
+    if (coachUser?.email && coachUser.email.includes('@') && !coachUser.email.endsWith('.local')) {
+      sendCoachBriefingEmail({
+        coachEmail: coachUser.email,
+        coachName: coachFullName,
+        beneficiaryName: `${appt.beneficiary?.firstName || ''} ${appt.beneficiary?.lastName || ''}`.trim() || 'Porteur de projet',
+        appointmentDatetime: formattedDate,
+        appointmentLocation: data.location || (isVideo ? 'Visioconférence' : 'Immeuble Espace PME, Quartier Awendjé, Libreville'),
+        beneficiaryPhone: appt.beneficiary?.phone || undefined,
+        beneficiaryEmail: appt.beneficiary?.email || undefined,
+        agentName: schedulingAgentName,
+        agentEmail: schedulingUser?.email || undefined,
+        objectives: data.notes || "Entretien d'accompagnement et diagnostic initial",
+      }).catch((err) => console.error(`[AVERTISSEMENT] Échec envoi email au coach ${coachUser?.email}:`, err));
     }
   }
 

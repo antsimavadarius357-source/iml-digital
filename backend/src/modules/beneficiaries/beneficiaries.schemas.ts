@@ -21,6 +21,7 @@ const projectFields = {
   name: z.string().trim().min(1, 'Nom du projet requis').max(200),
   description: optionalText(5000),
   sectorId: optionalUuid,
+  customSectorName: optionalText(100),
   projectType: optionalText(100),
   stage: z.enum(PROJECT_STAGES).default('IDEE'),
   companyCreatedAt: optionalDate,
@@ -73,7 +74,7 @@ export const updateBeneficiarySchema = z
     programId: uuid.nullable(),
     assignedAgentId: uuid.nullable(),
     coachId: uuid.nullable(),
-    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+    startDate: z.string().transform((v) => (v ? v.slice(0, 10) : v)).pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).nullable(),
     initialObjectives: z.string().trim().max(5000).nullable(),
   })
   .partial();
@@ -83,6 +84,7 @@ export const updateProjectSchema = z
     name: z.string().trim().min(1).max(200),
     description: z.string().trim().max(5000).nullable(),
     sectorId: uuid.nullable(),
+    customSectorName: z.string().trim().max(100).optional().nullable(),
     projectType: z.string().trim().max(100).nullable(),
     stage: z.enum(PROJECT_STAGES),
     companyCreatedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
