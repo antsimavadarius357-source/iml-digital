@@ -4,10 +4,13 @@ import { z } from 'zod';
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
-  FRONTEND_URL: z.string().url(),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL requis'),
-  DIRECT_URL: z.string().min(1, 'DIRECT_URL requis'),
-  SESSION_SECRET: z.string().min(32, 'SESSION_SECRET doit contenir au moins 32 caractères'),
+  DIRECT_URL: z.string().optional(),
+  SESSION_SECRET: z
+    .string()
+    .min(32, 'SESSION_SECRET doit contenir au moins 32 caractères')
+    .default('iml_digit_production_session_secret_key_2026_gabon_secure'),
   STORAGE_DIR: z.string().default('./storage'),
 });
 

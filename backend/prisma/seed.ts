@@ -68,7 +68,72 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(`${ROLES.length} rôles, ${SECTORS.length} secteurs, et modèles de parcours synchronisés.`);
+  // Comptes internes par défaut pour permettre la connexion immédiate en ligne
+  const defaultUsers = [
+    {
+      email: 'directeur@imldigit.com',
+      firstName: 'Alain',
+      lastName: 'Directeur Général',
+      roleCode: 'DIRECTION',
+      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$FvpjRRQWpktsuoHmoQ5H6A$nVop9hKYIp9IdfYzlR42oIF2EYqHaqIcF3A9frskweo',
+    },
+    {
+      email: 'agent@imldigit.com',
+      firstName: 'Alexandre',
+      lastName: 'MBA',
+      roleCode: 'AGENT',
+      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$BYSL8NjnxC3CZNEjShKdFg$lzBGCWxgXWjjRtQWQMUOGiJu2ZqEPYIePZMaNW6p3X0',
+    },
+    {
+      email: 'coach@imldigit.com',
+      firstName: 'Darius',
+      lastName: 'NZÉ',
+      roleCode: 'COACH',
+      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$BYSL8NjnxC3CZNEjShKdFg$lzBGCWxgXWjjRtQWQMUOGiJu2ZqEPYIePZMaNW6p3X0',
+    },
+    {
+      email: 'marcella.biyoghe@imldigit.com',
+      firstName: 'Marcella',
+      lastName: 'BIYOGHE',
+      roleCode: 'COACH',
+      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$QvIo82XqOSRulPmymnLLUQ$7KnIAxh7VAilWHqGSAvsOpuT7HCwGxizeOdV60aKPRY',
+    },
+    {
+      email: 'patrick.obiang@imldigit.com',
+      firstName: 'Patrick',
+      lastName: 'OBIANG',
+      roleCode: 'COACH',
+      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$QvIo82XqOSRulPmymnLLUQ$7KnIAxh7VAilWHqGSAvsOpuT7HCwGxizeOdV60aKPRY',
+    },
+    {
+      email: 'sarah.ondo@imldigit.com',
+      firstName: 'Sarah',
+      lastName: 'ONDO',
+      roleCode: 'COACH',
+      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$QvIo82XqOSRulPmymnLLUQ$7KnIAxh7VAilWHqGSAvsOpuT7HCwGxizeOdV60aKPRY',
+    },
+  ];
+
+  for (const u of defaultUsers) {
+    const role = await prisma.role.findUnique({ where: { code: u.roleCode } });
+    if (role) {
+      await prisma.user.upsert({
+        where: { email: u.email },
+        update: {},
+        create: {
+          email: u.email,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          passwordHash: u.passwordHash,
+          roleId: role.id,
+          isActive: true,
+          emailVerifiedAt: new Date(),
+        },
+      });
+    }
+  }
+
+  console.log(`${ROLES.length} rôles, ${SECTORS.length} secteurs, modèles de parcours et comptes par défaut synchronisés.`);
 }
 
 main()

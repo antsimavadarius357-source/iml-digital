@@ -26,7 +26,24 @@ export function createApp(): express.Express {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());
-  app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (
+          !origin ||
+          origin === env.FRONTEND_URL ||
+          origin.startsWith('http://localhost:') ||
+          origin.endsWith('.vercel.app') ||
+          origin.endsWith('.onrender.com')
+        ) {
+          callback(null, true);
+        } else {
+          callback(null, true);
+        }
+      },
+      credentials: true,
+    })
+  );
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
   app.use(rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: true, legacyHeaders: false }));
