@@ -30,7 +30,10 @@ appointmentsRouter.get('/', async (req, res, next) => {
 });
 
 appointmentsRouter.post('/', async (req, res, next) => {
-  try { res.status(201).json({ appointment: await createAppointment(createAppointmentSchema.parse(req.body), req.auth!) }); }
+  try {
+    const appt = await createAppointment(createAppointmentSchema.parse(req.body), req.auth!);
+    res.status(201).json({ appointment: appt, receipt: (appt as any).receipt });
+  }
   catch (e) { next(e); }
 });
 

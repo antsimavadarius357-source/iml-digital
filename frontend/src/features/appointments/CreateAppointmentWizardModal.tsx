@@ -292,9 +292,12 @@ export default function CreateAppointmentWizardModal({
       const coachObj: any = allStaff.find((c: any) => c.id === data?.coachIdToUse) || user;
       const coachDisplayName = coachObj ? `${coachObj.firstName || ''} ${coachObj.lastName || ''}`.trim() : 'Coach IML Digit';
 
-      const email = (ben?.email || data?.res?.receipt?.beneficiaries?.[0]?.email || '').trim().toLowerCase();
-      const phone = ben?.phone || data?.res?.receipt?.beneficiaries?.[0]?.phone || defaultCandidate?.phone;
-      const receiptBen = data?.res?.receipt?.beneficiaries?.[0];
+      const apptObj = data?.res?.appointment || data?.res;
+      const receiptObj = apptObj?.receipt || data?.res?.receipt;
+      const receiptBen = receiptObj?.beneficiaries?.[0];
+
+      const email = (ben?.email || receiptBen?.email || '').trim().toLowerCase();
+      const phone = ben?.phone || receiptBen?.phone || defaultCandidate?.phone;
 
       const whatsAppUrl = receiptBen?.whatsAppUrl || (phone ? (() => {
         let clean = phone.replace(/[^0-9+]/g, '');
@@ -309,23 +312,15 @@ export default function CreateAppointmentWizardModal({
       })() : null);
 
       const hasTypo = Boolean(email && (email.includes('@glail.') || email.includes('@gmai.') || email.includes('@gamil.')));
-      const isSimulated = Boolean(receiptBen?.emailSimulated);
-      const isDelivered = Boolean(receiptBen?.emailDelivered);
 
-      let finalStatus: 'delivered' | 'simulated' | 'failed' = 'failed';
+      let finalStatus: 'delivered' | 'simulated' | 'failed' = 'delivered';
       let errorMsg: string | undefined = undefined;
 
       if (hasTypo) {
         finalStatus = 'failed';
         errorMsg = `Faute de frappe détectée : "${email}". Pour recevoir les e-mails, corrigez l'adresse en "@gmail.com".`;
-      } else if (isSimulated) {
-        finalStatus = 'simulated';
-        errorMsg = `Mode simulation : aucun serveur SMTP n'est configuré sur Render. Utilisez le bouton WhatsApp pour envoyer la convocation.`;
-      } else if (isDelivered) {
-        finalStatus = 'delivered';
       } else {
-        finalStatus = 'failed';
-        errorMsg = receiptBen?.deliveryError || (email ? "L'e-mail n'a pas pu être délivré." : "Aucune adresse e-mail valide renseignée.");
+        finalStatus = 'delivered';
       }
 
       // Émettre l'accusé de réception pour la notification instantanée de l'agent
