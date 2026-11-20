@@ -4,7 +4,6 @@ import {
   Calendar as CalendarIcon, 
   Clock, 
   MapPin, 
-  Plus, 
   CheckCircle2, 
   XCircle, 
   Video, 
@@ -38,7 +37,7 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default function AppointmentsPage() {
-  const { can, user } = useAuth();
+  const { user } = useAuth();
   const isCoach = !!(user && (
     user.role === 'COACH' || 
     user.roleLabel?.toLowerCase().includes('coach') || 
@@ -191,22 +190,6 @@ export default function AppointmentsPage() {
               : 'Calendrier des rendez-vous et séances d\'accompagnement.'}
           </p>
         </div>
-        {can('appointments:manage') && user?.role !== 'COACH' && (
-          <button 
-            type="button"
-            onClick={() => {
-              if (beneficiaries.length === 0) {
-                setShowRequiredModal(true);
-              } else {
-                setShowModal(true);
-              }
-            }} 
-            className="flex items-center gap-2 bg-[#23c3b1] hover:bg-[#1db09e] text-white px-4 py-2 rounded-lg transition-colors cursor-pointer self-start sm:self-auto"
-          >
-            <Plus className="size-4" />
-            Nouveau RDV
-          </button>
-        )}
       </div>
 
       {/* Onglets rapides : Tous, Planifiés, Réalisés / Historique */}
