@@ -298,9 +298,9 @@ export default function AppLayout() {
     : (pendingRoomBookingsRes as any)?.items || [];
   const unreadRoomBookings = pendingRoomBookings.filter((b: any) => !readRoomAlertIds.includes(b.id));
 
-  // Filtrer les anciens dossiers de démonstration (seqNumber <= 33 ou créés avant le 12 nov 2026) pour ne pas encombrer les alertes
+  // Filtrer uniquement les anciens dossiers de démonstration locaux (créés avant le 12 nov 2026).
+  // NB : on ne filtre plus par numéro de séquence, sinon les vraies candidatures en production (n°1, 2, 3...) étaient masquées.
   const isSeedApp = (a: any) => {
-    if (a.seqNumber && a.seqNumber <= 33) return true;
     const d = new Date(a.createdAt || a.submittedAt);
     return !isNaN(d.getTime()) && d.getTime() < new Date('2026-11-12T00:00:00Z').getTime();
   };

@@ -63,9 +63,11 @@ body {
 }
 
 /* Responsive elements */
-img, video, iframe {
-  max-width: 100%;
-  height: auto;
+@layer base {
+  img, video, iframe {
+    max-width: 100%;
+    height: auto;
+  }
 }
 
 /* Smooth custom scrollbars on modern devices */

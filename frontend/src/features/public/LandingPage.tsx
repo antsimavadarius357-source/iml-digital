@@ -292,6 +292,7 @@ export default function LandingPage() {
                 alt={slide.title} 
                 loading={idx === 0 ? "eager" : "lazy"}
                 decoding="async"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 className="w-full h-full object-cover object-center filter brightness-100 sm:brightness-105 contrast-105" 
               />
             </div>
