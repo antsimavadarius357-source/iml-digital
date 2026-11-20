@@ -161,11 +161,17 @@ export default function CreateAppointmentWizardModal({
       const found = beneficiaries.find((b: any) => b.id === defaultBeneficiaryId);
       if (found) {
         if (!selectedRecipients.some(r => r.id === found.id)) {
+          let effEmail = found.email;
+          try {
+            const ovs = JSON.parse(localStorage.getItem('iml_contacts_overrides_v1') || '{}');
+            if (ovs[`beneficiary-${found.id}`]?.email) effEmail = ovs[`beneficiary-${found.id}`].email;
+          } catch {}
+
           setSelectedRecipients([{
             id: found.id,
             name: `${found.firstName} ${found.lastName}`,
             type: 'Bénéficiaire',
-            email: found.email
+            email: effEmail
           }]);
         }
         // Pré-sélectionner le coach assigné si existant
@@ -718,11 +724,17 @@ export default function CreateAppointmentWizardModal({
                               key={b.id}
                               onClick={() => {
                                 if (!isAlreadySelected) {
+                                  let effEmail = b.email;
+                                  try {
+                                    const ovs = JSON.parse(localStorage.getItem('iml_contacts_overrides_v1') || '{}');
+                                    if (ovs[`beneficiary-${b.id}`]?.email) effEmail = ovs[`beneficiary-${b.id}`].email;
+                                  } catch {}
+
                                   handleAddRecipient({
                                     id: b.id,
                                     name: `${b.firstName} ${b.lastName}`,
                                     type: 'Bénéficiaire',
-                                    email: b.email
+                                    email: effEmail
                                   });
                                 }
                               }}
@@ -738,7 +750,14 @@ export default function CreateAppointmentWizardModal({
                                   {b.fileNumber && <span className="text-[11px] text-slate-400 ml-2 font-normal">({b.fileNumber})</span>}
                                 </div>
                                 <div className="text-[11px] text-slate-500">
-                                  {b.email || 'Aucun e-mail'} {projectName ? `• Projet : ${projectName}` : ''}
+                                  {(() => {
+                                    let effEmail = b.email;
+                                    try {
+                                      const ovs = JSON.parse(localStorage.getItem('iml_contacts_overrides_v1') || '{}');
+                                      if (ovs[`beneficiary-${b.id}`]?.email) effEmail = ovs[`beneficiary-${b.id}`].email;
+                                    } catch {}
+                                    return effEmail || 'Aucun e-mail';
+                                  })()} {projectName ? `• Projet : ${projectName}` : ''}
                                 </div>
                               </div>
                               {isAlreadySelected ? (

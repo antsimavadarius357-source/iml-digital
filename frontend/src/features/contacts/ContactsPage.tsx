@@ -16,7 +16,7 @@ import {
   UserCheck,
   Pencil
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 
 
@@ -105,6 +105,7 @@ const PRESET_PARTNER_CONTACTS: ContactItem[] = [
 ];
 
 export default function ContactsPage() {
+  const queryClient = useQueryClient();
 
   // Contacts personnalisés ajoutés manuellement (persistance localStorage)
   const [customContacts, setCustomContacts] = useState<ContactItem[]>(() => {
@@ -174,6 +175,34 @@ export default function ContactsPage() {
     queryKey: ['beneficiary-options-contacts-sync'],
     queryFn: () => api<{ agents: any[] }>('/beneficiaries/options'),
   });
+
+  // Réconciliation automatique : synchroniser les modifications locales précédentes vers la base de données
+  useEffect(() => {
+    if (!bRes?.items || !contactOverrides || Object.keys(contactOverrides).length === 0) return;
+
+    Object.entries(contactOverrides).forEach(async ([key, override]) => {
+      if (!key.startsWith('beneficiary-') || !override) return;
+      const benId = key.replace('beneficiary-', '');
+      const currentBen = bRes.items.find((b: any) => b.id === benId);
+
+      // Si l'e-mail ou le téléphone local diffère de la base, pousser la modification vers le serveur
+      if (currentBen && override.email && override.email.trim().toLowerCase() !== (currentBen.email || '').trim().toLowerCase()) {
+        try {
+          await api(`/beneficiaries/${benId}`, {
+            method: 'PATCH',
+            body: {
+              email: override.email.trim().toLowerCase(),
+              ...(override.phone ? { phone: override.phone.trim() } : {}),
+            }
+          });
+          queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+          queryClient.invalidateQueries({ queryKey: ['beneficiary', benId] });
+        } catch (err) {
+          console.error(`[SYNC] Échec synchronisation en arrière-plan pour bénéficiaire ${benId}:`, err);
+        }
+      }
+    });
+  }, [bRes, contactOverrides, queryClient]);
 
   // Construction de la liste unifiée des contacts
   const allContacts = useMemo(() => {
@@ -428,17 +457,23 @@ export default function ContactsPage() {
   };
 
   // Sauvegarder la modification d'un contact
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingContact) return;
 
+    const trimmedEmail = editEmail.trim();
+    const trimmedPhone = editPhone.trim() || undefined;
+    const trimmedName = editName.trim();
+    const trimmedCompany = editCompany.trim() || undefined;
+    const trimmedRoleDesc = editRoleDesc.trim() || undefined;
+
     const updatedFields: Partial<ContactItem> = {
-      name: editName.trim(),
-      company: editCompany.trim() || undefined,
-      email: editEmail.trim(),
-      phone: editPhone.trim() || undefined,
+      name: trimmedName,
+      company: trimmedCompany,
+      email: trimmedEmail,
+      phone: trimmedPhone,
       category: editCategory,
-      roleDescription: editRoleDesc.trim() || undefined,
+      roleDescription: trimmedRoleDesc,
     };
 
     if (editingContact.source === 'custom') {
@@ -450,9 +485,63 @@ export default function ContactsPage() {
       [editingContact.id]: updatedFields
     }));
 
+    // Synchronisation directe vers le dossier bénéficiaire en base de données
+    if (editingContact.source === 'database_beneficiary' || editingContact.id.startsWith('beneficiary-')) {
+      const benId = editingContact.id.replace(/^beneficiary-/, '');
+      const nameParts = trimmedName.split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+
+      try {
+        await api(`/beneficiaries/${benId}`, {
+          method: 'PATCH',
+          body: {
+            email: trimmedEmail,
+            phone: trimmedPhone || null,
+            ...(firstName ? { firstName } : {}),
+            ...(lastName ? { lastName } : {}),
+          }
+        });
+
+        // Invalidation globale pour actualiser instantanément l'annuaire, la fiche bénéficiaire et les options
+        queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+        queryClient.invalidateQueries({ queryKey: ['beneficiary', benId] });
+        queryClient.invalidateQueries({ queryKey: ['beneficiaries-contacts-sync'] });
+        queryClient.invalidateQueries({ queryKey: ['beneficiary-options-contacts-sync'] });
+        queryClient.invalidateQueries({ queryKey: ['beneficiary-options'] });
+      } catch (err: any) {
+        console.error("Erreur de synchronisation du bénéficiaire :", err);
+        showToast(`⚠️ Enregistré en mémoire locale, erreur serveur : ${err?.message || 'Erreur'}`);
+      }
+    }
+
+    // Synchronisation pour les coachs ou agents
+    if (editingContact.source === 'database_user' || editingContact.id.startsWith('user-')) {
+      const userId = editingContact.id.replace(/^user-/, '');
+      const nameParts = trimmedName.split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+
+      try {
+        await api(`/users/${userId}`, {
+          method: 'PATCH',
+          body: {
+            email: trimmedEmail,
+            phone: trimmedPhone || null,
+            ...(firstName ? { firstName } : {}),
+            ...(lastName ? { lastName } : {}),
+          }
+        });
+        queryClient.invalidateQueries({ queryKey: ['users'] });
+        queryClient.invalidateQueries({ queryKey: ['beneficiary-options-contacts-sync'] });
+      } catch (err: any) {
+        console.error("Erreur de synchronisation de l'utilisateur :", err);
+      }
+    }
+
     setIsEditModalOpen(false);
     setEditingContact(null);
-    showToast(`✓ Contact "${editName}" mis à jour avec succès`);
+    showToast(`✓ Contact "${trimmedName}" synchronisé avec succès`);
   };
 
   // Suppression d'un contact (personnalisé ou standard)

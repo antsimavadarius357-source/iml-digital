@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Building2, 
   FileText, 
@@ -461,6 +461,7 @@ export default function BeneficiaryDetailPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const queryClient = useQueryClient();
 
   // 1. Récupération des données du bénéficiaire
   const { data: res, isLoading, refetch } = useQuery({
@@ -469,7 +470,109 @@ export default function BeneficiaryDetailPage() {
     retry: false,
   });
 
-  const b = res?.beneficiary || (id ? (FALLBACK_BENEFICIARIES[id] || FALLBACK_BENEFICIARIES['b-1'] || Object.values(FALLBACK_BENEFICIARIES)[0]) : undefined);
+  // Vérifier s'il existe une modification locale issue de l'annuaire des contacts pour ce bénéficiaire
+  const [localOverride, setLocalOverride] = useState<any>(() => {
+    if (!id || typeof window === 'undefined') return null;
+    try {
+      const overrides = JSON.parse(localStorage.getItem('iml_contacts_overrides_v1') || '{}');
+      return overrides[`beneficiary-${id}`] || null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Si une modification a été faite dans les contacts et n'est pas encore enregistrée sur le serveur, la synchroniser immédiatement
+  useEffect(() => {
+    if (!id || !res?.beneficiary || !localOverride?.email) return;
+    const serverEmail = (res.beneficiary.email || '').trim().toLowerCase();
+    const overrideEmail = (localOverride.email || '').trim().toLowerCase();
+
+    if (overrideEmail && overrideEmail !== serverEmail) {
+      api(`/beneficiaries/${id}`, {
+        method: 'PATCH',
+        body: {
+          email: overrideEmail,
+          ...(localOverride.phone ? { phone: localOverride.phone.trim() } : {}),
+        }
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['beneficiary', id] });
+        queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+      }).catch(err => console.error("Erreur sync automatique localOverride :", err));
+    }
+  }, [id, res?.beneficiary, localOverride, queryClient]);
+
+  const rawB = res?.beneficiary || (id ? (FALLBACK_BENEFICIARIES[id] || FALLBACK_BENEFICIARIES['b-1'] || Object.values(FALLBACK_BENEFICIARIES)[0]) : undefined);
+  const b = useMemo(() => {
+    if (!rawB) return rawB;
+    if (!localOverride) return rawB;
+    return {
+      ...rawB,
+      email: localOverride.email || rawB.email,
+      phone: localOverride.phone || rawB.phone,
+      ...(localOverride.name ? {
+        firstName: localOverride.name.split(' ')[0] || rawB.firstName,
+        lastName: localOverride.name.split(' ').slice(1).join(' ') || rawB.lastName
+      } : {})
+    };
+  }, [rawB, localOverride]);
+
+  // Modale de modification rapide des coordonnées de contact
+  const [isEditContactModalOpen, setIsEditContactModalOpen] = useState(false);
+  const [contactFormEmail, setContactFormEmail] = useState('');
+  const [contactFormPhone, setContactFormPhone] = useState('');
+  const [contactFormCity, setContactFormCity] = useState('');
+  const [isSavingContact, setIsSavingContact] = useState(false);
+
+  const handleOpenContactModal = () => {
+    if (b) {
+      setContactFormEmail(b.email || '');
+      setContactFormPhone(b.phone || '');
+      setContactFormCity(b.city || '');
+      setIsEditContactModalOpen(true);
+    }
+  };
+
+  const handleSaveContactModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !contactFormEmail.trim()) return;
+    setIsSavingContact(true);
+    try {
+      const emailClean = contactFormEmail.trim().toLowerCase();
+      const phoneClean = contactFormPhone.trim() || null;
+      const cityClean = contactFormCity.trim() || null;
+
+      await api(`/beneficiaries/${id}`, {
+        method: 'PATCH',
+        body: {
+          email: emailClean,
+          phone: phoneClean,
+          city: cityClean,
+        }
+      });
+
+      // Mettre à jour aussi l'annuaire local de contacts
+      try {
+        const overrides = JSON.parse(localStorage.getItem('iml_contacts_overrides_v1') || '{}');
+        overrides[`beneficiary-${id}`] = {
+          ...(overrides[`beneficiary-${id}`] || {}),
+          email: emailClean,
+          phone: phoneClean || undefined,
+        };
+        localStorage.setItem('iml_contacts_overrides_v1', JSON.stringify(overrides));
+        setLocalOverride(overrides[`beneficiary-${id}`]);
+      } catch {}
+
+      queryClient.invalidateQueries({ queryKey: ['beneficiary', id] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries'] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries-contacts-sync'] });
+      showToast('✓ Coordonnées de contact mises à jour avec succès');
+      setIsEditContactModalOpen(false);
+    } catch (err: any) {
+      showToast(`⚠️ Erreur : ${err?.message || 'Échec de la mise à jour'}`);
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
 
   // Récupération des documents attachés au bénéficiaire
   const { data: docsRes, refetch: refetchDocs, isLoading: isLoadingDocs } = useQuery({
@@ -974,6 +1077,15 @@ export default function BeneficiaryDetailPage() {
                       <span>{b.city}</span>
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleOpenContactModal}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/90 transition-colors cursor-pointer"
+                    title="Modifier directement l'e-mail ou le numéro de téléphone"
+                  >
+                    <Pencil className="size-2.5 text-slate-500" />
+                    <span>Modifier coordonnées</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1715,6 +1827,106 @@ export default function BeneficiaryDetailPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* =========================================================================
+          MODALE : MODIFIER LES COORDONNÉES DE CONTACT (E-MAIL, TÉLÉPHONE, VILLE)
+         ========================================================================= */}
+      {isEditContactModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+              <div className="flex items-center gap-2">
+                <Pencil className="size-4 text-[#f06553]" />
+                <h3 className="font-semibold text-slate-800 text-sm">
+                  Modifier les coordonnées · {b.firstName} {b.lastName}
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsEditContactModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveContactModal} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Adresse e-mail <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 size-3.5 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    value={contactFormEmail}
+                    onChange={(e) => setContactFormEmail(e.target.value)}
+                    placeholder="contact@exemple.com"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#23c3b1] text-xs"
+                  />
+                </div>
+                {contactFormEmail.includes('@glail.') && (
+                  <p className="text-[11px] text-amber-600 mt-1 font-medium">
+                    ⚠️ Attention : vous avez écrit @glail au lieu de @gmail.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Numéro de téléphone / WhatsApp
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-2.5 size-3.5 text-slate-400" />
+                  <input
+                    type="tel"
+                    value={contactFormPhone}
+                    onChange={(e) => setContactFormPhone(e.target.value)}
+                    placeholder="+241 07 XX XX XX"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#23c3b1] text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Ville / Localisation
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-2.5 size-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={contactFormCity}
+                    onChange={(e) => setContactFormCity(e.target.value)}
+                    placeholder="Libreville, Port-Gentil..."
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-[#23c3b1] text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditContactModalOpen(false)}
+                  className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-xs cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingContact}
+                  className="px-4 py-1.5 rounded-lg bg-[#23c3b1] hover:bg-[#1fa99a] text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingContact && <Loader2 className="size-3.5 animate-spin" />}
+                  <span>Enregistrer les coordonnées</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

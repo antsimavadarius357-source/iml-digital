@@ -248,6 +248,11 @@ export async function updateBeneficiary(id: string, input: z.infer<typeof update
     }),
   ];
 
+  // Si le bénéficiaire a un compte d'accès au portail, maintenir son e-mail de connexion synchronisé
+  if (input.email && (current as any).userId) {
+    ops.push(prisma.user.update({ where: { id: (current as any).userId }, data: { email: input.email } }));
+  }
+
   if (coachId !== undefined) {
     ops.push(prisma.assignment.deleteMany({ where: { beneficiaryId: id } }));
     if (coachId !== null) {
