@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import nodeFs from 'node:fs';
 import path from 'node:path';
 import { prisma } from '../../database/prisma';
 import type { AuthContext } from '../../middleware/auth';
@@ -7,7 +8,10 @@ import type { documentUploadSchema, documentStatusSchema } from './documents.sch
 import { AppError } from '../../middleware/error';
 import { scopeWhere, fileNumber } from '../beneficiaries/beneficiaries.service';
 
-export const UPLOAD_DIR = path.resolve(__dirname, '../../../../uploads');
+export const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
+if (!nodeFs.existsSync(UPLOAD_DIR)) {
+  nodeFs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
 type UploadedFile = { filename: string; originalname: string; mimetype: string; size: number };
 

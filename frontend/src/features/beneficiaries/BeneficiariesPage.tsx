@@ -743,10 +743,73 @@ export default function BeneficiariesPage() {
       )}
 
       {/* =========================================================================
-          5. TABLE DES BÉNÉFICIAIRES (DOSSIERS & STRUCTURES)
+          5. TABLE DES BÉNÉFICIAIRES (ADAPTATIVE MOBILE & DESKTOP)
          ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        
+        {/* Version Mobile : Cartes Dédiées */}
+        <div className="md:hidden divide-y divide-slate-100 p-2 sm:p-3">
+          {isLoading && (
+            <div className="py-8 text-center text-slate-400">
+              <Loader2 className="size-5 animate-spin inline mr-2 text-[#23c3b1]" />
+              <span className="text-xs">Chargement des dossiers bénéficiaires...</span>
+            </div>
+          )}
+          {!isLoading && filteredBeneficiaries.length === 0 && (
+            <div className="py-8 text-center text-slate-400 text-xs">
+              Aucun dossier bénéficiaire trouvé.
+            </div>
+          )}
+          {!isLoading && filteredBeneficiaries.map((b) => {
+            const projectName = b.projects?.[0]?.name || b.companyName || 'Projet sans nom';
+            const fileNum = b.fileNumber || `IML-2026-${String(b.fileSeq || 1).padStart(4, '0')}`;
+            const sectorName = b.projects?.[0]?.sector?.name || 'Général';
+            const isStartup = b.type === 'STARTUP';
+            const lName = (b.lastName || '').toUpperCase();
+            const isOrg = b.projects?.[0]?.legalStatus === 'COOPERATIVE' || (b.type === 'ENTREPRISE' && lName.includes('AGRI'));
+            const isPme = b.projects?.[0]?.companySize === 'PETITE' || b.projects?.[0]?.legalStatus === 'SARL' || lName.includes('GABON');
+            const typeLabel = isStartup ? 'Start-up' : isOrg ? 'Organisation' : isPme ? 'PME' : 'Entreprise';
+            const badgeClass = isStartup 
+              ? 'bg-purple-50 text-purple-700 border-purple-200'
+              : isOrg
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : isPme
+              ? 'bg-blue-50 text-blue-700 border-blue-200'
+              : 'bg-indigo-50 text-indigo-700 border-indigo-200';
+
+            return (
+              <div
+                key={b.id}
+                onClick={() => navigate(`/beneficiaires/${b.id}`)}
+                className="p-3.5 hover:bg-slate-50 rounded-xl space-y-2.5 transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    {fileNum}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass}`}>
+                    {typeLabel}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{b.firstName} {b.lastName}</h4>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                    <span className="font-medium text-slate-700">{projectName}</span>
+                    <span>• {sectorName}</span>
+                  </p>
+                </div>
+                <div className="flex items-center justify-between pt-1 text-[10.5px] text-slate-400">
+                  <span>Phase : {b.status || 'Actif'}</span>
+                  <span className="text-[#23c3b1] font-bold">Consulter →</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Version Desktop : Tableau classique */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-slate-200/90 text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-50/80">
               
@@ -921,6 +984,7 @@ export default function BeneficiariesPage() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* =========================================================================

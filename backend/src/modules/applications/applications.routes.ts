@@ -1,12 +1,19 @@
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { requireAuth, requirePermission } from '../../middleware/auth';
 import { AppError } from '../../middleware/error';
 import { createApplicationSchema, idParam, listApplicationsSchema, updateApplicationSchema } from './applications.schemas';
 import { createApplication, getApplication, listApplications, updateApplication, trackApplicationPublic } from './applications.service';
 
 export const applicationsRouter = Router();
+
+// Emplacement robuste et garanti du dossier de téléversement
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
 // Types de fichiers autorisés pour les pièces jointes de candidature
 const ALLOWED_MIME_TYPES = new Set([
@@ -23,7 +30,7 @@ const ALLOWED_MIME_TYPES = new Set([
 ]);
 
 const attachmentUpload = multer({
-  dest: path.join(__dirname, '../../../../uploads'),
+  dest: UPLOAD_DIR,
   limits: { fileSize: 10 * 1024 * 1024, files: 1 }, // 10 Mo, 1 fichier par requête
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIME_TYPES.has(file.mimetype)) cb(null, true);
@@ -76,7 +83,7 @@ applicationsRouter.get('/public/track', async (req, res, next) => {
 applicationsRouter.get('/attachments/:fileId', async (req, res, next) => {
   try {
     const fileId = path.basename(req.params.fileId);
-    const filePath = path.resolve(__dirname, '../../../../uploads', fileId);
+    const filePath = path.join(UPLOAD_DIR, fileId);
     const filename = String(req.query.filename || fileId);
     const isInline = req.query.inline === 'true';
     res.sendFile(filePath, {

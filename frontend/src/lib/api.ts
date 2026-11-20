@@ -15,18 +15,26 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
   let res: Response;
+  const doFetch = () => fetch(`/api/v1${path}`, {
+    method: options.method ?? 'GET',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'iml-digital', // protection CSRF
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
   try {
-    res = await fetch(`/api/v1${path}`, {
-      method: options.method ?? 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'iml-digital', // protection CSRF
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
+    res = await doFetch();
   } catch {
-    throw new ApiError(0, 'RESEAU', 'Connexion au serveur impossible. Vérifiez votre connexion Internet.');
+    // Tentative de rattrapage automatique (utile lors du réveil du serveur Render ou instabilité 3G/4G)
+    try {
+      await new Promise(r => setTimeout(r, 1500));
+      res = await doFetch();
+    } catch {
+      throw new ApiError(0, 'RESEAU', 'Le serveur se réveille ou la connexion a été interrompue. Veuillez patienter 10 secondes et réessayer.');
+    }
   }
   if (res.status === 204) return undefined as T;
   const data: unknown = await res.json().catch(() => null);

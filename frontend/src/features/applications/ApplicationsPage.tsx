@@ -319,10 +319,67 @@ export default function ApplicationsPage() {
       )}
 
       {/* =========================================================================
-          3. TABLEAU REDESSINÉ : CANDIDATURES
+          3. TABLEAU REDESSINÉ : CANDIDATURES (ADAPTATIF MOBILE & DESKTOP)
          ========================================================================= */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        
+        {/* Version Mobile : Liste de Cartes Tactiles (Sans scroll horizontal écrasant) */}
+        <div className="md:hidden divide-y divide-slate-100 p-2 sm:p-3">
+          {list.isLoading && (
+            <div className="p-8 text-center">
+              <Loader2 className="size-6 animate-spin text-[#23c3b1] mx-auto mb-2" />
+              <span className="text-xs text-slate-500 font-medium">Chargement des candidatures...</span>
+            </div>
+          )}
+          {!list.isLoading && data?.items.length === 0 && (
+            <div className="p-8 text-center text-slate-500 text-xs">
+              Aucune candidature trouvée.
+            </div>
+          )}
+          {!list.isLoading && sortedItems.map((app) => {
+            const c = app.applicantData || {};
+            const p = app.projectData || {};
+            const name = `${c.firstName || ''} ${c.lastName || 'Candidat inconnu'}`.trim();
+            const projectName = c.companyName || p.title || p.name || 'Projet sans nom';
+            const structureType = c.structureType || 'PORTEUR_IDEE';
+            const statusStyle = APP_STATUS_STYLE[app.status] || APP_STATUS_STYLE.BROUILLON;
+
+            return (
+              <div
+                key={app.id}
+                onClick={() => navigate(`/candidatures/${app.id}`)}
+                className="p-3.5 hover:bg-slate-50 rounded-xl space-y-2.5 transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    #{String(app.seqNumber).padStart(4, '0')}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                    <span className={`size-1.5 rounded-full ${statusStyle.dot}`} />
+                    {APP_STATUS_LABELS[app.status]}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{name}</h4>
+                  <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                    <Building2 className="size-3 text-slate-400 shrink-0" />
+                    <span className="truncate">{projectName}</span>
+                    {p.sector && <span className="shrink-0">• {p.sector}</span>}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between pt-1 text-[10.5px] text-slate-400">
+                  <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-semibold border ${STRUCTURE_LABELS[structureType]?.style || "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                    {STRUCTURE_LABELS[structureType]?.label || "Structure"}
+                  </span>
+                  <span>{formatRelativeDate(app.submittedAt || app.createdAt)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Version Desktop : Tableau classique */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             
             {/* En-tête du tableau */}

@@ -273,16 +273,16 @@ export default function LandingPage() {
           1. HERO SECTION CINÉMATIQUE AVEC DÉFILEMENT D'IMAGES ANIMÉES CONTINU
          ========================================================================= */}
       <section 
-        className="relative pt-16 pb-20 md:pt-24 md:pb-28 px-4 sm:px-6 lg:px-8 overflow-hidden text-white min-h-[580px] flex flex-col justify-center items-center"
+        className="relative py-16 sm:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden text-white min-h-[100dvh] min-h-screen flex flex-col justify-center items-center"
       >
-        {/* CARROUSEL D'IMAGES DE FOND - VISIBLE À 100% SUR MOBILE ET ORDINATEUR */}
+        {/* CARROUSEL D'IMAGES DE FOND PLEIN ÉCRAN (100% IMMERSIF SUR SMARTPHONE ET ORDINATEUR) */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
           {HERO_SLIDES.map((slide, idx) => (
             <div
               key={idx}
               style={{
                 opacity: idx === currentSlide ? 1 : 0,
-                transform: idx === currentSlide ? 'scale(1)' : 'scale(1.05)',
+                transform: idx === currentSlide ? 'scale(1)' : 'scale(1.04)',
                 transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
               className="absolute inset-0 will-change-transform"
@@ -292,14 +292,14 @@ export default function LandingPage() {
                 alt={slide.title} 
                 loading={idx === 0 ? "eager" : "lazy"}
                 decoding="async"
-                className="w-full h-full object-cover object-center filter brightness-105 contrast-105" 
+                className="w-full h-full object-cover object-center filter brightness-100 sm:brightness-105 contrast-105" 
               />
             </div>
           ))}
 
-          {/* Dégradés d'overlay optimisés : légers sur smartphone pour que la photo ressorte nettement */}
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/45 via-slate-900/30 to-slate-950/60 sm:from-slate-950/70 sm:via-slate-900/55 sm:to-slate-950/80" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#FF5B37]/20 via-transparent to-transparent pointer-events-none" />
+          {/* Voile cinématographique uniforme pour révéler l'image sur 100% de la hauteur sans coupure */}
+          <div className="absolute inset-0 bg-slate-950/45 sm:bg-slate-950/60 backdrop-blur-[0.5px]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-transparent to-slate-950/40 pointer-events-none" />
           <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-[700px] h-[300px] bg-teal-500/15 rounded-full blur-[120px] pointer-events-none" />
         </div>
 

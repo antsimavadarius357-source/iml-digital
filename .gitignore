@@ -9,7 +9,8 @@ storage/
 .pgdata/
 backups/
 *.log
-uploads/
+uploads/*
+!uploads/.gitkeep
 .DS_Store
 ~$*
 test_clean.zip

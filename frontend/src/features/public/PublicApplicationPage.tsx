@@ -148,17 +148,30 @@ export default function PublicApplicationPage() {
       formData.append('file', file);
 
       try {
-        const res = await fetch('/api/v1/applications/public/attachments', {
-          method: 'POST',
-          headers: {
-            'X-Requested-With': 'iml-digital',
-          },
-          body: formData,
-        });
+        let res: Response;
+        try {
+          res = await fetch('/api/v1/applications/public/attachments', {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'iml-digital',
+            },
+            body: formData,
+          });
+        } catch {
+          // Deuxième tentative automatique si réveil du serveur
+          await new Promise(r => setTimeout(r, 1500));
+          res = await fetch('/api/v1/applications/public/attachments', {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'iml-digital',
+            },
+            body: formData,
+          });
+        }
 
         if (!res.ok) {
           const errJson = await res.json().catch(() => null);
-          throw new Error(errJson?.error?.message || 'Erreur lors du téléversement');
+          throw new Error(errJson?.error?.message || 'Erreur lors du téléversement du fichier');
         }
 
         const data = await res.json();
@@ -183,7 +196,10 @@ export default function PublicApplicationPage() {
           ]);
         }
       } catch (err: any) {
-        setUploadDocError(err?.message || `Échec du téléversement de ${file.name}`);
+        const errorMsg = err?.message === 'Load failed' || err?.message?.includes('Failed to fetch')
+          ? `Le serveur de stockage se prépare. Veuillez réessayez dans 10 secondes pour "${file.name}".`
+          : (err?.message || `Échec du téléversement de ${file.name}`);
+        setUploadDocError(errorMsg);
       }
     }
 
@@ -375,7 +391,7 @@ export default function PublicApplicationPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] py-8 sm:py-12 px-4 sm:px-6 lg:px-8 font-sans selection:bg-[#f06553] selection:text-white">
+    <div className="min-h-screen bg-[#FAF7F2] py-4 sm:py-10 px-2.5 sm:px-6 lg:px-8 font-sans selection:bg-[#f06553] selection:text-white">
       <div className="max-w-[1360px] mx-auto space-y-6">
         
         {/* Navigation retour & Suivi de dossier */}
@@ -684,7 +700,7 @@ export default function PublicApplicationPage() {
                 </div>
 
                 {/* Formulaire Contenu */}
-                <form onSubmit={handleSubmit} className="p-6 sm:p-10 space-y-8">
+                <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-6 sm:space-y-8">
                   
                   {/* Alerte Erreur de validation */}
                   {stepError && (
@@ -709,13 +725,13 @@ export default function PublicApplicationPage() {
                         </p>
                       </div>
 
-                      {/* 4 Cartes de sélection en Grille Horizontale */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {/* 4 Cartes de sélection en Grille Ergonomique (2x2 sur Mobile, 4x1 sur Grand Écran) */}
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                         {[
                           { id: 'PORTEUR_IDEE', label: "Porteur d'Idée", desc: "Projet pas encore lancé", icon: Lightbulb, badge: 'Phase 1' },
-                          { id: 'STARTUP', label: "Startup Tech", desc: "Site web, application mobile ou service innovant", icon: Rocket, badge: 'Tech / MVP' },
-                          { id: 'PME', label: "TPE / PME", desc: "Boutique, atelier ou entreprise en activité", icon: Building2, badge: 'Croissance' },
-                          { id: 'ORGANISATION', label: "Organisation / Coop", desc: "Groupement de producteurs, artisans ou coopérative", icon: Layers, badge: 'Filière' }
+                          { id: 'STARTUP', label: "Startup Tech", desc: "Application ou service innovant", icon: Rocket, badge: 'Tech / MVP' },
+                          { id: 'PME', label: "TPE / PME", desc: "Entreprise en activité", icon: Building2, badge: 'Croissance' },
+                          { id: 'ORGANISATION', label: "Organisation / Coop", desc: "Groupement ou coopérative", icon: Layers, badge: 'Filière' }
                         ].map((type) => {
                           const IconComp = type.icon;
                           const isSelected = structureType === type.id;
@@ -727,35 +743,35 @@ export default function PublicApplicationPage() {
                                 setStructureType(prev => (prev === type.id ? '' : (type.id as any)));
                                 setStepError('');
                               }}
-                              className={`p-4 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between h-36 select-none ${
+                              className={`p-3 sm:p-4 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between min-h-[110px] sm:h-36 select-none ${
                                 isSelected
                                   ? 'border-[#23c3b1] bg-[#23c3b1]/10 text-slate-900 ring-2 ring-[#23c3b1]/30 shadow-sm'
                                   : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
                               }`}
                             >
                               <div className="flex items-center justify-between">
-                                <div className={`size-9 rounded-xl flex items-center justify-center transition-colors ${isSelected ? 'bg-[#23c3b1] text-white shadow-xs' : 'bg-slate-200 text-slate-600'}`}>
-                                  <IconComp className="size-5" />
+                                <div className={`size-7 sm:size-9 rounded-xl flex items-center justify-center transition-colors ${isSelected ? 'bg-[#23c3b1] text-white shadow-xs' : 'bg-slate-200 text-slate-600'}`}>
+                                  <IconComp className="size-4 sm:size-5" />
                                 </div>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${isSelected ? 'bg-[#23c3b1] text-white shadow-xs' : 'bg-slate-200 text-slate-600'}`}>
+                                <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full transition-colors ${isSelected ? 'bg-[#23c3b1] text-white shadow-xs' : 'bg-slate-200 text-slate-600'}`}>
                                   {type.badge}
                                 </span>
                               </div>
-                              <div>
-                                <div className="text-sm font-bold text-slate-900 leading-tight">{type.label}</div>
-                                <div className="text-xs text-slate-500 mt-1 leading-snug">{type.desc}</div>
+                              <div className="mt-1 sm:mt-0">
+                                <div className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">{type.label}</div>
+                                <div className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 leading-tight line-clamp-2">{type.desc}</div>
                               </div>
                             </button>
                           );
                         })}
                       </div>
 
-                      {/* Stade d'avancement horizontal */}
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                      {/* Stade d'avancement horizontal (2x2 sur Mobile, 4x1 sur Grand Écran) */}
+                      <div className="pt-4 border-t border-slate-100 space-y-2.5 sm:space-y-3">
                         <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
                           Stade de développement actuel
                         </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
                           {stagesList.map((item) => {
                             const isSelected = stage === item.id;
                             return (
@@ -766,14 +782,14 @@ export default function PublicApplicationPage() {
                                   setStage(prev => (prev === item.id ? '' : item.id));
                                   setStepError('');
                                 }}
-                                className={`p-3.5 rounded-2xl text-left border transition-all cursor-pointer select-none ${
+                                className={`p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl text-left border transition-all cursor-pointer select-none flex flex-col justify-between min-h-[64px] sm:min-h-0 ${
                                   isSelected
                                     ? 'border-[#f06553] bg-orange-50/80 text-slate-900 ring-2 ring-[#f06553]/20 shadow-2xs'
                                     : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
                                 }`}
                               >
                                 <div className="text-xs font-bold leading-tight text-slate-900">{item.label}</div>
-                                <div className="text-[11px] text-slate-500 mt-1 leading-tight">{item.desc}</div>
+                                <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 leading-tight">{item.desc}</div>
                               </button>
                             );
                           })}
@@ -1219,7 +1235,7 @@ export default function PublicApplicationPage() {
                         <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
                           Vos priorités (cochez les plus pertinentes)
                         </label>
-                        <div className="grid sm:grid-cols-2 gap-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
                           {availableNeeds.map((item) => {
                             const isSelected = needs.includes(item.label);
                             return (
@@ -1227,15 +1243,15 @@ export default function PublicApplicationPage() {
                                 type="button"
                                 key={item.label}
                                 onClick={() => toggleNeed(item.label)}
-                                className={`p-3.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left w-full ${
+                                className={`p-2.5 sm:p-3.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left w-full ${
                                   isSelected
                                     ? 'border-[#f06553] bg-orange-50/70 text-slate-900 shadow-2xs ring-2 ring-[#f06553]/20'
                                     : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
                                 }`}
                               >
-                                <div className="flex flex-col min-w-0 pr-3">
+                                <div className="flex flex-col min-w-0 pr-2 sm:pr-3">
                                   <span className="text-xs font-bold text-slate-900 leading-tight">{item.label}</span>
-                                  <span className="text-[11px] text-slate-500 mt-1 leading-snug">{item.desc}</span>
+                                  <span className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 sm:mt-1 leading-snug">{item.desc}</span>
                                 </div>
                                 <input 
                                   type="checkbox" 
