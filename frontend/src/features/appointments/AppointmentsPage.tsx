@@ -252,7 +252,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
         {isLoading ? (
           <div className="p-8 text-center text-slate-500">Chargement...</div>
         ) : (beneficiaries.length === 0 && user?.role !== 'COACH') ? (
@@ -287,7 +287,7 @@ export default function AppointmentsPage() {
         ) : (
           <div className="divide-y divide-slate-100">
             {sortedAppointments.map(app => (
-              <div key={app.id} className="p-5 hover:bg-slate-50 transition-colors">
+              <div key={app.id} className="p-5 hover:bg-slate-50 transition-colors first:rounded-t-xl last:rounded-b-xl relative">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-2 min-w-0 flex-1">
                     <div className="flex items-center gap-3">
@@ -394,7 +394,7 @@ export default function AppointmentsPage() {
                         </button>
 
                         {openMenuId === app.id && (
-                          <div className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                          <div className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-2xl border border-slate-200/90 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                             {/* Action 1 : Convocation Officielle */}
                             <button
                               type="button"
