@@ -44,11 +44,20 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   if (res.status === 204) return undefined as T;
   const data: unknown = await res.json().catch(() => null);
   if (!res.ok) {
-    const err = (data as ApiErrorBody | null)?.error;
+    const err = (data as (ApiErrorBody & { error?: { details?: Array<{ champ?: string; message: string }> } }) | null)?.error;
     const defaultMsg = res.status === 502 || res.status === 503 || res.status === 504
       ? 'Le serveur sécurisé s’active (réveil Render). Veuillez patienter 10 secondes et renouveler votre demande.'
       : 'Une erreur est survenue';
-    throw new ApiError(res.status, err?.code ?? 'ERREUR', err?.message ?? defaultMsg);
+    
+    let errorMsg = err?.message ?? defaultMsg;
+    if (err?.details && Array.isArray(err.details) && err.details.length > 0) {
+      const detailsMsg = err.details
+        .map((d) => (d.champ ? `${d.champ} : ${d.message}` : d.message))
+        .join(', ');
+      errorMsg = `${errorMsg} (${detailsMsg})`;
+    }
+
+    throw new ApiError(res.status, err?.code ?? 'ERREUR', errorMsg);
   }
   return data as T;
 }
