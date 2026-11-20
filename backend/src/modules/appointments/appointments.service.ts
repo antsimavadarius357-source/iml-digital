@@ -194,6 +194,7 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
 
   // Créer un enregistrement de rendez-vous pour chaque bénéficiaire concerné
   const createdAppointments = [];
+  const deliveryStatusByBenId = new Map<string, { isDelivered: boolean; isSimulated: boolean; deliveryError: string | null }>();
   for (const bId of targetBeneficiaryIds) {
     // 1. Affecter formellement le coach au bénéficiaire pour lui donner accès au dossier et aux documents
     await prisma.assignment.upsert({
@@ -233,6 +234,7 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
 
     // 3. Envoi de l'e-mail de convocation officiel au bénéficiaire au même instant
     let isDelivered = false;
+    let isSimulated = false;
     let deliveryError: string | null = null;
     if (appt.beneficiary?.email && appt.beneficiary.email.includes('@') && !appt.beneficiary.email.endsWith('.local')) {
       try {
@@ -246,7 +248,11 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
           locationOrUrl: data.location || 'Siège IML Digit',
           notes: data.notes,
         });
-        isDelivered = mailRes.success;
+        isDelivered = mailRes.success && !mailRes.simulated;
+        isSimulated = Boolean(mailRes.simulated);
+        if (isSimulated) {
+          deliveryError = 'Serveur en mode simulation : aucun compte SMTP / Gmail configuré sur Render.';
+        }
       } catch (err: any) {
         isDelivered = false;
         deliveryError = err?.message || 'Erreur SMTP';
@@ -256,6 +262,8 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
       isDelivered = false;
       deliveryError = 'Adresse e-mail manquante ou non valide';
     }
+
+    deliveryStatusByBenId.set(appt.beneficiary.id, { isDelivered, isSimulated, deliveryError });
 
     // 4. Envoi automatique de l'ordre de mission / notification par e-mail au coach désigné
     if (coachUser?.email && coachUser.email.includes('@') && !coachUser.email.endsWith('.local')) {
@@ -295,14 +303,40 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
         platformDelivered: true,
         deliveredAt: nowIso,
       },
-      beneficiaries: createdAppointments.map(a => ({
-        id: a.beneficiary.id,
-        name: `${a.beneficiary.firstName} ${a.beneficiary.lastName}`,
-        email: a.beneficiary.email,
-        phone: a.beneficiary.phone,
-        emailDelivered: Boolean(a.beneficiary.email && a.beneficiary.email.includes('@') && !a.beneficiary.email.endsWith('.local')),
-        deliveredAt: nowIso,
-      })),
+      beneficiaries: createdAppointments.map(a => {
+        const phone = a.beneficiary.phone;
+        const benName = `${a.beneficiary.firstName} ${a.beneficiary.lastName}`.trim();
+        const dateStr = new Date(data.datetime).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+        const timeStr = new Date(data.datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const isVid = data.location && (data.location.includes('http') || data.location.toLowerCase().includes('visio'));
+        const waMsg = `Bonjour ${benName},\nVotre séance d'accompagnement IML Digit avec votre coach ${coachFullName} est confirmée :\n📅 Date : ${dateStr} à ${timeStr} (${data.duration} min)\n📍 ${isVid ? 'Lien visio' : 'Lieu'} : ${data.location || 'Siège IML Digit, Libreville'}\n${data.notes ? `🎯 Objectif : ${data.notes}\n` : ''}\nPlateforme IML Digit`;
+        
+        let whatsAppUrl = null;
+        if (phone) {
+          let clean = phone.replace(/[^0-9+]/g, '');
+          if (clean.startsWith('0')) {
+            clean = '241' + clean.slice(1);
+          } else if (!clean.startsWith('+') && !clean.startsWith('241') && clean.length <= 8) {
+            clean = '241' + clean;
+          }
+          clean = clean.replace('+', '');
+          whatsAppUrl = `https://wa.me/${clean}?text=${encodeURIComponent(waMsg)}`;
+        }
+
+        const benDelivery = deliveryStatusByBenId.get(a.beneficiary.id) || { isDelivered: false, isSimulated: false, deliveryError: null };
+
+        return {
+          id: a.beneficiary.id,
+          name: benName,
+          email: a.beneficiary.email,
+          phone: a.beneficiary.phone,
+          emailDelivered: benDelivery.isDelivered,
+          emailSimulated: benDelivery.isSimulated,
+          deliveryError: benDelivery.deliveryError,
+          whatsAppUrl,
+          deliveredAt: nowIso,
+        };
+      }),
       sessionType,
       locationOrUrl: data.location || 'Siège IML Digit',
       datetime: data.datetime,

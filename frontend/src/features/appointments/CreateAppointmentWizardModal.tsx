@@ -286,25 +286,58 @@ export default function CreateAppointmentWizardModal({
       const coachObj: any = allStaff.find((c: any) => c.id === data?.coachIdToUse) || user;
       const coachDisplayName = coachObj ? `${coachObj.firstName || ''} ${coachObj.lastName || ''}`.trim() : 'Coach IML Digit';
 
-      const email = ben?.email?.trim()?.toLowerCase();
-      const isEmailValid = Boolean(email && email.includes('@') && !email.endsWith('.local'));
+      const email = (ben?.email || data?.res?.receipt?.beneficiaries?.[0]?.email || '').trim().toLowerCase();
+      const phone = ben?.phone || data?.res?.receipt?.beneficiaries?.[0]?.phone || defaultCandidate?.phone;
+      const receiptBen = data?.res?.receipt?.beneficiaries?.[0];
+
+      const whatsAppUrl = receiptBen?.whatsAppUrl || (phone ? (() => {
+        let clean = phone.replace(/[^0-9+]/g, '');
+        if (clean.startsWith('0')) clean = '241' + clean.slice(1);
+        else if (!clean.startsWith('+') && !clean.startsWith('241') && clean.length <= 8) clean = '241' + clean;
+        clean = clean.replace('+', '');
+        const dateStr = new Date(data?.combinedDateTime).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+        const timeStr = new Date(data?.combinedDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const isVid = sessionType === 'video';
+        const msg = `Bonjour ${ben?.name || 'Bénéficiaire'},\nVotre convocation d'accompagnement IML Digit avec votre coach ${coachDisplayName} est confirmée :\n📅 Date : ${dateStr} à ${timeStr} (${data?.durationMinutes || 60} min)\n📍 ${isVid ? 'Lien visio' : 'Lieu'} : ${sessionType === 'video' ? videoUrl : (inPersonPlace || `Siège IML Digit, ${city}`)}\n${description ? `🎯 Objectif : ${description}\n` : ''}\nPlateforme IML Digit`;
+        return `https://wa.me/${clean}?text=${encodeURIComponent(msg)}`;
+      })() : null);
+
+      const hasTypo = Boolean(email && (email.includes('@glail.') || email.includes('@gmai.') || email.includes('@gamil.')));
+      const isSimulated = Boolean(receiptBen?.emailSimulated);
+      const isDelivered = Boolean(receiptBen?.emailDelivered);
+
+      let finalStatus: 'delivered' | 'simulated' | 'failed' = 'failed';
+      let errorMsg: string | undefined = undefined;
+
+      if (hasTypo) {
+        finalStatus = 'failed';
+        errorMsg = `Faute de frappe détectée : "${email}". Pour recevoir les e-mails, corrigez l'adresse en "@gmail.com".`;
+      } else if (isSimulated) {
+        finalStatus = 'simulated';
+        errorMsg = `Mode simulation : aucun serveur SMTP n'est configuré sur Render. Utilisez le bouton WhatsApp pour envoyer la convocation.`;
+      } else if (isDelivered) {
+        finalStatus = 'delivered';
+      } else {
+        finalStatus = 'failed';
+        errorMsg = receiptBen?.deliveryError || (email ? "L'e-mail n'a pas pu être délivré." : "Aucune adresse e-mail valide renseignée.");
+      }
 
       // Émettre l'accusé de réception pour la notification instantanée de l'agent
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('iml:appointment-scheduled', {
           detail: {
             appointmentId: apptId,
-            recipientName: ben?.name || 'Candidat / Bénéficiaire',
-            recipientEmail: ben?.email,
+            recipientName: ben?.name || receiptBen?.name || 'Candidat / Bénéficiaire',
+            recipientEmail: email || undefined,
+            recipientPhone: phone || undefined,
             coachName: coachDisplayName,
             datetime: data?.combinedDateTime,
             durationMinutes: data?.durationMinutes || 60,
             sessionType,
             locationOrUrl: sessionType === 'video' ? videoUrl : (inPersonPlace || `Siège IML Digit, ${city}`),
-            status: isEmailValid ? 'delivered' : 'failed',
-            errorMessage: isEmailValid 
-              ? undefined 
-              : (email ? "Échec de l'envoi : l'adresse e-mail n'a pas pu être délivrée." : "Échec de l'envoi : aucune adresse e-mail valide renseignée pour ce bénéficiaire."),
+            status: finalStatus,
+            errorMessage: errorMsg,
+            whatsAppUrl,
             timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
           }
         }));

@@ -17,6 +17,7 @@ import {
   Check,
   FolderOpen
 } from 'lucide-react';
+import { WhatsAppSvg } from '../../components/communication/QuickWhatsAppModal';
 
 export interface ConvocationData {
   appointmentId: string;
@@ -162,6 +163,29 @@ export default function OfficialConvocationModal({
               <Printer className="size-3.5" />
               <span className="hidden sm:inline">Imprimer / PDF</span>
             </button>
+
+            {data?.recipientPhone && (
+              <a
+                href={(() => {
+                  let clean = data.recipientPhone.replace(/[^0-9+]/g, '');
+                  if (clean.startsWith('0')) clean = '241' + clean.slice(1);
+                  else if (!clean.startsWith('+') && !clean.startsWith('241') && clean.length <= 8) clean = '241' + clean;
+                  clean = clean.replace('+', '');
+                  const dateStr = new Date(data.datetime).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+                  const timeStr = new Date(data.datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                  const isVid = data.sessionType === 'video';
+                  const msg = `Bonjour ${data.recipientName},\nVotre convocation d'accompagnement IML Digit avec votre coach ${data.coachName || 'Coach Référent'} est confirmée :\n📅 Date : ${dateStr} à ${timeStr} (${data.durationMinutes || 60} min)\n📍 ${isVid ? 'Lien visio' : 'Lieu'} : ${data.locationOrUrl || 'Siège Libreville'}\n\nPlateforme IML Digit`;
+                  return `https://wa.me/${clean}?text=${encodeURIComponent(msg)}`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Transmettre la convocation par WhatsApp au bénéficiaire"
+              >
+                <WhatsAppSvg className="size-3.5 text-white" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </a>
+            )}
 
             <button
               type="button"

@@ -427,12 +427,14 @@ export default function AppLayout() {
     coachName: string;
     recipientName: string;
     recipientEmail?: string;
+    recipientPhone?: string;
     datetime: string;
     durationMinutes: number;
     sessionType: 'video' | 'in_person';
     locationOrUrl: string;
-    status?: 'delivered' | 'failed';
+    status?: 'delivered' | 'simulated' | 'failed';
     errorMessage?: string;
+    whatsAppUrl?: string | null;
     timestamp?: string;
   } | null>(null);
 
@@ -446,7 +448,7 @@ export default function AppLayout() {
         if (timer) clearTimeout(timer);
         timer = setTimeout(() => {
           setReceiptToast(null);
-        }, 7000);
+        }, 12000);
       }
     };
 
@@ -1515,9 +1517,11 @@ export default function AppLayout() {
         {/* PETITE NOTIFICATION D'ACCUSÉ DE RÉCEPTION POUR L'AGENT DE PLANIFICATION (JAMAIS POUR LE COACH) */}
         {!isCoach && receiptToast && typeof document !== 'undefined' && createPortal(
           <div 
-            className={`fixed top-5 right-5 z-[9999] max-w-sm w-[92vw] sm:w-[390px] bg-white rounded-2xl shadow-2xl p-4 space-y-3 animate-in slide-in-from-top-4 fade-in duration-300 text-slate-800 ${
+            className={`fixed top-5 right-5 z-[9999] max-w-sm w-[92vw] sm:w-[410px] bg-white rounded-2xl shadow-2xl p-4 space-y-3 animate-in slide-in-from-top-4 fade-in duration-300 text-slate-800 ${
               receiptToast.status === 'failed'
                 ? 'border-2 border-red-500 ring-4 ring-red-100'
+                : receiptToast.status === 'simulated'
+                ? 'border-2 border-amber-500 ring-4 ring-amber-100'
                 : 'border-2 border-emerald-500 ring-4 ring-emerald-100'
             }`}
           >
@@ -1525,7 +1529,12 @@ export default function AppLayout() {
               {receiptToast.status === 'failed' ? (
                 <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800 border border-red-300">
                   <AlertCircle className="size-3.5 text-red-600" />
-                  <span>Échec de l'envoi</span>
+                  <span>Anomalie e-mail</span>
+                </div>
+              ) : receiptToast.status === 'simulated' ? (
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                  <AlertCircle className="size-3.5 text-amber-600" />
+                  <span>Mode simulation</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -1546,12 +1555,16 @@ export default function AppLayout() {
             <div>
               <div className="text-xs sm:text-[13px] font-bold text-slate-900 leading-snug">
                 {receiptToast.status === 'failed'
-                  ? "Le message n'est pas parti vers le bénéficiaire."
-                  : "Le message est bien parti : ils ont bien reçu !"}
+                  ? "Convocation non délivrée par e-mail"
+                  : receiptToast.status === 'simulated'
+                  ? "Rendez-vous enregistré sur la plateforme"
+                  : "Le message est bien parti : convocation expédiée !"}
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 {receiptToast.status === 'failed'
                   ? "Une anomalie empêche la transmission de la convocation au bénéficiaire."
+                  : receiptToast.status === 'simulated'
+                  ? "Aucun serveur SMTP n'est configuré sur Render. Utilisez le bouton WhatsApp ci-dessous pour transmettre la convocation."
                   : "Le coach et le bénéficiaire ont tous deux bien reçu leur convocation."}
               </p>
             </div>
@@ -1559,6 +1572,8 @@ export default function AppLayout() {
             <div className={`p-2.5 rounded-xl border text-xs space-y-1.5 ${
               receiptToast.status === 'failed'
                 ? 'bg-red-50/70 border-red-200/80'
+                : receiptToast.status === 'simulated'
+                ? 'bg-amber-50/70 border-amber-200/80'
                 : 'bg-emerald-50/70 border-emerald-200/80'
             }`}>
               {/* Statut Coach */}
@@ -1582,6 +1597,16 @@ export default function AppLayout() {
                       </span>
                     </div>
                   </>
+                ) : receiptToast.status === 'simulated' ? (
+                  <>
+                    <span className="text-amber-600 font-bold text-xs mt-0.5">⚠️</span>
+                    <div className="text-slate-800">
+                      <span className="font-semibold text-slate-900">Bénéficiaire ({receiptToast.recipientName}) :</span>{' '}
+                      <span className="text-amber-900 font-medium">
+                        {receiptToast.errorMessage || "E-mail simulé en console (configurez SMTP sur Render pour l'envoi réel)"}
+                      </span>
+                    </div>
+                  </>
                 ) : (
                   <>
                     <span className="text-emerald-600 font-bold text-xs mt-0.5">✓</span>
@@ -1596,6 +1621,20 @@ export default function AppLayout() {
               </div>
             </div>
 
+            {/* Action directe WhatsApp */}
+            {receiptToast.whatsAppUrl && (
+              <a
+                href={receiptToast.whatsAppUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setReceiptToast(null)}
+                className="w-full py-2 px-3 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+              >
+                <WhatsAppSvg className="size-4 text-white shrink-0" />
+                <span>Envoyer la convocation sur WhatsApp (1 clic)</span>
+              </a>
+            )}
+
             <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 pt-2 font-medium">
               <span className="text-slate-600 flex items-center gap-1">
                 <Calendar className="size-3 text-[#f06553]" />
@@ -1604,7 +1643,9 @@ export default function AppLayout() {
                 </span>
               </span>
               {receiptToast.status === 'failed' ? (
-                <span className="text-red-600 font-bold">Échec d'envoi ✗</span>
+                <span className="text-red-600 font-bold">À corriger ✗</span>
+              ) : receiptToast.status === 'simulated' ? (
+                <span className="text-amber-600 font-bold">Simulé (Console)</span>
               ) : (
                 <span className="text-emerald-600 font-bold">Ils ont bien reçu ✓</span>
               )}
