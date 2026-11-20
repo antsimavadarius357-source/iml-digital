@@ -37,6 +37,15 @@ function getTransporter() {
   return null;
 }
 
+function getSender(label: string = 'IML Digit'): string {
+  if (process.env.SMTP_FROM) return process.env.SMTP_FROM;
+  const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  if (user) {
+    return `"${label}" <${user}>`;
+  }
+  return `"${label}" <no-reply@imldigit.com>`;
+}
+
 export function isSmtpConfigured(): boolean {
   return getTransporter() !== null;
 }
@@ -64,7 +73,7 @@ export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
     };
   }
 
-  const sender = process.env.SMTP_FROM || `"IML Digit" <${process.env.SMTP_USER || process.env.GMAIL_USER || 'no-reply@imldigit.com'}>`;
+  const sender = getSender('IML Digit');
   try {
     await transporter.sendMail({
       from: sender,
@@ -117,7 +126,7 @@ export async function sendOtpEmail(toEmail: string, code: string): Promise<SendE
     };
   }
 
-  const sender = process.env.SMTP_FROM || `"iml digit" <${process.env.SMTP_USER || 'no-reply@imldigit.com'}>`;
+  const sender = getSender('iml digit');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -213,7 +222,7 @@ export async function sendCoachBriefingEmail(data: CoachBriefingData): Promise<S
     };
   }
 
-  const sender = process.env.SMTP_FROM || `"IML Digit Coordination" <${process.env.SMTP_USER || 'no-reply@imldigit.com'}>`;
+  const sender = getSender('IML Digit Coordination');
   const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/connexion`;
 
   const htmlContent = `
@@ -349,7 +358,7 @@ export async function sendAppointmentNotificationEmail(data: AppointmentNotifica
     return { success: true, simulated: true };
   }
 
-  const sender = process.env.SMTP_FROM || `"IML Digit" <${process.env.SMTP_USER || 'no-reply@imldigit.com'}>`;
+  const sender = getSender('IML Digit');
   const isVideo = data.sessionType === 'video';
   const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/connexion`;
 
@@ -491,7 +500,7 @@ export async function sendAppointmentReminderEmail(data: AppointmentReminderData
     return { success: true, simulated: true };
   }
 
-  const sender = process.env.SMTP_FROM || `"IML Digit Rappels" <${process.env.SMTP_USER || 'no-reply@imldigit.com'}>`;
+  const sender = getSender('IML Digit Rappels');
   const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/connexion`;
 
   const htmlContent = `
@@ -653,7 +662,7 @@ export async function sendStepValidationAlertEmail(data: StepValidationAlertData
     return { success: true, simulated: true };
   }
 
-  const sender = process.env.SMTP_FROM || `"IML Digit Coordination" <${process.env.SMTP_USER || 'no-reply@imldigit.com'}>`;
+  const sender = getSender('IML Digit Coordination');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -784,7 +793,7 @@ export async function sendApplicationDecisionEmail(data: ApplicationDecisionEmai
     return { success: true, simulated: true };
   }
 
-  const sender = process.env.SMTP_FROM || `"Incubateur IML Digit" <${process.env.SMTP_USER || 'no-reply@imldigit.com'}>`;
+  const sender = getSender('Incubateur IML Digit');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -1079,7 +1088,7 @@ export async function sendRoomBookingNotificationEmail(data: RoomBookingNotifica
     return { success: true, simulated: true };
   }
 
-  const sender = process.env.EMAIL_FROM || 'IML Digit <no-reply@imldigit.ga>';
+  const sender = getSender('IML Digit Salles');
   try {
     await transporter.sendMail({
       from: sender,
@@ -1195,7 +1204,7 @@ export async function sendRoomBookingAdminAlertEmail(data: RoomBookingAdminAlert
     return { success: true, simulated: true };
   }
 
-  const sender = process.env.EMAIL_FROM || 'IML Digit <no-reply@imldigit.ga>';
+  const sender = getSender('IML Digit Salles');
   try {
     await transporter.sendMail({
       from: sender,
