@@ -234,7 +234,16 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
 
     // 3. Envoi de l'e-mail de convocation officiel au bénéficiaire (asynchrone non-bloquant pour exécution instantanée)
     const isSmtpReady = isSmtpConfigured();
-    const hasValidEmail = Boolean(appt.beneficiary?.email && appt.beneficiary.email.includes('@') && !appt.beneficiary.email.endsWith('.local'));
+    let recipientEmail = (data.candidateEmail || appt.beneficiary?.email || '').trim();
+    if (recipientEmail.toLowerCase().endsWith('@glail.com')) {
+      recipientEmail = recipientEmail.replace(/@glail\.com$/i, '@gmail.com');
+      prisma.beneficiary.update({
+        where: { id: bId },
+        data: { email: recipientEmail }
+      }).catch(() => {});
+    }
+
+    const hasValidEmail = Boolean(recipientEmail && recipientEmail.includes('@') && !recipientEmail.endsWith('.local'));
     const isDelivered = isSmtpReady && hasValidEmail;
     const isSimulated = !isSmtpReady && hasValidEmail;
     const deliveryError = !hasValidEmail 
@@ -244,18 +253,20 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
       : null;
 
     if (hasValidEmail) {
-      // Expédition immédiate en arrière-plan sans bloquer la réponse de l'interface
+      console.log(`[ENVOI CONVOCATION] Déclenchement de l'envoi immédiat à ${recipientEmail}`);
       sendAppointmentNotificationEmail({
-        recipientEmail: appt.beneficiary.email,
-        recipientName: `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}`,
+        recipientEmail: recipientEmail,
+        recipientName: `${appt.beneficiary?.firstName || ''} ${appt.beneficiary?.lastName || ''}`.trim() || data.candidateName || 'Bénéficiaire',
         coachName: coachFullName,
         datetime: formattedDate,
         durationMinutes: data.duration,
         sessionType,
         locationOrUrl: data.location || 'Siège IML Digit',
         notes: data.notes,
+      }).then((res) => {
+        console.log(`[ENVOI CONVOCATION RÉSULTAT] ${recipientEmail}:`, res);
       }).catch((err: any) => {
-        console.error(`[AVERTISSEMENT] Échec envoi email au bénéficiaire ${appt.beneficiary?.email}:`, err);
+        console.error(`[AVERTISSEMENT] Échec envoi email au bénéficiaire ${recipientEmail}:`, err);
       });
     }
 

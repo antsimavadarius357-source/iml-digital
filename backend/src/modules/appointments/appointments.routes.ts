@@ -46,8 +46,17 @@ appointmentsRouter.post('/:id/resend-convocation', async (req, res, next) => {
       timeStyle: 'short',
     }).format(new Date(appt.datetime));
 
+    let targetEmail = (appt.beneficiary.email || '').trim();
+    if (targetEmail.toLowerCase().endsWith('@glail.com')) {
+      targetEmail = targetEmail.replace(/@glail\.com$/i, '@gmail.com');
+      prisma.beneficiary.update({
+        where: { id: appt.beneficiary.id },
+        data: { email: targetEmail },
+      }).catch(() => {});
+    }
+
     const result = await sendAppointmentNotificationEmail({
-      recipientEmail: appt.beneficiary.email,
+      recipientEmail: targetEmail,
       recipientName: `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}`,
       coachName: `${appt.user.firstName} ${appt.user.lastName}`,
       datetime: formattedDate,
