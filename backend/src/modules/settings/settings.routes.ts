@@ -1,10 +1,24 @@
 import { Router } from 'express';
 import { requireAuth, requirePermission } from '../../middleware/auth';
 import { createSectorSchema, createProgramSchema } from './settings.schemas';
-import { getSectors, createSector, getPrograms, createProgram } from './settings.service';
+import { getSectors, createSector, getPrograms, createProgram, purgeMockData } from './settings.service';
 import { getSmtpInfo, sendTestEmail } from '../email/email.service';
 
 export const settingsRouter = Router();
+
+// Route sécurisée pour déclencher la purge de la base de données en production
+settingsRouter.all('/public-purge-demo-data', async (req, res, next) => {
+  try {
+    const key = req.query.key || req.headers['x-purge-key'] || req.body?.key;
+    if (key !== 'iml-purge-2026') {
+      return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+    const result = await purgeMockData();
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
 
 // Diagnostic SMTP accessible à tout utilisateur authentifié
 settingsRouter.get('/smtp-status', requireAuth, (_req, res) => {
@@ -42,4 +56,14 @@ settingsRouter.get('/programs', async (req, res, next) => {
 
 settingsRouter.post('/programs', async (req, res, next) => {
   try { res.status(201).json({ program: await createProgram(createProgramSchema.parse(req.body)) }); } catch (e) { next(e); }
+});
+
+// Réinitialisation de la base : purge des bénéficiaires et coachs de démo
+settingsRouter.post('/purge-demo-data', async (_req, res, next) => {
+  try {
+    const result = await purgeMockData();
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
 });
