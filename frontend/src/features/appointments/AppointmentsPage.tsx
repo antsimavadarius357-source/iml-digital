@@ -346,9 +346,9 @@ export default function AppointmentsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Bouton Rejoindre visio compact et sans rupture de ligne */}
-                    {app.location && (() => {
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {/* Bouton Rejoindre visio : affiché uniquement si la séance est planifiée */}
+                    {app.status === 'PLANIFIE' && !app.session && app.location && (() => {
                       const lower = app.location.toLowerCase();
                       const isVisio = lower.includes('visio') || lower.includes('meet') || lower.includes('zoom') || lower.includes('teams') || app.location.includes('http');
                       if (!isVisio) return null;
@@ -371,14 +371,6 @@ export default function AppointmentsPage() {
                         </a>
                       );
                     })()}
-
-                    {/* Statut si séance réalisée */}
-                    {app.session && (
-                      <div className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shrink-0">
-                        <CheckCircle2 className="size-3.5 text-emerald-600" />
-                        <span>Séance réalisée ({app.session.durationHours}h)</span>
-                      </div>
-                    )}
 
                     {/* Menu d'actions unique compact (Convocation, Modifier, Annuler, Supprimer) */}
                     {!isCoach && (
@@ -485,14 +477,44 @@ export default function AppointmentsPage() {
                   </div>
                 </div>
                 
-                {app.session && (
-                  <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100 text-sm">
-                    <p className="font-medium text-slate-700 mb-1">Compte-rendu :</p>
-                    <p className="text-slate-600 whitespace-pre-wrap">{app.session.summary}</p>
-                    {app.session.nextActions && (
-                      <div className="mt-3 pt-3 border-t border-slate-200">
-                        <p className="font-medium text-slate-700 mb-1">Prochaines actions :</p>
-                        <p className="text-slate-600 whitespace-pre-wrap">{app.session.nextActions}</p>
+                {/* Notification de séance terminée / réalisée (style alerte de notification, non un bouton) */}
+                {(app.session || app.status === 'REALISE') && (
+                  <div className="mt-3 border-l-4 border-l-emerald-500 bg-emerald-50/45 border border-emerald-200/70 rounded-r-xl px-3.5 py-2.5 text-xs space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-emerald-900">
+                        <span className="relative flex size-2">
+                          <span className="inline-flex rounded-full size-2 bg-emerald-500" />
+                        </span>
+                        <span className="font-bold">
+                          Notification de suivi : Séance réalisée (
+                          {app.session?.durationHours
+                            ? `${app.session.durationHours}h`
+                            : app.duration
+                            ? `${app.duration} min`
+                            : '1h'}
+                          )
+                        </span>
+                        <span className="text-emerald-700/80 font-normal hidden sm:inline">
+                          — Entretien terminé et comptabilisé dans le parcours
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-emerald-700 font-medium">
+                        {new Date(app.datetime).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+
+                    {app.session?.summary && (
+                      <div className="pt-1.5 border-t border-emerald-200/60 text-slate-700 space-y-1.5">
+                        <p className="whitespace-pre-wrap leading-relaxed">
+                          <strong className="text-slate-800">Compte-rendu : </strong>
+                          {app.session.summary}
+                        </p>
+                        {app.session.nextActions && (
+                          <p className="whitespace-pre-wrap leading-relaxed text-teal-900">
+                            <strong className="text-teal-950">Suite à donner : </strong>
+                            {app.session.nextActions}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -509,28 +531,69 @@ export default function AppointmentsPage() {
       />
 
       {showSessionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-slate-800">Saisir le Compte-Rendu</h2>
-              <button onClick={() => setShowSessionModal(null)} className="text-slate-400 hover:text-slate-600">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-[1px] p-4 animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+            <div className="px-5 py-3.5 bg-[#101f2e] text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-[#23c3b1]" />
+                <h2 className="text-sm font-bold">Clôturer la séance & Saisir le bilan</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSessionModal(null)}
+                className="text-slate-300 hover:text-white cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
             </div>
-            <form onSubmit={handleSession} className="p-6 space-y-4">
+            <form onSubmit={handleSession} className="p-5 space-y-4 text-xs">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Pointage réel (heures)</label>
-                <input type="number" name="durationHours" defaultValue={1} min={0.25} step={0.25} required className="w-full rounded-md border-slate-300 shadow-sm p-2 border" />
+                <label className="block font-semibold text-slate-700 mb-1">Durée effective de la séance (en heures)</label>
+                <input
+                  type="number"
+                  name="durationHours"
+                  defaultValue={1.5}
+                  min={0.25}
+                  step={0.25}
+                  required
+                  className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-[#23c3b1] outline-none"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Résumé de la séance</label>
-                <textarea name="summary" rows={4} required className="w-full rounded-md border-slate-300 shadow-sm p-2 border" />
+                <label className="block font-semibold text-slate-700 mb-1">Synthèse des points abordés *</label>
+                <textarea
+                  name="summary"
+                  rows={4}
+                  required
+                  placeholder="Résumez les avancées, diagnostics et points clés traités durant la séance..."
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-xs focus:border-[#23c3b1] outline-none"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Prochaines actions</label>
-                <textarea name="nextActions" rows={3} className="w-full rounded-md border-slate-300 shadow-sm p-2 border" />
+                <label className="block font-semibold text-slate-700 mb-1">Prochaines actions & recommandations</label>
+                <textarea
+                  name="nextActions"
+                  rows={3}
+                  placeholder="Livrables attendus ou actions à réaliser par le bénéficiaire pour la prochaine étape..."
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-xs focus:border-[#23c3b1] outline-none"
+                />
               </div>
-              <div className="pt-4 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowSessionModal(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
-                <button type="submit" disabled={sessionMut.isPending} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">Valider et Pointer</button>
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowSessionModal(null)}
+                  className="px-3.5 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={sessionMut.isPending}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold disabled:opacity-50 shadow-2xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="size-3.5" />
+                  <span>{sessionMut.isPending ? 'Validation...' : 'Valider la séance réalisée'}</span>
+                </button>
               </div>
             </form>
           </div>
