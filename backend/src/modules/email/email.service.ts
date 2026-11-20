@@ -22,6 +22,9 @@ function getTransporter() {
     return nodemailer.createTransport({
       service: 'gmail',
       auth: { user, pass },
+      connectionTimeout: 8000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
     });
   }
 
@@ -31,6 +34,9 @@ function getTransporter() {
       port,
       secure: port === 465,
       auth: { user, pass },
+      connectionTimeout: 8000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
     });
   }
 

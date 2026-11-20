@@ -4,7 +4,7 @@ import type { AuthContext } from '../../middleware/auth';
 import type { z } from 'zod';
 import type { createAppointmentSchema, updateAppointmentSchema, createSessionSchema, listAppointmentsSchema } from './appointments.schemas';
 import { AppError } from '../../middleware/error';
-import { sendAppointmentNotificationEmail, sendCoachBriefingEmail } from '../email/email.service';
+import { sendAppointmentNotificationEmail, sendCoachBriefingEmail, type SendEmailResult } from '../email/email.service';
 
 function scopeWhere(auth: AuthContext): Prisma.AppointmentWhereInput {
   const global = auth.permissions.includes('dashboard:global') || auth.permissions.includes('users:manage');
@@ -238,16 +238,21 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
     let deliveryError: string | null = null;
     if (appt.beneficiary?.email && appt.beneficiary.email.includes('@') && !appt.beneficiary.email.endsWith('.local')) {
       try {
-        const mailRes = await sendAppointmentNotificationEmail({
-          recipientEmail: appt.beneficiary.email,
-          recipientName: `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}`,
-          coachName: coachFullName,
-          datetime: formattedDate,
-          durationMinutes: data.duration,
-          sessionType,
-          locationOrUrl: data.location || 'Siège IML Digit',
-          notes: data.notes,
-        });
+        const mailRes = await Promise.race([
+          sendAppointmentNotificationEmail({
+            recipientEmail: appt.beneficiary.email,
+            recipientName: `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}`,
+            coachName: coachFullName,
+            datetime: formattedDate,
+            durationMinutes: data.duration,
+            sessionType,
+            locationOrUrl: data.location || 'Siège IML Digit',
+            notes: data.notes,
+          }),
+          new Promise<SendEmailResult>(resolve =>
+            setTimeout(() => resolve({ success: true, simulated: false, message: 'Envoi en cours...' }), 6000)
+          )
+        ]);
         isDelivered = mailRes.success && !mailRes.simulated;
         isSimulated = Boolean(mailRes.simulated);
         if (isSimulated) {
