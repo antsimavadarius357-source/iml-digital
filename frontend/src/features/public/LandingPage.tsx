@@ -275,30 +275,31 @@ export default function LandingPage() {
       <section 
         className="relative pt-16 pb-20 md:pt-24 md:pb-28 px-4 sm:px-6 lg:px-8 overflow-hidden text-white min-h-[580px] flex flex-col justify-center items-center"
       >
-        {/* CARROUSEL D'IMAGES DE FOND AVEC EFFET KEN BURNS & CROSS-FADE RÉPÉTÉ */}
+        {/* CARROUSEL D'IMAGES DE FOND - VISIBLE À 100% SUR MOBILE ET ORDINATEUR */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
           {HERO_SLIDES.map((slide, idx) => (
-            <motion.div
+            <div
               key={idx}
-              initial={false}
-              animate={{ 
+              style={{
                 opacity: idx === currentSlide ? 1 : 0,
-                scale: idx === currentSlide ? 1 : 1.08
+                transform: idx === currentSlide ? 'scale(1)' : 'scale(1.05)',
+                transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
-              transition={{ duration: 1.6, ease: "easeInOut" }}
-              className="absolute inset-0"
+              className="absolute inset-0 will-change-transform"
             >
               <img 
                 src={slide.image} 
                 alt={slide.title} 
-                className="w-full h-full object-cover object-center filter brightness-[0.88] contrast-[1.05]" 
+                loading={idx === 0 ? "eager" : "lazy"}
+                decoding="async"
+                className="w-full h-full object-cover object-center filter brightness-105 contrast-105" 
               />
-            </motion.div>
+            </div>
           ))}
 
-          {/* Dégradés d'overlay de luxe pour garantir une lisibilité absolue */}
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/85 via-slate-900/75 to-slate-950/90" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#FF5B37]/25 via-transparent to-transparent pointer-events-none" />
+          {/* Dégradés d'overlay optimisés : légers sur smartphone pour que la photo ressorte nettement */}
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/45 via-slate-900/30 to-slate-950/60 sm:from-slate-950/70 sm:via-slate-900/55 sm:to-slate-950/80" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#FF5B37]/20 via-transparent to-transparent pointer-events-none" />
           <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-[700px] h-[300px] bg-teal-500/15 rounded-full blur-[120px] pointer-events-none" />
         </div>
 
@@ -314,7 +315,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.1 }}
-              className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.12] drop-shadow-md"
+              className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.12] drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)]"
             >
               Donnez une trajectoire solide{' '}
               <span className="bg-gradient-to-r from-[#FF7A5C] via-[#FFA085] to-[#FF5B37] bg-clip-text text-transparent">
@@ -327,7 +328,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2 }}
-              className="text-base sm:text-lg md:text-xl text-slate-200 max-w-2xl mx-auto leading-relaxed font-normal drop-shadow-sm"
+              className="text-base sm:text-lg md:text-xl text-white sm:text-slate-100 max-w-2xl mx-auto leading-relaxed font-medium drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)]"
             >
               IML Digit est la plateforme souveraine qui structure l'incubation de vos projets : 
               mentorat personnalisé, suivi certifié étape par étape et mise en relation directe avec les financements.
@@ -701,8 +702,17 @@ export default function LandingPage() {
       {/* =========================================================================
           5. CHIFFRES D'IMPACT CLÉS
          ========================================================================= */}
-      <section id="impact" className="py-20 md:py-24 px-4 sm:px-6 lg:px-8 bg-slate-900 text-white relative overflow-hidden">
-        <div className="absolute right-0 bottom-0 w-96 h-96 bg-[#FF5B37]/10 rounded-full blur-[120px] pointer-events-none" />
+      <section id="impact" className="py-20 md:py-24 px-4 sm:px-6 lg:px-8 text-white relative overflow-hidden">
+        {/* Photo de fond certification & impact */}
+        <div className="absolute inset-0 z-0">
+          <img 
+            src={heroCertificationSuccess} 
+            alt="Impact National IML Digit" 
+            className="w-full h-full object-cover object-center filter brightness-90 contrast-105" 
+          />
+          <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[1px]" />
+        </div>
+        <div className="absolute right-0 bottom-0 w-96 h-96 bg-[#FF5B37]/15 rounded-full blur-[120px] pointer-events-none" />
 
         <div className="max-w-7xl mx-auto relative z-10">
           
@@ -820,7 +830,16 @@ export default function LandingPage() {
       {/* =========================================================================
           SECTION SPÉCIALE : LOCATION DE SALLE & MASTERCLASSES
          ========================================================================= */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white relative overflow-hidden">
+      <section className="py-16 px-4 sm:px-6 lg:px-8 text-white relative overflow-hidden">
+        {/* Image de fond authentique de la salle et du hub */}
+        <div className="absolute inset-0 z-0">
+          <img 
+            src={heroIncubatorHub} 
+            alt="Salle d'innovation IML Digit" 
+            className="w-full h-full object-cover object-center filter brightness-95 contrast-105" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/80 to-slate-900/85 backdrop-blur-[1px]" />
+        </div>
         <div className="max-w-5xl mx-auto rounded-3xl bg-slate-800/60 border border-slate-700/80 p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 backdrop-blur-md shadow-2xl">
           <div className="space-y-3 max-w-xl">
             <span className="px-3 py-1 rounded-full bg-[#FF5B37]/20 text-[#FF7A5C] text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5 border border-[#FF5B37]/30">
