@@ -529,6 +529,7 @@ export default function AppLayout() {
       title: 'Organisation',
       subtitle: 'Bénéficiaires & acteurs',
       items: [
+        { label: 'Candidatures & Admissions', to: '/candidatures', icon: Target },
         { label: 'Bénéficiaires & PME', to: '/beneficiaires', icon: UserIcon },
         { label: 'Contacts & Réseau', to: '/contacts', icon: Contact },
         { label: 'Coachs & Mentors', to: '/coachs', icon: UserCheck },
@@ -549,7 +550,7 @@ export default function AppLayout() {
     direction: ['/direction', '/pilotage', '/statistiques'],
     candidatures: ['/candidatures'],
     beneficiaires: ['/beneficiaires'],
-    organisation: ['/beneficiaires', '/contacts', '/coachs', '/equipe'],
+    organisation: ['/candidatures', '/beneficiaires', '/contacts', '/coachs', '/equipe'],
     accompagnement: ['/agendas', '/rendez-vous', '/documents', '/notes-suivi'],
   };
 
@@ -559,10 +560,11 @@ export default function AppLayout() {
     ? '/direction' 
     : '/tableau-de-bord?vue=agent';
 
-  // Navigation contextuelle et stricte selon le rôle :
+  // Navigation contextuelle et accessible à tous les rôles clés :
   const allNavLinks = effectiveRole === 'COACH'
     ? [
         { id: 'accueil', to: '/tableau-de-bord?vue=coach', label: 'Cahier de bord', icon: Home, hasSubmenu: false, roles: ['COACH'] },
+        { id: 'candidatures', to: '/candidatures', label: 'Candidatures & Admissions', icon: Target, hasSubmenu: false, roles: ['COACH'] },
         { id: 'agendas', to: '/agendas', label: 'Mon Planning', icon: Calendar, hasSubmenu: false, roles: ['COACH'] },
       ]
     : effectiveRole === 'DIRECTION'
@@ -572,9 +574,9 @@ export default function AppLayout() {
       ]
     : [
         { id: 'accueil', to: homeLink, label: 'Accueil Guichet', icon: Home, hasSubmenu: false, roles: ['AGENT', 'ADMIN'] },
+        { id: 'candidatures', to: '/candidatures', label: 'Candidatures & Admissions', icon: Target, hasSubmenu: false, roles: ['AGENT', 'ADMIN'] },
         { id: 'organisation', to: '/beneficiaires', label: 'Organisation', icon: Network, hasSubmenu: true, roles: ['AGENT', 'ADMIN'] },
         { id: 'accompagnement', to: '/agendas', label: 'Accompagnement', icon: HeartHandshake, hasSubmenu: true, roles: ['AGENT', 'ADMIN'] },
-        { id: 'candidatures', to: '/candidatures', label: 'Candidatures & Admissions', icon: Target, hasSubmenu: false, roles: ['ADMIN'] },
       ];
 
   const navLinks = allNavLinks.filter(item => item.roles.includes(effectiveRole));
