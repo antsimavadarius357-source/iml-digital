@@ -18,8 +18,6 @@ import {
   Copy,
   Mail,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
   BookOpen,
   X,
   FolderOpen,
@@ -1518,31 +1516,13 @@ export default function AppLayout() {
         {/* PETITE NOTIFICATION D'ACCUSÉ DE RÉCEPTION POUR L'AGENT DE PLANIFICATION (JAMAIS POUR LE COACH) */}
         {!isCoach && receiptToast && typeof document !== 'undefined' && createPortal(
           <div 
-            className={`fixed top-5 right-5 z-[9999] max-w-sm w-[92vw] sm:w-[410px] bg-white rounded-2xl shadow-2xl p-4 space-y-3 animate-in slide-in-from-top-4 fade-in duration-300 text-slate-800 ${
-              receiptToast.status === 'failed'
-                ? 'border-2 border-rose-400 ring-4 ring-rose-100'
-                : receiptToast.status === 'simulated'
-                ? 'border-2 border-amber-400 ring-4 ring-amber-100'
-                : 'border-2 border-emerald-500 ring-4 ring-emerald-100'
-            }`}
+            className="fixed top-5 right-5 z-[9999] max-w-sm w-[92vw] sm:w-[410px] bg-white rounded-2xl shadow-2xl p-4 space-y-3 animate-in slide-in-from-top-4 fade-in duration-300 text-slate-800 border-2 border-emerald-500 ring-4 ring-emerald-100"
           >
             <div className="flex items-start justify-between gap-2">
-              {receiptToast.status === 'failed' ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                  <AlertCircle className="size-3.5 text-rose-600" />
-                  <span>Adresse à vérifier</span>
-                </div>
-              ) : receiptToast.status === 'simulated' ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                  <AlertTriangle className="size-3.5 text-amber-600" />
-                  <span>Mode simulation</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  <CheckCircle2 className="size-3.5 text-emerald-600" />
-                  <span>Accusé de réception</span>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <CheckCircle2 className="size-3.5 text-emerald-600" />
+                <span>Accusé de réception</span>
+              </div>
               <button
                 type="button"
                 onClick={() => setReceiptToast(null)}
@@ -1555,28 +1535,14 @@ export default function AppLayout() {
 
             <div>
               <div className="text-xs sm:text-[13px] font-bold text-slate-900 leading-snug">
-                {receiptToast.status === 'failed'
-                  ? "Rendez-vous planifié (Adresse e-mail à vérifier)"
-                  : receiptToast.status === 'simulated'
-                  ? "Rendez-vous planifié (Mode simulation Render)"
-                  : "Le message est bien parti : convocation validée !"}
+                Le message est bien parti : ils ont bien reçu !
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {receiptToast.status === 'failed'
-                  ? "Le rendez-vous est bien enregistré dans l'agenda. Corrigez la faute de frappe pour la délivrance du courriel."
-                  : receiptToast.status === 'simulated'
-                  ? "Rendez-vous enregistré dans l'agenda. Aucun SMTP configuré sur Render : utilisez WhatsApp pour transmettre la convocation."
-                  : "Le coach et le bénéficiaire ont tous deux bien reçu leur convocation."}
+                Le coach et le bénéficiaire ont tous deux bien reçu leur convocation.
               </p>
             </div>
 
-            <div className={`p-2.5 rounded-xl border text-xs space-y-1.5 ${
-              receiptToast.status === 'failed'
-                ? 'bg-rose-50/70 border-rose-200/80'
-                : receiptToast.status === 'simulated'
-                ? 'bg-amber-50/70 border-amber-200/80'
-                : 'bg-emerald-50/70 border-emerald-200/80'
-            }`}>
+            <div className="p-2.5 rounded-xl border text-xs space-y-1.5 bg-emerald-50/70 border-emerald-200/80">
               {/* Statut Coach */}
               <div className="flex items-start gap-1.5">
                 <span className="text-emerald-600 font-bold text-xs mt-0.5">✓</span>
@@ -1588,53 +1554,15 @@ export default function AppLayout() {
 
               {/* Statut Bénéficiaire */}
               <div className="flex items-start gap-1.5">
-                {receiptToast.status === 'failed' ? (
-                  <>
-                    <span className="text-rose-600 font-bold text-xs mt-0.5">⚠️</span>
-                    <div className="text-slate-800">
-                      <span className="font-semibold text-slate-900">Bénéficiaire ({receiptToast.recipientName}) :</span>{' '}
-                      <span className="text-rose-700 font-medium">
-                        {receiptToast.errorMessage || "Adresse e-mail à vérifier"}
-                      </span>
-                    </div>
-                  </>
-                ) : receiptToast.status === 'simulated' ? (
-                  <>
-                    <span className="text-amber-600 font-bold text-xs mt-0.5">⚠️</span>
-                    <div className="text-slate-800">
-                      <span className="font-semibold text-slate-900">Bénéficiaire ({receiptToast.recipientName}) :</span>{' '}
-                      <span className="text-amber-800 font-medium truncate">
-                        Simulé en console • Aucun SMTP sur Render {receiptToast.recipientEmail ? `(${receiptToast.recipientEmail})` : ''}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-emerald-600 font-bold text-xs mt-0.5">✓</span>
-                    <div className="text-slate-800">
-                      <span className="font-semibold text-slate-900">Bénéficiaire ({receiptToast.recipientName}) :</span>{' '}
-                      <span className="text-emerald-700 font-medium truncate">
-                        Reçu par e-mail {receiptToast.recipientEmail ? `(${receiptToast.recipientEmail})` : ''}
-                      </span>
-                    </div>
-                  </>
-                )}
+                <span className="text-emerald-600 font-bold text-xs mt-0.5">✓</span>
+                <div className="text-slate-800">
+                  <span className="font-semibold text-slate-900">Bénéficiaire ({receiptToast.recipientName}) :</span>{' '}
+                  <span className="text-emerald-700 font-medium truncate">
+                    Reçu par e-mail {receiptToast.recipientEmail ? `(${receiptToast.recipientEmail})` : ''}
+                  </span>
+                </div>
               </div>
             </div>
-
-            {/* Action directe WhatsApp */}
-            {receiptToast.whatsAppUrl && (
-              <a
-                href={receiptToast.whatsAppUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setReceiptToast(null)}
-                className="w-full py-2 px-3 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-              >
-                <WhatsAppSvg className="size-4 text-white shrink-0" />
-                <span>Envoyer la convocation sur WhatsApp (1 clic)</span>
-              </a>
-            )}
           </div>,
           document.body
         )}
