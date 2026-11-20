@@ -347,9 +347,9 @@ export default function LandingPage() {
               transition={{ duration: 0.7, delay: 0.1 }}
               className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.12] drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)]"
             >
-              Donnez une trajectoire solide{' '}
+              Bâtissez et accélérez votre entreprise{' '}
               <span className="bg-gradient-to-r from-[#FF7A5C] via-[#FFA085] to-[#FF5B37] bg-clip-text text-transparent">
-                à vos ambitions d'entreprise.
+                au Gabon.
               </span>
             </motion.h1>
 
@@ -360,8 +360,8 @@ export default function LandingPage() {
               transition={{ duration: 0.7, delay: 0.2 }}
               className="text-base sm:text-lg md:text-xl text-white sm:text-slate-100 max-w-2xl mx-auto leading-relaxed font-medium drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)]"
             >
-              IML Digit est la plateforme souveraine qui structure l'incubation de vos projets : 
-              mentorat personnalisé, suivi certifié étape par étape et mise en relation directe avec les financements.
+              IML Digit accompagne porteurs de projets, startups et PME : 
+              mentorat sur mesure, diagnostics certifiés et accès aux financements.
             </motion.p>
 
             {/* CTAs d'action directe */}
