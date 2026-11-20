@@ -273,35 +273,64 @@ export default function LandingPage() {
           1. HERO SECTION CINÉMATIQUE AVEC DÉFILEMENT D'IMAGES ANIMÉES CONTINU
          ========================================================================= */}
       <section 
-        className="relative py-16 sm:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden text-white min-h-[100dvh] min-h-screen flex flex-col justify-center items-center"
+        className="relative w-full py-12 sm:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden text-white flex flex-col justify-center items-center"
+        style={{
+          minHeight: 'calc(100svh - 80px)',
+          position: 'relative'
+        }}
       >
-        {/* CARROUSEL D'IMAGES DE FOND PLEIN ÉCRAN (100% IMMERSIF SUR SMARTPHONE ET ORDINATEUR) */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        {/* CARROUSEL D'IMAGES DE FOND PLEIN ÉCRAN (100% RECOUVREMENT TOTAL DU RECTANGLE SUR MOBILE ET ORDINATEUR) */}
+        <div 
+          className="absolute inset-0 pointer-events-none overflow-hidden"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100%',
+            height: '100%'
+          }}
+        >
           {HERO_SLIDES.map((slide, idx) => (
             <div
               key={idx}
+              aria-hidden="true"
               style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: '100%',
+                height: '100%',
+                backgroundImage: `url(${slide.image})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center center',
+                backgroundRepeat: 'no-repeat',
                 opacity: idx === currentSlide ? 1 : 0,
-                transform: idx === currentSlide ? 'scale(1)' : 'scale(1.04)',
-                transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                transform: idx === currentSlide ? 'scale(1)' : 'scale(1.05)',
+                transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                zIndex: idx === currentSlide ? 1 : 0
               }}
-              className="absolute inset-0 will-change-transform"
-            >
-              <img 
-                src={slide.image} 
-                alt={slide.title} 
-                loading={idx === 0 ? "eager" : "lazy"}
-                decoding="async"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                className="w-full h-full object-cover object-center filter brightness-100 sm:brightness-105 contrast-105" 
-              />
-            </div>
+            />
           ))}
 
-          {/* Voile cinématographique uniforme pour révéler l'image sur 100% de la hauteur sans coupure */}
-          <div className="absolute inset-0 bg-slate-950/45 sm:bg-slate-950/60 backdrop-blur-[0.5px]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-transparent to-slate-950/40 pointer-events-none" />
-          <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-[700px] h-[300px] bg-teal-500/15 rounded-full blur-[120px] pointer-events-none" />
+          {/* Voile uniforme translucide sans aucun dégradé masquant pour que l'image couvre tout le rectangle sans coupure */}
+          <div 
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: '100%',
+              height: '100%',
+              backgroundColor: 'rgba(15, 23, 42, 0.48)',
+              zIndex: 2
+            }}
+            className="pointer-events-none"
+          />
         </div>
 
         <div className="max-w-7xl mx-auto relative z-10 w-full">

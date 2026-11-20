@@ -27,10 +27,15 @@ export async function api<T>(path: string, options: { method?: string; body?: un
 
   try {
     res = await doFetch();
+    // En cas d'erreur de proxy Vercel temporaire (502 / 504 réveil Render)
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      await new Promise(r => setTimeout(r, 2000));
+      res = await doFetch();
+    }
   } catch {
     // Tentative de rattrapage automatique (utile lors du réveil du serveur Render ou instabilité 3G/4G)
     try {
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 2000));
       res = await doFetch();
     } catch {
       throw new ApiError(0, 'RESEAU', 'Le serveur se réveille ou la connexion a été interrompue. Veuillez patienter 10 secondes et réessayer.');
@@ -40,7 +45,10 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   const data: unknown = await res.json().catch(() => null);
   if (!res.ok) {
     const err = (data as ApiErrorBody | null)?.error;
-    throw new ApiError(res.status, err?.code ?? 'ERREUR', err?.message ?? 'Une erreur est survenue');
+    const defaultMsg = res.status === 502 || res.status === 503 || res.status === 504
+      ? 'Le serveur sécurisé s’active (réveil Render). Veuillez patienter 10 secondes et renouveler votre demande.'
+      : 'Une erreur est survenue';
+    throw new ApiError(res.status, err?.code ?? 'ERREUR', err?.message ?? defaultMsg);
   }
   return data as T;
 }

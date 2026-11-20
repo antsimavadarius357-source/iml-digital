@@ -246,6 +246,29 @@ export default function AppLayout() {
     });
   };
 
+  const [readBeneficiaryAlertIds, setReadBeneficiaryAlertIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('iml_read_beneficiary_alerts') || '[]');
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const markBeneficiaryAlertAsRead = (benId: string) => {
+    setReadBeneficiaryAlertIds((prev) => {
+      if (prev.includes(benId)) return prev;
+      const next = [...prev, benId];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('iml_read_beneficiary_alerts', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+  };
 
   // Récupérer les nouvelles réservations de salle pour notifier l'équipe et la direction
   const { data: pendingRoomBookingsRes } = useQuery({
@@ -257,6 +280,21 @@ export default function AppLayout() {
     refetchInterval: 8_000,
     enabled: !isCoach,
   });
+
+  // Récupérer les nouveaux bénéficiaires créés / inscrits (accessible à l'Agent et à la Direction)
+  const { data: recentBeneficiariesRes } = useQuery({
+    queryKey: ['recent-beneficiaries-alert'],
+    queryFn: () => api<{ items: any[]; total: number }>('/beneficiaries?pageSize=30').catch(() => ({ items: [], total: 0 })),
+    refetchInterval: 8_000,
+    enabled: !isCoach,
+  });
+
+  const allBeneficiaries = recentBeneficiariesRes?.items || [];
+  const recentBeneficiaries = allBeneficiaries.filter((b: any) => {
+    const d = new Date(b.createdAt);
+    return !isNaN(d.getTime()) && d.getTime() >= new Date('2026-11-12T00:00:00Z').getTime();
+  });
+  const unreadBeneficiaries = recentBeneficiaries.filter((b: any) => !readBeneficiaryAlertIds.includes(b.id));
 
   // Récupérer les nouvelles candidatures (accessible à l'Agent et à la Direction)
   const { data: pendingAppsData } = useQuery({
@@ -307,7 +345,7 @@ export default function AppLayout() {
 
   // Candidatures éligibles à l'alerte : réelles nouvelles candidatures reçues
   const pendingApps = (pendingAppsData?.items || []).filter((a: any) => 
-    !isSeedApp(a) && (a.status === 'SOUMISE' || isDateToday(a.submittedAt || a.createdAt))
+    !isSeedApp(a) && (a.status === 'SOUMISE' || a.status === 'EN_ATTENTE' || a.status === 'BROUILLON' || a.status === 'EN_COURS_EXAMEN' || isDateToday(a.submittedAt || a.createdAt))
   );
   const unreadApps = pendingApps.filter((a: any) => !readAlertIds.includes(a.id));
 
@@ -337,7 +375,7 @@ export default function AppLayout() {
 
   const alertCount = isCoach
     ? unreadCoachAppts.length
-    : (unreadApps.length + unreadNotes.length + unreadRoomBookings.length + unreadContacts.length);
+    : (unreadApps.length + unreadBeneficiaries.length + unreadNotes.length + unreadRoomBookings.length + unreadContacts.length);
 
   const markAllAlertsAsRead = () => {
     if (isCoach) {
@@ -356,6 +394,10 @@ export default function AppLayout() {
     const combinedApps = Array.from(new Set([...readAlertIds, ...allAppIds]));
     setReadAlertIds(combinedApps);
 
+    const allBenIds = recentBeneficiaries.map((b: any) => b.id);
+    const combinedBens = Array.from(new Set([...readBeneficiaryAlertIds, ...allBenIds]));
+    setReadBeneficiaryAlertIds(combinedBens);
+
     const allNoteIds = recentNotes.map((n: any) => n.id);
     const combinedNotes = Array.from(new Set([...readNoteAlertIds, ...allNoteIds]));
     setReadNoteAlertIds(combinedNotes);
@@ -371,6 +413,7 @@ export default function AppLayout() {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('iml_read_application_alerts', JSON.stringify(combinedApps));
+        localStorage.setItem('iml_read_beneficiary_alerts', JSON.stringify(combinedBens));
         localStorage.setItem('iml_read_note_alerts', JSON.stringify(combinedNotes));
         localStorage.setItem('iml_read_room_alerts', JSON.stringify(combinedRooms));
         localStorage.setItem('iml_read_contact_alerts', JSON.stringify(combinedContacts));
@@ -908,13 +951,13 @@ export default function AppLayout() {
                         })
                       )
                     ) : (
-                      /* LISTE POUR L'AGENT / DIRECTION : Réservations de salle + Messages de contact + Comptes-rendus + Nouvelles candidatures */
-                      (unreadApps.length === 0 && unreadNotes.length === 0 && unreadRoomBookings.length === 0 && unreadContacts.length === 0) ? (
+                      /* LISTE POUR L'AGENT / DIRECTION : Réservations de salle + Messages de contact + Bénéficiaires + Comptes-rendus + Nouvelles candidatures */
+                      (unreadApps.length === 0 && unreadBeneficiaries.length === 0 && unreadNotes.length === 0 && unreadRoomBookings.length === 0 && unreadContacts.length === 0) ? (
                         <div className="p-6 text-center text-slate-400">
                           <CheckCircle2 className="size-7 mx-auto mb-2 text-[#23c3b1]" />
                           <p className="font-semibold text-slate-700">Toutes les alertes ont été consultées</p>
                           <p className="text-[11px] text-slate-400 mt-0.5">
-                            Aucune nouvelle demande de candidature, réservation de salle, compte-rendu ni contact en attente
+                            Aucune nouvelle demande de candidature, bénéficiaire inscrit, réservation de salle, compte-rendu ni contact en attente
                           </p>
                         </div>
                       ) : (
@@ -971,6 +1014,63 @@ export default function AppLayout() {
                                   >
                                     <Mail className="size-3" />
                                     <span>Consulter & Répondre</span>
+                                  </Link>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* 0.5 NOUVEAUX BÉNÉFICIAIRES INSCRITS / TRANSMIS */}
+                          {unreadBeneficiaries.map((b: any) => {
+                            const benName = `${b.firstName || ''} ${b.lastName || ''}`.trim() || 'Nouveau porteur';
+                            const company = b.companyName || b.projects?.[0]?.name || 'Projet en cours';
+                            const formattedDate = formatNotificationDate(b.createdAt);
+
+                            return (
+                              <div key={b.id} className="p-3.5 bg-emerald-50/40 hover:bg-emerald-50/80 transition-colors space-y-2 group relative border-l-3 border-emerald-500">
+                                <div className="flex items-center justify-between">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                    <UserCheck className="size-3 text-emerald-600" />
+                                    <span>Nouveau Bénéficiaire inscrit</span>
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-medium text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200/60">
+                                      {formattedDate}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        markBeneficiaryAlertAsRead(b.id);
+                                      }}
+                                      title="Marquer comme lu"
+                                      className="opacity-60 group-hover:opacity-100 text-slate-400 hover:text-emerald-600 transition-opacity p-0.5 cursor-pointer rounded hover:bg-slate-200/50"
+                                    >
+                                      <CheckCircle2 className="size-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                                    {benName}
+                                  </div>
+                                  <div className="text-[11px] text-slate-600 font-medium mt-0.5">
+                                    Structure : <span className="text-slate-800 font-semibold">{company}</span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Link
+                                    to={`/beneficiaires/${b.id}`}
+                                    onClick={() => {
+                                      markBeneficiaryAlertAsRead(b.id);
+                                      setIsNotificationsOpen(false);
+                                    }}
+                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                  >
+                                    <FolderOpen className="size-3" />
+                                    <span>Voir le dossier bénéficiaire</span>
                                   </Link>
                                 </div>
                               </div>

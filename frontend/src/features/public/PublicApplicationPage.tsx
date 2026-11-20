@@ -148,29 +148,34 @@ export default function PublicApplicationPage() {
       formData.append('file', file);
 
       try {
-        let res: Response;
-        try {
-          res = await fetch('/api/v1/applications/public/attachments', {
-            method: 'POST',
-            headers: {
-              'X-Requested-With': 'iml-digital',
-            },
-            body: formData,
-          });
-        } catch {
-          // Deuxième tentative automatique si réveil du serveur
-          await new Promise(r => setTimeout(r, 1500));
-          res = await fetch('/api/v1/applications/public/attachments', {
-            method: 'POST',
-            headers: {
-              'X-Requested-With': 'iml-digital',
-            },
-            body: formData,
-          });
+        let res: Response | null = null;
+        let lastErr: any = null;
+
+        // Jusqu'à 3 tentatives automatiques pour absorber le réveil à froid de Render
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            res = await fetch('/api/v1/applications/public/attachments', {
+              method: 'POST',
+              headers: {
+                'X-Requested-With': 'iml-digital',
+              },
+              body: formData,
+            });
+            if (res && res.ok) break;
+          } catch (fetchErr: any) {
+            lastErr = fetchErr;
+            if (attempt < 3) {
+              await new Promise(r => setTimeout(r, 2000 * attempt));
+            }
+          }
         }
 
-        if (!res.ok) {
-          const errJson = await res.json().catch(() => null);
+        if (!res && lastErr) {
+          throw lastErr;
+        }
+
+        if (!res || !res.ok) {
+          const errJson = await res?.json().catch(() => null);
           throw new Error(errJson?.error?.message || 'Erreur lors du téléversement du fichier');
         }
 
@@ -196,8 +201,9 @@ export default function PublicApplicationPage() {
           ]);
         }
       } catch (err: any) {
-        const errorMsg = err?.message === 'Load failed' || err?.message?.includes('Failed to fetch')
-          ? `Le serveur de stockage se prépare. Veuillez réessayez dans 10 secondes pour "${file.name}".`
+        const isNetworkErr = err?.message === 'Load failed' || err?.message?.includes('Failed to fetch') || err?.name === 'TypeError';
+        const errorMsg = isNetworkErr
+          ? `Le serveur sécurisé s'active (délai de sécurité gratuit Render). Veuillez patienter 10 secondes et sélectionner à nouveau "${file.name}".`
           : (err?.message || `Échec du téléversement de ${file.name}`);
         setUploadDocError(errorMsg);
       }
