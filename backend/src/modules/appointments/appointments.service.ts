@@ -4,7 +4,7 @@ import type { AuthContext } from '../../middleware/auth';
 import type { z } from 'zod';
 import type { createAppointmentSchema, updateAppointmentSchema, createSessionSchema, listAppointmentsSchema } from './appointments.schemas';
 import { AppError } from '../../middleware/error';
-import { sendAppointmentNotificationEmail, sendCoachBriefingEmail, type SendEmailResult } from '../email/email.service';
+import { sendAppointmentNotificationEmail, sendCoachBriefingEmail, isSmtpConfigured, type SendEmailResult } from '../email/email.service';
 
 function scopeWhere(auth: AuthContext): Prisma.AppointmentWhereInput {
   const global = auth.permissions.includes('dashboard:global') || auth.permissions.includes('users:manage');
@@ -232,40 +232,31 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
 
     createdAppointments.push(appt);
 
-    // 3. Envoi de l'e-mail de convocation officiel au bénéficiaire au même instant
-    let isDelivered = false;
-    let isSimulated = false;
-    let deliveryError: string | null = null;
-    if (appt.beneficiary?.email && appt.beneficiary.email.includes('@') && !appt.beneficiary.email.endsWith('.local')) {
-      try {
-        const mailRes = await Promise.race([
-          sendAppointmentNotificationEmail({
-            recipientEmail: appt.beneficiary.email,
-            recipientName: `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}`,
-            coachName: coachFullName,
-            datetime: formattedDate,
-            durationMinutes: data.duration,
-            sessionType,
-            locationOrUrl: data.location || 'Siège IML Digit',
-            notes: data.notes,
-          }),
-          new Promise<SendEmailResult>(resolve =>
-            setTimeout(() => resolve({ success: true, simulated: false, message: 'Envoi en cours...' }), 6000)
-          )
-        ]);
-        isDelivered = mailRes.success && !mailRes.simulated;
-        isSimulated = Boolean(mailRes.simulated);
-        if (isSimulated) {
-          deliveryError = 'Serveur en mode simulation : aucun compte SMTP / Gmail configuré sur Render.';
-        }
-      } catch (err: any) {
-        isDelivered = false;
-        deliveryError = err?.message || 'Erreur SMTP';
+    // 3. Envoi de l'e-mail de convocation officiel au bénéficiaire (asynchrone non-bloquant pour exécution instantanée)
+    const isSmtpReady = isSmtpConfigured();
+    const hasValidEmail = Boolean(appt.beneficiary?.email && appt.beneficiary.email.includes('@') && !appt.beneficiary.email.endsWith('.local'));
+    const isDelivered = isSmtpReady && hasValidEmail;
+    const isSimulated = !isSmtpReady && hasValidEmail;
+    const deliveryError = !hasValidEmail 
+      ? 'Adresse e-mail manquante ou non valide' 
+      : isSimulated 
+      ? 'Serveur en mode simulation : aucun compte SMTP / Gmail configuré sur Render.' 
+      : null;
+
+    if (hasValidEmail) {
+      // Expédition immédiate en arrière-plan sans bloquer la réponse de l'interface
+      sendAppointmentNotificationEmail({
+        recipientEmail: appt.beneficiary.email,
+        recipientName: `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}`,
+        coachName: coachFullName,
+        datetime: formattedDate,
+        durationMinutes: data.duration,
+        sessionType,
+        locationOrUrl: data.location || 'Siège IML Digit',
+        notes: data.notes,
+      }).catch((err: any) => {
         console.error(`[AVERTISSEMENT] Échec envoi email au bénéficiaire ${appt.beneficiary?.email}:`, err);
-      }
-    } else {
-      isDelivered = false;
-      deliveryError = 'Adresse e-mail manquante ou non valide';
+      });
     }
 
     deliveryStatusByBenId.set(appt.beneficiary.id, { isDelivered, isSimulated, deliveryError });
