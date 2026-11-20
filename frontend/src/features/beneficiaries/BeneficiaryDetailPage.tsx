@@ -1148,18 +1148,8 @@ export default function BeneficiaryDetailPage() {
                       Aucune session de suivi enregistrée
                     </h4>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      Ce bénéficiaire vient d'être configuré. Les rendez-vous d'étape et séances de mentorat avec le coach apparaîtront ici dès leur planification.
+                      Ce bénéficiaire vient d'être configuré. Les rendez-vous d'étape et séances de mentorat avec le coach apparaîtront ici dès leur planification via le bouton ci-dessus.
                     </p>
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsAppointmentModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
-                      >
-                        <Calendar className="size-4" />
-                        <span>Planifier le premier rendez-vous</span>
-                      </button>
-                    </div>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
