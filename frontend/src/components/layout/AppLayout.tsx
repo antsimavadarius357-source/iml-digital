@@ -529,7 +529,6 @@ export default function AppLayout() {
       title: 'Organisation',
       subtitle: 'Bénéficiaires & acteurs',
       items: [
-        { label: 'Candidatures & Admissions', to: '/candidatures', icon: Target },
         { label: 'Bénéficiaires & PME', to: '/beneficiaires', icon: UserIcon },
         { label: 'Contacts & Réseau', to: '/contacts', icon: Contact },
         { label: 'Coachs & Mentors', to: '/coachs', icon: UserCheck },
@@ -549,8 +548,7 @@ export default function AppLayout() {
   const routeCategoryMap: Record<string, string[]> = {
     direction: ['/direction', '/pilotage', '/statistiques'],
     candidatures: ['/candidatures'],
-    beneficiaires: ['/beneficiaires'],
-    organisation: ['/candidatures', '/beneficiaires', '/contacts', '/coachs', '/equipe'],
+    organisation: ['/beneficiaires', '/contacts', '/coachs', '/equipe'],
     accompagnement: ['/agendas', '/rendez-vous', '/documents', '/notes-suivi'],
   };
 

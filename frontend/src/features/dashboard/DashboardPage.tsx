@@ -23,7 +23,9 @@ import {
   Video,
   Bot,
   Users,
-  Eye
+  Eye,
+  Target,
+  ArrowRight
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -93,6 +95,24 @@ export default function DashboardPage() {
     queryFn: () => api<{ items: any[]; total: number }>('/beneficiaries?pageSize=100'),
   });
   const beneficiariesList = beneficiariesRes?.items || [];
+
+  // Récupération dynamique des candidatures reçues
+  const { data: applicationsRes } = useQuery({
+    queryKey: ['applications-dashboard'],
+    queryFn: () => api<{ items: any[]; total: number }>('/applications?pageSize=50').catch(() => ({ items: [], total: 0 })),
+    staleTime: 30_000,
+  });
+  const applicationsList = applicationsRes?.items || [];
+
+  // 1. Candidatures à traiter : en attente d'évaluation ou d'entretien
+  const candidaturesEnAttente = useMemo(() => {
+    return applicationsList.filter((a: any) => a.status === 'SOUMISE' || a.status === 'EN_COURS_EXAMEN');
+  }, [applicationsList]);
+
+  // 2. Candidatures admises : intégrées dans le programme
+  const candidaturesAdmis = useMemo(() => {
+    return applicationsList.filter((a: any) => a.status === 'ACCEPTEE');
+  }, [applicationsList]);
 
   // Modèles de parcours
   const { data: templatesRes } = useQuery({
@@ -372,43 +392,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleValidateStep = async (stepId: string, beneficiaryName: string, stepTitle: string) => {
-    try {
-      await api(`/pathways/steps/${stepId}`, {
-        method: 'PATCH',
-        body: { status: 'TERMINE' }
-      });
-      setDashboardToast(`Étape « ${stepTitle} » validée pour ${beneficiaryName}.`);
-      void refetchBeneficiaries();
-    } catch {
-      setDashboardToast(`Étape validée avec succès.`);
-      void refetchBeneficiaries();
-    }
-  };
-
-  // 1. Parcours à créer : bénéficiaires sans parcours ou en attente
-  const parcoursACreer = useMemo(() => {
-    return beneficiariesList.filter((b: any) => !b.pathway || b.status === 'EN_ATTENTE');
-  }, [beneficiariesList]);
-
-  // 2. Étapes à valider : étapes en cours ou à faire
-  const etapesAValider = useMemo(() => {
-    return beneficiariesList.flatMap((b: any) => {
-      if (!b.pathway?.steps) return [];
-      return b.pathway.steps
-        .filter((s: any) => s.status === 'EN_COURS' || s.status === 'A_FAIRE')
-        .slice(0, 1)
-        .map((s: any) => ({
-          beneficiaryId: b.id,
-          beneficiaryName: `${b.firstName} ${b.lastName}`,
-          stepId: s.id,
-          stepTitle: s.title,
-          stepStatus: s.status,
-        }));
-    });
-  }, [beneficiariesList]);
-
-  // 3. Dates à proposer : bénéficiaires sans rendez-vous planifiés
+  // Dates à proposer : bénéficiaires sans rendez-vous planifiés
   const datesAProposer = useMemo(() => {
     return beneficiariesList.filter((b: any) => !b.appointments || b.appointments.length === 0);
   }, [beneficiariesList]);
@@ -1237,98 +1221,131 @@ export default function DashboardPage() {
           {/* 2. GESTION OPÉRATIONNELLE : Les 5 blocs de tâches Teasio (Plein format élargi) */}
           <div className="w-full bg-white rounded-xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-6">
             
-            {/* Ligne 1 : Parcours à créer & Étapes à valider */}
+            {/* Ligne 1 : Candidatures à instruire & Candidatures admises (Remplace les étapes de parcours) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              {/* 1. En attente de parcours */}
+              {/* 1. Nouvelles Candidatures à traiter */}
               <div className="bg-slate-50/50 rounded-xl p-4 sm:p-5 border border-slate-200/70">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                   <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                    <span>En attente de parcours</span>
-                    {parcoursACreer.length > 0 && (
+                    <Target className="size-4 text-[#f06553]" />
+                    <span>Nouvelles Candidatures à traiter</span>
+                    {candidaturesEnAttente.length > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#fff1ec] text-[#e8664d] border border-[#fed7cc]">
-                        {parcoursACreer.length}
+                        {candidaturesEnAttente.length}
                       </span>
                     )}
                   </h3>
+                  <Link 
+                    to="/candidatures" 
+                    className="text-xs font-semibold text-[#f06553] hover:underline flex items-center gap-1"
+                  >
+                    <span>Toutes ({applicationsList.length})</span>
+                    <ArrowRight className="size-3" />
+                  </Link>
                 </div>
                 
-                {parcoursACreer.length === 0 ? (
-                  <div className="border border-slate-200 rounded-lg py-6 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs mt-3">
-                    Aucune tâche restante
+                {candidaturesEnAttente.length === 0 ? (
+                  <div className="border border-slate-200 rounded-lg py-6 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs mt-3 flex flex-col items-center gap-1">
+                    <CheckCircle2 className="size-5 text-emerald-500 mb-1" />
+                    <span className="font-medium text-slate-600">Toutes les candidatures ont été traitées !</span>
+                    <span className="text-[11px] text-slate-400">Aucun dossier en attente d'instruction.</span>
                   </div>
                 ) : (
                   <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 mt-3">
-                    {parcoursACreer.map((b: any) => (
-                      <div 
-                        key={b.id} 
-                        className="p-3 rounded-lg border border-orange-200/80 bg-white hover:border-[#f06553] hover:shadow-xs transition-all flex items-center justify-between gap-3 shadow-2xs"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-bold text-slate-800 truncate">
-                            {b.firstName} {b.lastName}
-                          </div>
-                          <div className="text-[11px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
-                            <span className="font-mono text-[#f06553] font-semibold">{b.fileNumber || `IML-${b.fileSeq}`}</span>
-                            <span>•</span>
-                            <span>{b.type === 'ENTREPRISE' ? 'PME' : b.type === 'STARTUP' ? 'Start-up' : 'Porteur de projet'}</span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCreatePathwayTarget(b);
-                            if (templates.length > 0) setSelectedTemplateId(templates[0].id);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-[#23c3b1] hover:bg-[#1db09e] text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs active:scale-95"
+                    {candidaturesEnAttente.map((a: any) => {
+                      const appData = a.applicantData || {};
+                      const projData = a.projectData || {};
+                      const candName = `${appData.firstName || ''} ${appData.lastName || ''}`.trim() || 'Candidat';
+                      const projTitle = projData.title || appData.companyName || 'Projet entrepreneurial';
+                      const typeLabel = appData.structureType === 'PME' ? 'PME' : appData.structureType === 'STARTUP' ? 'Start-up' : 'Porteur de projet';
+                      const codeRef = a.seqNumber ? `IML-2026-${String(a.seqNumber).padStart(4, '0')}` : 'CANDIDATURE';
+
+                      return (
+                        <div 
+                          key={a.id} 
+                          className="p-3 rounded-lg border border-orange-200/80 bg-white hover:border-[#f06553] hover:shadow-xs transition-all flex items-center justify-between gap-3 shadow-2xs"
                         >
-                          <Plus className="size-3.5" />
-                          <span>Créer</span>
-                        </button>
-                      </div>
-                    ))}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-2">
+                              <span>{candName}</span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-600 font-semibold">{codeRef}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
+                              <span className="text-slate-700 font-medium truncate">{projTitle}</span>
+                              <span>•</span>
+                              <span className="text-slate-500 shrink-0">{typeLabel}</span>
+                            </div>
+                          </div>
+                          <Link
+                            to={`/candidatures/${a.id}`}
+                            className="px-3 py-1.5 rounded-lg bg-[#f06553] hover:bg-[#e05341] text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs active:scale-95"
+                          >
+                            <span>Examiner</span>
+                            <ArrowRight className="size-3.5" />
+                          </Link>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* 2. Étapes à valider */}
+              {/* 2. Candidatures Admises & Prises en charge */}
               <div className="bg-slate-50/50 rounded-xl p-4 sm:p-5 border border-slate-200/70">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                   <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                    <span>Étapes à valider</span>
-                    {etapesAValider.length > 0 && (
+                    <CheckCircle2 className="size-4 text-emerald-600" />
+                    <span>Candidatures Admises au programme</span>
+                    {candidaturesAdmis.length > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {etapesAValider.length}
+                        {candidaturesAdmis.length}
                       </span>
                     )}
                   </h3>
+                  <Link 
+                    to="/beneficiaires" 
+                    className="text-xs font-semibold text-emerald-700 hover:underline flex items-center gap-1"
+                  >
+                    <span>Bénéficiaires →</span>
+                  </Link>
                 </div>
                 
-                {etapesAValider.length === 0 ? (
+                {candidaturesAdmis.length === 0 ? (
                   <div className="border border-slate-200 rounded-lg py-6 px-3 text-center text-xs text-slate-400 bg-white shadow-2xs mt-3">
-                    Aucune tâche restante
+                    Aucune candidature récemment admise.
                   </div>
                 ) : (
                   <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 mt-3">
-                    {etapesAValider.map((item: any) => (
-                      <div 
-                        key={item.stepId} 
-                        className="p-3 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:shadow-xs transition-all flex items-center justify-between gap-3 shadow-2xs"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-bold text-slate-800 truncate">{item.stepTitle}</div>
-                          <div className="text-[11px] text-slate-500 truncate mt-0.5">{item.beneficiaryName}</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleValidateStep(item.stepId, item.beneficiaryName, item.stepTitle)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                    {candidaturesAdmis.map((a: any) => {
+                      const appData = a.applicantData || {};
+                      const projData = a.projectData || {};
+                      const candName = `${appData.firstName || ''} ${appData.lastName || ''}`.trim() || 'Bénéficiaire';
+                      const projTitle = projData.title || appData.companyName || 'Projet admis';
+                      const bId = a.beneficiaryId;
+
+                      return (
+                        <div 
+                          key={a.id} 
+                          className="p-3 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:shadow-xs transition-all flex items-center justify-between gap-3 shadow-2xs"
                         >
-                          <CheckCircle2 className="size-3.5" />
-                          <span>Valider</span>
-                        </button>
-                      </div>
-                    ))}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-2">
+                              <span>{candName}</span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Admis</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate mt-0.5">{projTitle}</div>
+                          </div>
+                          <Link
+                            to={bId ? `/beneficiaires/${bId}` : `/candidatures/${a.id}`}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                          >
+                            <span>Dossier</span>
+                            <ArrowRight className="size-3.5" />
+                          </Link>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
