@@ -1635,22 +1635,6 @@ export default function AppLayout() {
                 <span>Envoyer la convocation sur WhatsApp (1 clic)</span>
               </a>
             )}
-
-            <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 pt-2 font-medium">
-              <span className="text-slate-600 flex items-center gap-1">
-                <Calendar className="size-3 text-[#f06553]" />
-                <span>
-                  {new Date(receiptToast.datetime).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} à {new Date(receiptToast.datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} ({receiptToast.durationMinutes} min)
-                </span>
-              </span>
-              {receiptToast.status === 'failed' ? (
-                <span className="text-rose-700 font-bold">À vérifier ⚠️</span>
-              ) : receiptToast.status === 'simulated' ? (
-                <span className="text-amber-700 font-bold">Simulé (Render) ⚠️</span>
-              ) : (
-                <span className="text-emerald-600 font-bold">Ils ont bien reçu ✓</span>
-              )}
-            </div>
           </div>,
           document.body
         )}
