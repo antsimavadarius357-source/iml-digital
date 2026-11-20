@@ -11,6 +11,7 @@ import {
   FileText,
   ExternalLink,
   CheckCircle2,
+  AlertCircle,
   ShieldCheck,
   UserCheck,
   FileCheck,
@@ -37,6 +38,7 @@ export interface ConvocationData {
   notes?: string;
   createdAt?: string;
   initialTab?: 'receipt' | 'convocation';
+  beneficiaryStatus?: 'delivered' | 'simulated' | 'failed';
 }
 
 interface OfficialConvocationModalProps {
@@ -308,18 +310,37 @@ export default function OfficialConvocationModal({
             </div>
 
             {/* BANNIÈRE DE CERTIFICATION OFFICIELLE */}
-            <div className="rounded-xl bg-gradient-to-r from-emerald-500 via-teal-600 to-[#14233c] text-white p-4 sm:p-5 shadow-sm">
+            <div className={`rounded-xl p-4 sm:p-5 shadow-sm text-white ${
+              data.beneficiaryStatus === 'simulated'
+                ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-[#14233c]'
+                : data.beneficiaryStatus === 'failed'
+                ? 'bg-gradient-to-r from-rose-600 via-red-600 to-[#14233c]'
+                : 'bg-gradient-to-r from-emerald-500 via-teal-600 to-[#14233c]'
+            }`}>
               <div className="flex items-start gap-3.5">
                 <div className="size-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="size-6 text-white" />
+                  {data.beneficiaryStatus === 'simulated' ? (
+                    <Clock className="size-6 text-white" />
+                  ) : data.beneficiaryStatus === 'failed' ? (
+                    <AlertCircle className="size-6 text-white" />
+                  ) : (
+                    <CheckCircle2 className="size-6 text-white" />
+                  )}
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-sm sm:text-base font-bold tracking-tight">
-                    ATTESTATION DE RÉCEPTION SYNCHRONE CONFIRMÉE
+                    {data.beneficiaryStatus === 'simulated'
+                      ? "RÉCEPTION SYNCHRONE PLATEFORME • MODE SIMULATION RENDER"
+                      : data.beneficiaryStatus === 'failed'
+                      ? "ATTESTATION PARTIELLE • ERREUR DE DÉLIVRANCE E-MAIL"
+                      : "ATTESTATION DE RÉCEPTION SYNCHRONE CONFIRMÉE"}
                   </h3>
-                  <p className="text-xs text-emerald-100 leading-relaxed">
-                    Le système certifie que le rendez-vous a été transmis et <strong>reçu au même instant par les deux parties</strong> : 
-                    intégré en temps réel dans l'espace coach de la plateforme et expédié par courrier électronique certifié au bénéficiaire.
+                  <p className="text-xs text-slate-100 leading-relaxed">
+                    {data.beneficiaryStatus === 'simulated'
+                      ? "Le rendez-vous est intégré en temps réel dans le planning du coach. Le serveur Render n'ayant pas encore de mot de passe SMTP configuré, l'e-mail est simulé en console. Utilisez le bouton WhatsApp ou Gmail (1 clic) ci-dessus pour expédier la convocation."
+                      : data.beneficiaryStatus === 'failed'
+                      ? "Le rendez-vous est intégré dans l'espace coach, mais l'e-mail n'a pas pu être délivré au bénéficiaire. Vérifiez l'adresse saisie."
+                      : "Le système certifie que le rendez-vous a été transmis et reçu au même instant par les deux parties : intégré en temps réel dans l'espace coach de la plateforme et expédié par courrier électronique certifié au bénéficiaire."}
                   </p>
                 </div>
               </div>
@@ -366,14 +387,26 @@ export default function OfficialConvocationModal({
               </div>
 
               {/* CARTE 2 : RÉCEPTION PAR LE BÉNÉFICIAIRE PAR E-MAIL */}
-              <div className="rounded-xl border-2 border-[#f06553]/70 bg-orange-50/40 p-4 space-y-3">
+              <div className={`rounded-xl border-2 p-4 space-y-3 ${
+                data.beneficiaryStatus === 'simulated'
+                  ? 'border-amber-400/80 bg-amber-50/50'
+                  : data.beneficiaryStatus === 'failed'
+                  ? 'border-rose-400/80 bg-rose-50/50'
+                  : 'border-[#f06553]/70 bg-orange-50/40'
+              }`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase font-bold text-[#f06553] flex items-center gap-1.5">
+                  <span className="text-[11px] uppercase font-bold text-slate-700 flex items-center gap-1.5">
                     <Mail className="size-4 text-[#f06553]" />
                     <span>2. Bénéficiaire Convoqué</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f06553] text-white flex items-center gap-1">
-                    <Check className="size-3" /> Expédié par Email
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white flex items-center gap-1 ${
+                    data.beneficiaryStatus === 'simulated'
+                      ? 'bg-amber-600'
+                      : data.beneficiaryStatus === 'failed'
+                      ? 'bg-rose-600'
+                      : 'bg-[#f06553]'
+                  }`}>
+                    {data.beneficiaryStatus === 'simulated' ? '⚠️ Simulé (SMTP non configuré)' : data.beneficiaryStatus === 'failed' ? '❌ Non délivré' : '✓ Expédié par Email'}
                   </span>
                 </div>
 
@@ -388,18 +421,24 @@ export default function OfficialConvocationModal({
                   )}
                 </div>
 
-                <div className="border-t border-orange-200/80 pt-2 text-xs space-y-1 text-slate-700">
+                <div className="border-t border-slate-200 pt-2 text-xs space-y-1 text-slate-700">
                   <div className="flex items-center gap-2">
                     <span className="text-[#f06553] font-semibold">✓ Courriel :</span>
                     <span className="font-mono text-[11px] text-slate-900 font-medium">{data.recipientEmail || 'Adresse officielle du dossier'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[#f06553] font-semibold">✓ Contenu :</span>
-                    <span>Convocation officielle + lien direct / lieu</span>
+                    <span>Convocation officielle + lieu / lien</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[#f06553] font-semibold">✓ Statut :</span>
-                    <span>Message délivré sur le serveur de messagerie</span>
+                    <span>
+                      {data.beneficiaryStatus === 'simulated'
+                        ? 'Simulé sur le serveur • Utilisez WhatsApp ou Gmail (1 clic)'
+                        : data.beneficiaryStatus === 'failed'
+                        ? 'Échec d\'acheminement (Adresse à vérifier)'
+                        : 'Message délivré sur le serveur de messagerie'}
+                    </span>
                   </div>
                 </div>
               </div>

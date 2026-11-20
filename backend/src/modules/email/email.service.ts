@@ -8,12 +8,17 @@ export interface SendEmailResult {
 
 // Configuration du transporteur Nodemailer
 function getTransporter() {
-  const host = process.env.SMTP_HOST;
+  const host = (process.env.SMTP_HOST || '').trim();
   const port = Number(process.env.SMTP_PORT) || 587;
-  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_PASS;
+  const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  const rawPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
+  const pass = rawPass.trim().replace(/\s+/g, '');
 
-  if (process.env.SMTP_SERVICE === 'gmail' || (user && user.endsWith('@gmail.com'))) {
+  if (!user || !pass) {
+    return null;
+  }
+
+  if (process.env.SMTP_SERVICE === 'gmail' || user.endsWith('@gmail.com') || host.includes('gmail')) {
     return nodemailer.createTransport({
       service: 'gmail',
       auth: { user, pass },
@@ -30,6 +35,67 @@ function getTransporter() {
   }
 
   return null;
+}
+
+export function isSmtpConfigured(): boolean {
+  return getTransporter() !== null;
+}
+
+export function getSmtpInfo() {
+  const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  const rawPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
+  const isConfigured = Boolean(user && rawPass.trim());
+  const maskedUser = user ? user.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}***${c}`) : null;
+  return {
+    isConfigured,
+    mode: isConfigured ? 'real' : 'simulation',
+    user: maskedUser,
+    from: process.env.SMTP_FROM || 'IML Digit <no-reply@imldigit.com>',
+  };
+}
+
+export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
+  const transporter = getTransporter();
+  if (!transporter) {
+    return {
+      success: false,
+      simulated: true,
+      message: "Serveur SMTP non configuré. Renseignez GMAIL_USER et GMAIL_PASS sur Render pour activer l'envoi réel.",
+    };
+  }
+
+  const sender = process.env.SMTP_FROM || `"IML Digit" <${process.env.SMTP_USER || process.env.GMAIL_USER || 'no-reply@imldigit.com'}>`;
+  try {
+    await transporter.sendMail({
+      from: sender,
+      to: toEmail,
+      subject: `[TEST RÉEL] Validation de connexion messagerie IML Digit`,
+      text: `Félicitations !\n\nLa connexion SMTP de la plateforme IML Digit est parfaitement opérationnelle.\nLes convocations et notifications seront désormais expédiées en temps réel à vos bénéficiaires.\n\nÉquipe IML Digit`,
+      html: `
+        <div style="font-family:sans-serif; max-width:520px; margin:0 auto; padding:24px; border:1px solid #e2e8f0; border-radius:16px;">
+          <h2 style="color:#23c3b1; margin-top:0;">iml digit<span style="color:#0f172a;">.</span></h2>
+          <h3 style="color:#0f172a;">✓ Connexion e-mail réussie</h3>
+          <p style="color:#475569; font-size:14px; line-height:1.6;">
+            Félicitations ! Votre serveur SMTP sur Render est correctement configuré avec vos identifiants.
+            Les convocations d'experts et rendez-vous d'accompagnement seront désormais expédiés en direct vers les boîtes e-mail de vos bénéficiaires.
+          </p>
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:12px 16px; border-radius:10px; font-weight:600; font-size:13px; margin:20px 0;">
+            ✓ Test de délivrance synchrone validé avec succès
+          </div>
+          <p style="font-size:12px; color:#94a3b8; text-align:center; border-top:1px solid #f1f5f9; padding-top:14px;">
+            Plateforme IML Digit • République Gabonaise
+          </p>
+        </div>
+      `,
+    });
+    return { success: true, simulated: false, message: `E-mail de test expédié avec succès à ${toEmail}` };
+  } catch (err: any) {
+    return {
+      success: false,
+      simulated: false,
+      message: err?.message || "Erreur lors de l'envoi de l'e-mail de test via SMTP",
+    };
+  }
 }
 
 /**
