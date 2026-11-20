@@ -15,9 +15,12 @@ import {
   UserCheck,
   FileCheck,
   Check,
-  FolderOpen
+  FolderOpen,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { WhatsAppSvg } from '../../components/communication/QuickWhatsAppModal';
+import { api } from '../../lib/api';
 
 export interface ConvocationData {
   appointmentId: string;
@@ -53,6 +56,8 @@ export default function OfficialConvocationModal({
 }: OfficialConvocationModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'receipt' | 'convocation'>('receipt');
+  const [isResending, setIsResending] = useState(false);
+  const [resendStatusMsg, setResendStatusMsg] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (data?.initialTab) {
@@ -61,6 +66,41 @@ export default function OfficialConvocationModal({
       setActiveTab('receipt');
     }
   }, [data]);
+
+  const handleResendEmail = async () => {
+    if (!data?.appointmentId) return;
+    onSendEmailConfirmation?.();
+    setIsResending(true);
+    setResendStatusMsg(null);
+    try {
+      const res = await api<{ success: boolean; simulated?: boolean; message?: string }>(`/appointments/${data.appointmentId}/resend-convocation`, {
+        method: 'POST'
+      });
+      if (res.simulated) {
+        setResendStatusMsg({
+          type: 'info',
+          text: "Serveur en mode simulation : aucun serveur SMTP n'est configuré sur Render. Utilisez le bouton 'Gmail (1 clic)' ou 'WhatsApp' ci-dessus pour envoyer la convocation immédiatement."
+        });
+      } else if (res.success) {
+        setResendStatusMsg({
+          type: 'success',
+          text: `✓ E-mail officiel de convocation transmis avec succès à ${data.recipientEmail || 'bénéficiaire'}`
+        });
+      } else {
+        setResendStatusMsg({
+          type: 'error',
+          text: res.message || "Échec d'envoi. Utilisez le bouton 'Gmail (1 clic)' ci-dessus pour expédier le message depuis votre messagerie."
+        });
+      }
+    } catch (err: any) {
+      setResendStatusMsg({
+        type: 'error',
+        text: `⚠️ Erreur : ${err?.message || "Échec de l'envoi"}`
+      });
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   if (!isOpen || !data) return null;
 
@@ -187,16 +227,29 @@ export default function OfficialConvocationModal({
               </a>
             )}
 
+            {data?.recipientEmail && (
+              <a
+                href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(data.recipientEmail)}&su=${encodeURIComponent("Convocation officielle d'accompagnement IML Digit")}&body=${encodeURIComponent(
+                  `Bonjour ${data.recipientName},\n\nDans le cadre de l'instruction de votre dossier au sein du programme d'accompagnement IML Digit, votre séance de travail avec ${data.coachName || 'votre coach'} est confirmée :\n\n📅 Date : ${formattedDate} à ${formattedTime} (${data.durationMinutes || 60} minutes)\n📍 Lieu / Modalité : ${data.sessionType === 'video' ? 'Visioconférence IML Digit' : (data.locationOrUrl || 'Siège IML Digit, Libreville')}\n\nMerci de vous présenter muni des pièces et documents nécessaires.\n\nDirection & Coordination IML Digit`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Ouvrir directement dans Gmail avec le message pré-rempli"
+              >
+                <Mail className="size-3.5 text-white" />
+                <span className="hidden sm:inline">Gmail (1 clic)</span>
+              </a>
+            )}
+
             <button
               type="button"
-              onClick={() => {
-                onSendEmailConfirmation?.();
-                alert(`Confirmation réexpédiée par e-mail à : ${data.recipientEmail || 'bénéficiaire'}`);
-              }}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Renvoyer l'e-mail de notification"
+              disabled={isResending}
+              onClick={handleResendEmail}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              title="Déclencher un renvoi par le serveur"
             >
-              <Mail className="size-3.5" />
+              {isResending ? <Loader2 className="size-3.5 animate-spin text-[#23c3b1]" /> : <RefreshCw className="size-3.5 text-slate-400" />}
               <span className="hidden sm:inline">Renvoyer</span>
             </button>
 
@@ -209,6 +262,15 @@ export default function OfficialConvocationModal({
             </button>
           </div>
         </div>
+
+        {resendStatusMsg && (
+          <div className={`px-6 py-2.5 text-xs font-medium flex items-center justify-between gap-2 border-b animate-in fade-in ${resendStatusMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : resendStatusMsg.type === 'info' ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
+            <span>{resendStatusMsg.text}</span>
+            <button type="button" onClick={() => setResendStatusMsg(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* =========================================================================
             ZONE 1 : BORDEREAU D'ACCUSÉ DE RÉCEPTION (DÉLIVRANCE SYNCHRONE CERTIFIÉE)

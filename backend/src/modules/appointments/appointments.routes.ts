@@ -3,6 +3,8 @@ import { requireAuth, requirePermission } from '../../middleware/auth';
 import { createAppointmentSchema, idParam, listAppointmentsSchema, updateAppointmentSchema, createSessionSchema } from './appointments.schemas';
 import { createAppointment, listAppointments, updateAppointment, submitSession, deleteAppointment } from './appointments.service';
 import { runDailyAppointmentReminders, sendManualAppointmentReminder } from './appointments-reminder.service';
+import { prisma } from '../../database/prisma';
+import { sendAppointmentNotificationEmail } from '../email/email.service';
 
 export const appointmentsRouter = Router();
 
@@ -20,6 +22,40 @@ appointmentsRouter.post('/:id/reminder', async (req, res, next) => {
   try {
     const id = idParam.parse(req.params.id);
     const result = await sendManualAppointmentReminder(id);
+    res.json(result);
+  } catch (e) { next(e); }
+});
+
+appointmentsRouter.post('/:id/resend-convocation', async (req, res, next) => {
+  try {
+    const id = idParam.parse(req.params.id);
+    const appt = await prisma.appointment.findUnique({
+      where: { id },
+      include: {
+        beneficiary: true,
+        user: true,
+      }
+    });
+    if (!appt || !appt.beneficiary) {
+      return res.status(404).json({ success: false, message: 'Rendez-vous introuvable' });
+    }
+    const locLower = (appt.location || '').toLowerCase();
+    const isVideo = locLower.includes('http') || locLower.includes('meet') || locLower.includes('visio');
+    const formattedDate = new Intl.DateTimeFormat('fr-FR', {
+      dateStyle: 'full',
+      timeStyle: 'short',
+    }).format(new Date(appt.datetime));
+
+    const result = await sendAppointmentNotificationEmail({
+      recipientEmail: appt.beneficiary.email,
+      recipientName: `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}`,
+      coachName: `${appt.user.firstName} ${appt.user.lastName}`,
+      datetime: formattedDate,
+      durationMinutes: appt.duration,
+      sessionType: isVideo ? 'video' : 'in_person',
+      locationOrUrl: appt.location || 'Siège IML Digit',
+      notes: undefined,
+    });
     res.json(result);
   } catch (e) { next(e); }
 });
