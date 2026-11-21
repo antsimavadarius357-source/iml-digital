@@ -380,15 +380,17 @@ export async function trackApplicationPublic(searchQuery: string) {
       ]);
 
       let appointmentInfo: any = null;
+      const candPref = (ben.application?.applicantData as any)?.interviewPreference;
       if (appt) {
         const loc = appt.location || '';
-        const isVisio = loc.toLowerCase().includes('visio') || loc.includes('http') || loc.toLowerCase().includes('meet');
+        // Si le candidat a demandé la visio dans sa candidature, c'est obligatoirement une visio
+        const isVisio = candPref === 'VIDEO' || loc.toLowerCase().includes('visio') || loc.includes('http') || loc.toLowerCase().includes('meet');
         const match = loc.match(/https?:\/\/[^\s\]]+/);
         appointmentInfo = {
           id: appt.id,
           datetime: appt.datetime,
           duration: appt.duration,
-          location: loc,
+          location: isVisio ? 'Visioconférence en ligne' : loc,
           isVisio,
           videoUrl: match ? match[0] : (isVisio ? `https://meet.jit.si/imldigit-entretien-${appt.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}` : null),
           coachName: appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML',
@@ -417,7 +419,7 @@ export async function trackApplicationPublic(searchQuery: string) {
         companyName: ben.companyName || project.name || 'Projet / Entreprise',
         rccm: ben.rccm,
         nif: ben.nif,
-        interviewPreference: appointmentInfo?.isVisio ? 'VIDEO' : 'PRESENTIEL',
+        interviewPreference: candPref || (appointmentInfo?.isVisio ? 'VIDEO' : 'PRESENTIEL'),
         hasVideoEquipment: false,
         needs: [],
         stage: project.stage || 'IDEE',
@@ -453,13 +455,14 @@ export async function trackApplicationPublic(searchQuery: string) {
     benDocs = docs;
     if (appt) {
       const loc = appt.location || '';
-      const isVisio = loc.toLowerCase().includes('visio') || loc.includes('http') || loc.toLowerCase().includes('meet');
+      const candPref = applicant.interviewPreference;
+      const isVisio = candPref === 'VIDEO' || loc.toLowerCase().includes('visio') || loc.includes('http') || loc.toLowerCase().includes('meet');
       const match = loc.match(/https?:\/\/[^\s\]]+/);
       appointmentInfo = {
         id: appt.id,
         datetime: appt.datetime,
         duration: appt.duration,
-        location: loc,
+        location: isVisio ? 'Visioconférence en ligne' : loc,
         isVisio,
         videoUrl: match ? match[0] : (isVisio ? `https://meet.jit.si/imldigit-entretien-${appt.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}` : null),
         coachName: appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML',

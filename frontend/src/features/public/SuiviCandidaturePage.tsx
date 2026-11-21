@@ -1,24 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  Search, 
-  ArrowLeft, 
+import {
+  Search,
+  ArrowLeft,
   ArrowRight,
-  MapPin, 
-  Video, 
-  Building2, 
-  User, 
-  CheckCircle2, 
-  Hourglass, 
-  FileText, 
+  Video,
+  Building2,
+  User,
+  CheckCircle2,
+  Hourglass,
+  FileText,
   AlertCircle,
   Mail,
   Loader2,
   Eye,
   Printer,
-  ExternalLink,
-  RefreshCw
+  ExternalLink
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -105,8 +103,6 @@ export default function SuiviCandidaturePage() {
   const [searchInput, setSearchInput] = useState(initialQuery);
   const [activeQuery, setActiveQuery] = useState(initialQuery);
   const [isDetailView, setIsDetailView] = useState(initialView);
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [emailFeedback, setEmailFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-track-app', activeQuery],
@@ -172,36 +168,6 @@ export default function SuiviCandidaturePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleResendSummaryEmail = async () => {
-    if (!app) return;
-    setIsSendingEmail(true);
-    setEmailFeedback(null);
-    try {
-      const res = await api<{ success: boolean; email: string; message: string }>('/applications/public/resend-summary', {
-        method: 'POST',
-        body: { q: app.referenceCode, email: app.applicantEmail || undefined },
-      });
-      if (res.success) {
-        setEmailFeedback({
-          type: 'success',
-          message: res.message || `E-mail complet envoyé avec succès à ${res.email}`,
-        });
-      } else {
-        setEmailFeedback({
-          type: 'error',
-          message: res.message || "Impossible d'envoyer l'e-mail pour le moment.",
-        });
-      }
-    } catch (err: any) {
-      setEmailFeedback({
-        type: 'error',
-        message: err?.message || "Erreur lors de l'envoi de l'e-mail récapitulatif.",
-      });
-    } finally {
-      setIsSendingEmail(false);
-    }
-  };
-
   const currentStatusInfo = app ? STATUS_DETAILS[app.status] || STATUS_DETAILS.SOUMISE : null;
   const currentStep = currentStatusInfo?.step || 1;
 
@@ -214,9 +180,9 @@ export default function SuiviCandidaturePage() {
         const parsed = JSON.parse(raw);
         const values: any[] = Object.values(parsed);
         const match = values.find(
-          v => v.beneficiaryId === app.id || 
-               v.projectName?.toLowerCase() === app.companyName?.toLowerCase() ||
-               v.recipientName?.toLowerCase() === app.applicantName?.toLowerCase()
+          v => v.beneficiaryId === app.id ||
+            v.projectName?.toLowerCase() === app.companyName?.toLowerCase() ||
+            v.recipientName?.toLowerCase() === app.applicantName?.toLowerCase()
         );
         if (match) return match;
       }
@@ -233,11 +199,11 @@ export default function SuiviCandidaturePage() {
     return (
       <div className="min-h-screen bg-[#FAF7F2] font-sans selection:bg-[#f06553] selection:text-white pt-12 pb-16 px-4 sm:px-6 lg:px-8 animate-in fade-in duration-200">
         <div className="max-w-4xl mx-auto space-y-6">
-          
+
           {/* Navigation supérieure */}
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
             <div className="flex items-center gap-3">
-              <button 
+              <button
                 type="button"
                 onClick={handleBackToSearch}
                 className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 hover:text-[#f06553] bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
@@ -250,7 +216,7 @@ export default function SuiviCandidaturePage() {
 
           {/* FICHE DÉTAILLÉE DU DOSSIER */}
           <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-md space-y-8">
-            
+
             {/* En-tête du dossier */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
               <div className="space-y-1">
@@ -303,7 +269,7 @@ export default function SuiviCandidaturePage() {
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 Parcours de sélection & d'intégration
               </h3>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 {[
                   { stepNum: 1, title: "1. Réception", desc: "Dossier enregistré & vérifié" },
@@ -314,15 +280,14 @@ export default function SuiviCandidaturePage() {
                   const isDone = currentStep > s.stepNum || (currentStep === 4 && s.stepNum === 4);
                   const isCurrent = currentStep === s.stepNum && currentStep !== 4;
                   return (
-                    <div 
+                    <div
                       key={s.stepNum}
-                      className={`p-3.5 rounded-2xl border transition-all ${
-                        isDone 
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' 
-                          : isCurrent 
-                            ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-400/20 text-amber-950' 
-                            : 'bg-white border-slate-200/80 text-slate-400'
-                      }`}
+                      className={`p-3.5 rounded-2xl border transition-all ${isDone
+                        ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                        : isCurrent
+                          ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-400/20 text-amber-950'
+                          : 'bg-white border-slate-200/80 text-slate-400'
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[11px] font-black uppercase tracking-wider">
@@ -342,41 +307,6 @@ export default function SuiviCandidaturePage() {
                 })}
               </div>
             </div>
-
-            {/* ENCADRÉ NOTIFICATION E-MAIL AUTOMATIQUE */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-teal-50/70 border border-teal-200/80 text-teal-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
-              <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0">
-                  <Mail className="size-4" />
-                </div>
-                <div>
-                  <span className="font-bold block text-slate-900">Envois automatiques activés</span>
-                  <span className="text-slate-600">
-                    Vos convocations, liens d'entretien et décisions sont transmis automatiquement à <strong>{app.applicantEmail || 'votre adresse email'}</strong>.
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                disabled={isSendingEmail}
-                onClick={handleResendSummaryEmail}
-                className="px-3 py-1.5 rounded-lg border border-teal-300 bg-white hover:bg-teal-50 text-teal-900 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 disabled:opacity-50"
-              >
-                {isSendingEmail ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-                <span>{isSendingEmail ? 'Envoi...' : "Renvoyer une copie par e-mail"}</span>
-              </button>
-            </div>
-
-            {emailFeedback && (
-              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                emailFeedback.type === 'success'
-                  ? 'bg-emerald-500/20 text-emerald-900 border border-emerald-400/40'
-                  : 'bg-rose-500/20 text-rose-900 border border-rose-400/40'
-              }`}>
-                {emailFeedback.type === 'success' ? <CheckCircle2 className="size-4 text-emerald-600 shrink-0" /> : <AlertCircle className="size-4 text-rose-600 shrink-0" />}
-                <span>{emailFeedback.message}</span>
-              </div>
-            )}
 
             {/* SECTION CONVOCATION ENTRETIEN SI PROGRAMMÉ */}
             {app.appointment && (
@@ -452,13 +382,12 @@ export default function SuiviCandidaturePage() {
                             </span>
                           )}
                         </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${
-                          isVal
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : isRef
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
-                        }`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${isVal
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : isRef
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-amber-100 text-amber-800'
+                          }`}>
                           {isVal ? '✓ Validé' : isRef ? 'À mettre à jour' : '⏳ Reçu / En revue'}
                         </span>
                       </div>
@@ -475,34 +404,20 @@ export default function SuiviCandidaturePage() {
             {/* SECTION CANDIDATURE ADMISE : PRISE EN CHARGE AVEC LE COACH */}
             {app.status === 'ACCEPTEE' && !certificateData && (
               <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 shadow-md space-y-4 animate-in zoom-in-95">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3.5">
-                    <div className="size-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-3xl shadow-md shrink-0">
-                      🤝
-                    </div>
-                    <div>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase tracking-wider inline-block mb-1">
-                        Candidature Validée & Retenue
-                      </span>
-                      <h3 className="text-base sm:text-lg font-black text-slate-900">
-                        Votre dossier est officiellement admis au sein de l'incubateur
-                      </h3>
-                      <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                        Félicitations ! Votre candidature est admise. Toutes vos convocations (avec le lien vidéo ou le lieu sur place) ainsi que les étapes avec votre coach vous sont envoyées directement par e-mail.
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3.5">
+                  <div className="size-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-3xl shadow-md shrink-0">
+                    🤝
                   </div>
-
-                  <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                    <button
-                      type="button"
-                      disabled={isSendingEmail}
-                      onClick={handleResendSummaryEmail}
-                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
-                    >
-                      <Mail className="size-4" />
-                      <span>Recevoir ma lettre d'admission par e-mail</span>
-                    </button>
+                  <div>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase tracking-wider inline-block mb-1">
+                      Candidature Validée & Retenue
+                    </span>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">
+                      Votre dossier est officiellement admis au sein de l'incubateur
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                      Félicitations ! Votre candidature est admise. Toutes vos convocations et les prochaines étapes avec votre coach vous sont envoyées directement par e-mail.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -551,37 +466,6 @@ export default function SuiviCandidaturePage() {
                 </div>
               </div>
             )}
-
-            {/* Bloc Modalité d'Entretien Choisie */}
-            <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {app.interviewPreference === 'VIDEO' ? (
-                    <Video className="size-4 text-[#23c3b1]" />
-                  ) : (
-                    <MapPin className="size-4 text-[#f06553]" />
-                  )}
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Modalité d'entretien & Réception des convocations
-                  </h4>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                  {app.interviewPreference === 'VIDEO' ? 'Visioconférence en ligne' : 'Présentiel sur place'}
-                </span>
-              </div>
-
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                {app.interviewPreference === 'VIDEO' ? (
-                  <span>
-                    Entretien à distance en ligne : dès que votre créneau est programmé, vous recevez <strong>directement par e-mail sur votre téléphone</strong> le lien cliquable de la salle vidéo sans avoir besoin de mot de passe.
-                  </span>
-                ) : (
-                  <span>
-                    Entretien sur place au siège de l'incubateur <strong>IML Digit (Immeuble Espace PME, Quartier Awendjé, Libreville)</strong> : vous recevez directement par e-mail votre convocation complète avec la date, l'horaire, le nom de votre coach et les documents à apporter.
-                  </span>
-                )}
-              </p>
-            </div>
 
             {/* Informations PME complémentaires si renseignées */}
             {(app.rccm || app.nif) && (
@@ -652,11 +536,11 @@ export default function SuiviCandidaturePage() {
   return (
     <div className="min-h-screen bg-[#FAF7F2] font-sans selection:bg-[#f06553] selection:text-white pt-20 pb-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        
+
         {/* Navigation retour */}
         <div className="flex items-center justify-between">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#f06553] transition-colors"
           >
             <ArrowLeft className="size-4" /> Retour à l'accueil
@@ -670,7 +554,7 @@ export default function SuiviCandidaturePage() {
               <span className="size-2 rounded-full bg-[#f06553]" />
               <span>Portail Public • Incubateur IML Digit</span>
             </div>
-            
+
             <div className="space-y-1.5">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                 Suivi en direct de votre candidature
@@ -792,17 +676,6 @@ export default function SuiviCandidaturePage() {
                 </button>
               </div>
             </div>
-
-            {emailFeedback && (
-              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                emailFeedback.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                  : 'bg-rose-50 text-rose-800 border border-rose-200'
-              }`}>
-                {emailFeedback.type === 'success' ? <CheckCircle2 className="size-4 text-emerald-600 shrink-0" /> : <AlertCircle className="size-4 text-rose-600 shrink-0" />}
-                <span>{emailFeedback.message}</span>
-              </div>
-            )}
           </div>
         )}
 
