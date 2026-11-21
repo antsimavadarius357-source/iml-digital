@@ -280,21 +280,6 @@ export default function AppLayout() {
     enabled: !isCoach,
   });
 
-  // Récupérer les nouveaux bénéficiaires créés / inscrits (accessible à l'Agent et à la Direction)
-  const { data: recentBeneficiariesRes } = useQuery({
-    queryKey: ['recent-beneficiaries-alert'],
-    queryFn: () => api<{ items: any[]; total: number }>('/beneficiaries?pageSize=30').catch(() => ({ items: [], total: 0 })),
-    refetchInterval: 8_000,
-    enabled: !isCoach,
-  });
-
-  const allBeneficiaries = recentBeneficiariesRes?.items || [];
-  const recentBeneficiaries = allBeneficiaries.filter((b: any) => {
-    const d = new Date(b.createdAt);
-    return !isNaN(d.getTime()) && d.getTime() >= new Date('2026-11-12T00:00:00Z').getTime();
-  });
-  const unreadBeneficiaries = recentBeneficiaries.filter((b: any) => !readBeneficiaryAlertIds.includes(b.id));
-
   // Récupérer les nouvelles candidatures (accessible à l'Agent et à la Direction)
   const { data: pendingAppsData } = useQuery({
     queryKey: ['pending-applications-alert'],
@@ -310,6 +295,56 @@ export default function AppLayout() {
     const now = new Date();
     return d.toDateString() === now.toDateString();
   };
+
+  // Filtrer uniquement les anciens dossiers de démonstration locaux (créés avant le 12 nov 2026).
+  const isSeedApp = (a: any) => {
+    const d = new Date(a.createdAt || a.submittedAt);
+    return !isNaN(d.getTime()) && d.getTime() < new Date('2026-11-12T00:00:00Z').getTime();
+  };
+
+  // Candidatures éligibles à l'alerte : réelles nouvelles candidatures reçues
+  const allAppsList = pendingAppsData?.items || [];
+  const appBeneficiaryIds = new Set<string>(
+    allAppsList.map((a: any) => a.beneficiaryId).filter(Boolean)
+  );
+  const appEmails = new Set<string>(
+    allAppsList.map((a: any) => a.applicantData?.email?.toLowerCase()?.trim()).filter(Boolean)
+  );
+
+  const pendingApps = allAppsList.filter((a: any) => 
+    !isSeedApp(a) && (a.status === 'SOUMISE' || a.status === 'EN_ATTENTE' || a.status === 'BROUILLON' || a.status === 'EN_COURS_EXAMEN' || isDateToday(a.submittedAt || a.createdAt))
+  );
+  const unreadApps = pendingApps.filter((a: any) => !readAlertIds.includes(a.id));
+
+  // Les candidatures d'aujourd'hui doivent obligatoirement être affichées tout en haut
+  const todayApps = unreadApps
+    .filter((a: any) => isDateToday(a.submittedAt || a.createdAt))
+    .sort((a: any, b: any) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime());
+
+  const olderApps = unreadApps
+    .filter((a: any) => !isDateToday(a.submittedAt || a.createdAt))
+    .sort((a: any, b: any) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime());
+
+  // Récupérer les nouveaux bénéficiaires créés / inscrits (accessible à l'Agent et à la Direction)
+  const { data: recentBeneficiariesRes } = useQuery({
+    queryKey: ['recent-beneficiaries-alert'],
+    queryFn: () => api<{ items: any[]; total: number }>('/beneficiaries?pageSize=30').catch(() => ({ items: [], total: 0 })),
+    refetchInterval: 8_000,
+    enabled: !isCoach,
+  });
+
+  const allBeneficiaries = recentBeneficiariesRes?.items || [];
+  const recentBeneficiaries = allBeneficiaries.filter((b: any) => {
+    const d = new Date(b.createdAt);
+    if (isNaN(d.getTime()) || d.getTime() < new Date('2026-11-12T00:00:00Z').getTime()) return false;
+    // DÉDOUBLONNAGE STRICT : si ce bénéficiaire provient d'une candidature déposée,
+    // l'alerte "Candidature" (avec boutons Consulter & Voir Bénéficiaire) fait déjà foi.
+    // On ne doit JAMAIS afficher de notification en double "Nouveau Bénéficiaire inscrit" pour la même personne !
+    if (b.application || (b.id && appBeneficiaryIds.has(b.id))) return false;
+    if (b.email && appEmails.has(b.email.toLowerCase().trim())) return false;
+    return true;
+  });
+  const unreadBeneficiaries = recentBeneficiaries.filter((b: any) => !readBeneficiaryAlertIds.includes(b.id));
 
   // Récupérer les derniers comptes-rendus rédigés par les coachs/experts pour notifier l'agent
   const { data: recentNotesData } = useQuery({
@@ -334,28 +369,6 @@ export default function AppLayout() {
     ? pendingRoomBookingsRes
     : (pendingRoomBookingsRes as any)?.items || [];
   const unreadRoomBookings = pendingRoomBookings.filter((b: any) => !readRoomAlertIds.includes(b.id));
-
-  // Filtrer uniquement les anciens dossiers de démonstration locaux (créés avant le 12 nov 2026).
-  // NB : on ne filtre plus par numéro de séquence, sinon les vraies candidatures en production (n°1, 2, 3...) étaient masquées.
-  const isSeedApp = (a: any) => {
-    const d = new Date(a.createdAt || a.submittedAt);
-    return !isNaN(d.getTime()) && d.getTime() < new Date('2026-11-12T00:00:00Z').getTime();
-  };
-
-  // Candidatures éligibles à l'alerte : réelles nouvelles candidatures reçues
-  const pendingApps = (pendingAppsData?.items || []).filter((a: any) => 
-    !isSeedApp(a) && (a.status === 'SOUMISE' || a.status === 'EN_ATTENTE' || a.status === 'BROUILLON' || a.status === 'EN_COURS_EXAMEN' || isDateToday(a.submittedAt || a.createdAt))
-  );
-  const unreadApps = pendingApps.filter((a: any) => !readAlertIds.includes(a.id));
-
-  // Les candidatures d'aujourd'hui doivent obligatoirement être affichées tout en haut
-  const todayApps = unreadApps
-    .filter((a: any) => isDateToday(a.submittedAt || a.createdAt))
-    .sort((a: any, b: any) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime());
-
-  const olderApps = unreadApps
-    .filter((a: any) => !isDateToday(a.submittedAt || a.createdAt))
-    .sort((a: any, b: any) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime());
 
   const recentNotes = recentNotesData || [];
   // Filtrer les comptes-rendus non consultés (et ignorer les notes rédigées par l'agent lui-même)

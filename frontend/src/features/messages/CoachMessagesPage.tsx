@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { 
-  Search, 
-  Send, 
-  CheckCheck, 
+import {
+  Search,
+  Send,
+  CheckCheck,
   Inbox,
   CheckCircle2,
   Mail,
@@ -70,11 +70,11 @@ export default function CoachMessagesPage() {
     e.preventDefault();
     if (!replyText.trim() || !selectedMessage) return;
 
-    const channelLabel = sendChannel === 'EMAIL' 
-      ? `Email direct vers ${selectedMessage.senderEmail}` 
-      : sendChannel === 'SMS' 
-      ? 'SMS direct' 
-      : `Email & SMS vers ${selectedMessage.senderEmail}`;
+    const channelLabel = sendChannel === 'EMAIL'
+      ? `Email direct vers ${selectedMessage.senderEmail}`
+      : sendChannel === 'SMS'
+        ? 'SMS direct'
+        : `Email & SMS vers ${selectedMessage.senderEmail}`;
 
     const newReply = {
       author: user ? `${user.firstName} ${user.lastName}`.trim() : 'Darius Coach IML',
@@ -101,11 +101,11 @@ export default function CoachMessagesPage() {
       return updated;
     });
 
-    const successMsg = sendChannel === 'EMAIL' 
+    const successMsg = sendChannel === 'EMAIL'
       ? `Message transmis via passerelle Email vers ${selectedMessage.senderEmail}`
       : sendChannel === 'SMS'
-      ? 'Alerte SMS transmise au mobile du candidat'
-      : `Message transmis simultanément par Email (${selectedMessage.senderEmail}) et SMS`;
+        ? 'Alerte SMS transmise au mobile du candidat'
+        : `Message transmis simultanément par Email (${selectedMessage.senderEmail}) et SMS`;
 
     setReplyText('');
     setSendSuccess(successMsg);
@@ -157,9 +157,9 @@ export default function CoachMessagesPage() {
     // Filtre texte
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
-      const match = m.senderName.toLowerCase().includes(q) || 
-                    m.subject.toLowerCase().includes(q) || 
-                    m.content.toLowerCase().includes(q);
+      const match = m.senderName.toLowerCase().includes(q) ||
+        m.subject.toLowerCase().includes(q) ||
+        m.content.toLowerCase().includes(q);
       if (!match) return false;
     }
     // Filtre catégorie
@@ -173,7 +173,7 @@ export default function CoachMessagesPage() {
 
   return (
     <div className="w-full space-y-4 font-sans text-slate-800">
-      
+
       {/* Bandeau d'en-tête de la messagerie */}
       <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -203,15 +203,15 @@ export default function CoachMessagesPage() {
 
       {/* Conteneur principal 2 colonnes : Liste à gauche + Lecture/Réponse à droite */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        
+
         {/* COLONNE GAUCHE (5/12) : Liste des messages reçus */}
         <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col h-[650px]">
-          
+
           {/* Barre de recherche et filtres rapides */}
           <div className="p-3 border-b border-slate-100 space-y-2 bg-slate-50/50">
             <div className="relative">
               <Search className="size-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input 
+              <input
                 type="text"
                 placeholder="Rechercher un message ou un expéditeur..."
                 value={searchTerm}
@@ -225,44 +225,40 @@ export default function CoachMessagesPage() {
               <button
                 type="button"
                 onClick={() => setFilter('ALL')}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
-                  filter === 'ALL'
-                    ? 'bg-[#1a3348] text-white font-bold'
-                    : 'text-slate-600 hover:bg-slate-200/60'
-                }`}
+                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${filter === 'ALL'
+                  ? 'bg-[#1a3348] text-white font-bold'
+                  : 'text-slate-600 hover:bg-slate-200/60'
+                  }`}
               >
                 Tous ({messages.length})
               </button>
               <button
                 type="button"
                 onClick={() => setFilter('UNREAD')}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
-                  filter === 'UNREAD'
-                    ? 'bg-[#f06553] text-white font-bold'
-                    : 'text-slate-600 hover:bg-slate-200/60'
-                }`}
+                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${filter === 'UNREAD'
+                  ? 'bg-[#f06553] text-white font-bold'
+                  : 'text-slate-600 hover:bg-slate-200/60'
+                  }`}
               >
                 Non lus ({unreadCount})
               </button>
               <button
                 type="button"
                 onClick={() => setFilter('BENEFICIARIES')}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
-                  filter === 'BENEFICIARIES'
-                    ? 'bg-[#23c3b1] text-white font-bold'
-                    : 'text-slate-600 hover:bg-slate-200/60'
-                }`}
+                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${filter === 'BENEFICIARIES'
+                  ? 'bg-[#23c3b1] text-white font-bold'
+                  : 'text-slate-600 hover:bg-slate-200/60'
+                  }`}
               >
                 Bénéficiaires
               </button>
               <button
                 type="button"
                 onClick={() => setFilter('ADMIN')}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
-                  filter === 'ADMIN'
-                    ? 'bg-slate-700 text-white font-bold'
-                    : 'text-slate-600 hover:bg-slate-200/60'
-                }`}
+                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${filter === 'ADMIN'
+                  ? 'bg-slate-700 text-white font-bold'
+                  : 'text-slate-600 hover:bg-slate-200/60'
+                  }`}
               >
                 Coordination
               </button>
@@ -282,11 +278,10 @@ export default function CoachMessagesPage() {
                   <div
                     key={msg.id}
                     onClick={() => handleSelectMessage(msg.id)}
-                    className={`p-3.5 transition-all cursor-pointer relative ${
-                      isSelected 
-                        ? 'bg-teal-50/40 border-l-3 border-l-[#23c3b1]' 
-                        : 'hover:bg-slate-50 border-l-3 border-l-transparent'
-                    }`}
+                    className={`p-3.5 transition-all cursor-pointer relative ${isSelected
+                      ? 'bg-teal-50/40 border-l-3 border-l-[#23c3b1]'
+                      : 'hover:bg-slate-50 border-l-3 border-l-transparent'
+                      }`}
                   >
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -332,7 +327,7 @@ export default function CoachMessagesPage() {
         <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col h-[650px]">
           {selectedMessage ? (
             <div className="flex flex-col h-full">
-              
+
               {/* En-tête du message */}
               <div className="p-4 border-b border-slate-100 bg-slate-50/40 space-y-2">
                 <div className="flex items-start justify-between gap-3">
@@ -364,7 +359,7 @@ export default function CoachMessagesPage() {
 
               {/* Corps du message et historique des réponses */}
               <div className="flex-1 p-5 overflow-y-auto space-y-5 bg-white">
-                
+
                 {/* Contenu principal */}
                 <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 text-xs sm:text-[13px] text-slate-700 leading-relaxed whitespace-pre-line">
                   {selectedMessage.content}
@@ -415,11 +410,10 @@ export default function CoachMessagesPage() {
                     <button
                       type="button"
                       onClick={() => setSendChannel('EMAIL')}
-                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                        sendChannel === 'EMAIL'
-                          ? 'bg-[#1a3348] text-white shadow-xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${sendChannel === 'EMAIL'
+                        ? 'bg-[#1a3348] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                        }`}
                     >
                       <Mail className="size-3" />
                       <span>Email direct ({selectedMessage.senderEmail})</span>
@@ -427,11 +421,10 @@ export default function CoachMessagesPage() {
                     <button
                       type="button"
                       onClick={() => setSendChannel('SMS')}
-                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                        sendChannel === 'SMS'
-                          ? 'bg-[#1a3348] text-white shadow-xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${sendChannel === 'SMS'
+                        ? 'bg-[#1a3348] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                        }`}
                     >
                       <Smartphone className="size-3" />
                       <span>SMS direct</span>
@@ -439,11 +432,10 @@ export default function CoachMessagesPage() {
                     <button
                       type="button"
                       onClick={() => setSendChannel('BOTH')}
-                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                        sendChannel === 'BOTH'
-                          ? 'bg-[#f06553] text-white shadow-xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${sendChannel === 'BOTH'
+                        ? 'bg-[#f06553] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                        }`}
                     >
                       <RefreshCw className="size-3" />
                       <span>Email + SMS</span>
@@ -460,7 +452,7 @@ export default function CoachMessagesPage() {
                     <span>Simuler un retour d'email du candidat</span>
                   </button>
                 </div>
-                
+
                 <form onSubmit={handleSendReply} className="space-y-2">
                   <textarea
                     rows={3}

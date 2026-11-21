@@ -150,7 +150,7 @@ export default function QuickWhatsAppModal({
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-        
+
         {/* En-tête */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-emerald-600 to-teal-700 text-white">
           <div className="flex items-center gap-3">
@@ -181,7 +181,7 @@ export default function QuickWhatsAppModal({
 
         {/* Corps */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
-          
+
           {/* Sélection du destinataire */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -235,11 +235,10 @@ export default function QuickWhatsAppModal({
                     key={r.id}
                     type="button"
                     onClick={() => handleSelectRecipient(r)}
-                    className={`shrink-0 px-2.5 py-1.5 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-2 ${
-                      isSelected
-                        ? 'border-emerald-500 bg-emerald-50/80 text-emerald-900 shadow-2xs ring-1 ring-emerald-500'
-                        : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50 text-slate-700'
-                    }`}
+                    className={`shrink-0 px-2.5 py-1.5 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-2 ${isSelected
+                      ? 'border-emerald-500 bg-emerald-50/80 text-emerald-900 shadow-2xs ring-1 ring-emerald-500'
+                      : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50 text-slate-700'
+                      }`}
                   >
                     <div className="size-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px]">
                       {r.name.slice(0, 2).toUpperCase()}

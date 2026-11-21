@@ -60,6 +60,7 @@ const listSelect = {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   },
+  application: { select: { id: true, seqNumber: true } },
   appointments: { select: { id: true, datetime: true, status: true }, take: 3, orderBy: { datetime: 'desc' } }
 } satisfies Prisma.BeneficiarySelect;
 
