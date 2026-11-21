@@ -17,7 +17,8 @@ import {
   Loader2,
   Eye,
   Printer,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -342,44 +343,40 @@ export default function SuiviCandidaturePage() {
               </div>
             </div>
 
-            {/* ENCADRÉ CENTRAL : ENVOI DIRECT PAR E-MAIL DU DOSSIER COMPLET & LIEN D'ENTRETIEN */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-slate-900 text-white shadow-lg space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#23c3b1]/20 text-[#23c3b1] uppercase tracking-wider">
-                    <Mail className="size-3" />
-                    <span>Réception directe par e-mail</span>
-                  </div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-white">
-                    Recevoir la totalité de mon dossier & mon lien d'entretien par e-mail
-                  </h3>
-                  <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
-                    Toutes vos informations (état d'admission, validation de vos documents, convocation avec <strong>lien direct de la vidéo</strong> ou <strong>adresse de l'entretien sur place</strong>) vous sont envoyées directement dans votre boîte e-mail{app.applicantEmail ? ` (${app.applicantEmail})` : ''}.
-                  </p>
+            {/* ENCADRÉ NOTIFICATION E-MAIL AUTOMATIQUE */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-teal-50/70 border border-teal-200/80 text-teal-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0">
+                  <Mail className="size-4" />
                 </div>
-
-                <button
-                  type="button"
-                  disabled={isSendingEmail}
-                  onClick={handleResendSummaryEmail}
-                  className="px-5 py-3 rounded-2xl bg-[#f06553] hover:bg-[#e05341] text-white text-xs sm:text-sm font-extrabold shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
-                >
-                  {isSendingEmail ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
-                  <span>{isSendingEmail ? 'Envoi en cours...' : "M'envoyer l'e-mail complet maintenant"}</span>
-                </button>
+                <div>
+                  <span className="font-bold block text-slate-900">Envois automatiques activés</span>
+                  <span className="text-slate-600">
+                    Vos convocations, liens d'entretien et décisions sont transmis automatiquement à <strong>{app.applicantEmail || 'votre adresse email'}</strong>.
+                  </span>
+                </div>
               </div>
-
-              {emailFeedback && (
-                <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                  emailFeedback.type === 'success'
-                    ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40'
-                    : 'bg-rose-500/20 text-rose-200 border border-rose-400/40'
-                }`}>
-                  {emailFeedback.type === 'success' ? <CheckCircle2 className="size-4 text-emerald-400 shrink-0" /> : <AlertCircle className="size-4 text-rose-400 shrink-0" />}
-                  <span>{emailFeedback.message}</span>
-                </div>
-              )}
+              <button
+                type="button"
+                disabled={isSendingEmail}
+                onClick={handleResendSummaryEmail}
+                className="px-3 py-1.5 rounded-lg border border-teal-300 bg-white hover:bg-teal-50 text-teal-900 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {isSendingEmail ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+                <span>{isSendingEmail ? 'Envoi...' : "Renvoyer une copie par e-mail"}</span>
+              </button>
             </div>
+
+            {emailFeedback && (
+              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                emailFeedback.type === 'success'
+                  ? 'bg-emerald-500/20 text-emerald-900 border border-emerald-400/40'
+                  : 'bg-rose-500/20 text-rose-900 border border-rose-400/40'
+              }`}>
+                {emailFeedback.type === 'success' ? <CheckCircle2 className="size-4 text-emerald-600 shrink-0" /> : <AlertCircle className="size-4 text-rose-600 shrink-0" />}
+                <span>{emailFeedback.message}</span>
+              </div>
+            )}
 
             {/* SECTION CONVOCATION ENTRETIEN SI PROGRAMMÉ */}
             {app.appointment && (
@@ -778,24 +775,19 @@ export default function SuiviCandidaturePage() {
                     </>
                   )}
                 </p>
+                <div className="pt-1 flex items-center gap-1.5 text-xs text-teal-800 font-medium">
+                  <CheckCircle2 className="size-3.5 text-teal-600 shrink-0" />
+                  <span>Convocations & suivi envoyés automatiquement à <strong>{app.applicantEmail}</strong></span>
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
                 <button
                   type="button"
-                  disabled={isSendingEmail}
-                  onClick={handleResendSummaryEmail}
-                  className="px-4 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {isSendingEmail ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4 text-[#23c3b1]" />}
-                  <span>Recevoir tout par e-mail</span>
-                </button>
-                <button
-                  type="button"
                   onClick={handleOpenDetail}
-                  className="px-6 py-3.5 rounded-2xl bg-[#f06553] hover:bg-[#e05341] text-white font-extrabold text-sm transition-all shadow-md shadow-[#f06553]/25 flex items-center justify-center gap-2.5 cursor-pointer hover:scale-105 shrink-0"
+                  className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#f06553] to-[#e04a27] hover:from-[#e04a27] hover:to-[#c83719] text-white font-black text-sm transition-all shadow-lg shadow-[#f06553]/25 flex items-center justify-center gap-2.5 cursor-pointer hover:scale-105 shrink-0 active:scale-95"
                 >
-                  <span>Voir le détail du dossier</span>
+                  <span>Consulter mon dossier complet</span>
                   <ArrowRight className="size-4" />
                 </button>
               </div>
