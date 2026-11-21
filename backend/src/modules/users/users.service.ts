@@ -101,3 +101,39 @@ export async function resetPassword(id: string, temporaryPassword: string, actor
     prisma.auditLog.create({ data: { userId: actorId, action: 'user.password_reset', entityType: 'User', entityId: id, ipAddress: ip } }),
   ]);
 }
+
+export async function deleteUser(id: string, actorId: string, ip?: string) {
+  const target = await prisma.user.findUnique({ where: { id }, include: { role: true } });
+  if (!target) throw new AppError(404, 'Utilisateur introuvable', 'INTROUVABLE');
+  if (id === actorId) {
+    throw new AppError(400, 'Vous ne pouvez pas supprimer votre propre compte', 'AUTO_SUPPRESSION');
+  }
+  if (target.role.code === 'ADMIN') {
+    const otherAdmins = await prisma.user.count({ where: { isActive: true, role: { code: 'ADMIN' }, id: { not: id } } });
+    if (otherAdmins === 0) throw new AppError(400, 'Impossible de supprimer le dernier administrateur', 'DERNIER_ADMIN');
+  }
+
+  // Nettoyage en cascade des relations
+  await prisma.document.deleteMany({ where: { uploadedById: id } });
+  await prisma.followUpNote.deleteMany({ where: { authorId: id } });
+  await prisma.appointment.deleteMany({ where: { userId: id } });
+  await prisma.assignment.deleteMany({ where: { userId: id } });
+  await prisma.session.deleteMany({ where: { userId: id } });
+  await prisma.beneficiary.updateMany({ where: { assignedAgentId: id }, data: { assignedAgentId: null } });
+  await prisma.auditLog.deleteMany({ where: { userId: id } });
+
+  await prisma.user.delete({ where: { id } });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: actorId,
+      action: 'user.delete',
+      entityType: 'User',
+      entityId: id,
+      metadata: { email: target.email, role: target.role.code },
+      ipAddress: ip,
+    },
+  }).catch(() => {});
+
+  return { success: true };
+}

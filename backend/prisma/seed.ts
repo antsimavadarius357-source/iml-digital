@@ -84,34 +84,6 @@ async function main(): Promise<void> {
       roleCode: 'AGENT',
       passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$BYSL8NjnxC3CZNEjShKdFg$lzBGCWxgXWjjRtQWQMUOGiJu2ZqEPYIePZMaNW6p3X0',
     },
-    {
-      email: 'coach@imldigit.com',
-      firstName: 'Darius',
-      lastName: 'NZÉ',
-      roleCode: 'COACH',
-      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$BYSL8NjnxC3CZNEjShKdFg$lzBGCWxgXWjjRtQWQMUOGiJu2ZqEPYIePZMaNW6p3X0',
-    },
-    {
-      email: 'marcella.biyoghe@imldigit.com',
-      firstName: 'Marcella',
-      lastName: 'BIYOGHE',
-      roleCode: 'COACH',
-      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$QvIo82XqOSRulPmymnLLUQ$7KnIAxh7VAilWHqGSAvsOpuT7HCwGxizeOdV60aKPRY',
-    },
-    {
-      email: 'patrick.obiang@imldigit.com',
-      firstName: 'Patrick',
-      lastName: 'OBIANG',
-      roleCode: 'COACH',
-      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$QvIo82XqOSRulPmymnLLUQ$7KnIAxh7VAilWHqGSAvsOpuT7HCwGxizeOdV60aKPRY',
-    },
-    {
-      email: 'sarah.ondo@imldigit.com',
-      firstName: 'Sarah',
-      lastName: 'ONDO',
-      roleCode: 'COACH',
-      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$QvIo82XqOSRulPmymnLLUQ$7KnIAxh7VAilWHqGSAvsOpuT7HCwGxizeOdV60aKPRY',
-    },
   ];
 
   for (const u of defaultUsers) {

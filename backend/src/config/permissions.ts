@@ -34,6 +34,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
   DIRECTION: [
     'dashboard:read',
     'dashboard:global',
+    'users:manage',
     'reports:read',
     'audit:read',
     'beneficiaries:read',

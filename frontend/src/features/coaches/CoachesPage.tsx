@@ -41,83 +41,46 @@ export default function CoachesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // 1. Utilisateurs réels synchronisés depuis le serveur (si disponibles)
-  const { data: usersRes } = useQuery({
+  // 1. Utilisateurs réels synchronisés depuis le serveur
+  const { data: usersRes, refetch: refetchUsers } = useQuery({
     queryKey: ['team-users-list'],
     queryFn: () => api<{ items: any[] }>('/users?pageSize=100').catch(() => null),
   });
 
-  // Liste initiale pré-configurée avec UNIQUEMENT les coachs
-  const defaultInitialList: CoachItem[] = useMemo(() => [
-    {
-      id: 'coach-darius',
-      name: 'DARIUS COACH IML',
-      email: 'coach@imldigit.com',
-      role: 'COACH',
-      roleLabel: "Coach Référent & Mentor",
-      language: 'Français',
-      createdAt: '09/10/2026',
-      activeBeneficiariesCount: 4,
-      groupsCount: 1,
-      lastLogin: 'Aujourd\'hui',
-      isOwner: true,
-    }
-  ], []);
-
   const [coaches, setCoaches] = useState<CoachItem[]>(() => {
     try {
       localStorage.removeItem('iml_coaches_list_v4');
-      const saved = localStorage.getItem('iml_coaches_only_v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const onlyCoaches = parsed.filter((c: any) => c.role === 'COACH');
-          if (onlyCoaches.length > 0) return onlyCoaches;
-        }
-      }
+      localStorage.removeItem('iml_coaches_only_v2');
     } catch {
-      // fallback
+      // ignore
     }
-    return defaultInitialList;
+    return [];
   });
 
   // Synchronisation avec les utilisateurs renvoyés par l'API (strictement rôles COACH)
   useEffect(() => {
-    if (usersRes?.items && usersRes.items.length > 0) {
-      setCoaches(prev => {
-        const existingEmails = new Set(prev.map(c => c.email.toLowerCase()));
-        const newFromApi = usersRes.items
-          .filter((u: any) => {
-            const code = u.role?.code || u.role;
-            return code === 'COACH' && !existingEmails.has(u.email.toLowerCase());
-          })
-          .map((u: any) => ({
-            id: u.id,
-            name: `${u.firstName || ''} ${u.lastName || ''}`.trim().toUpperCase() || u.email.toUpperCase(),
-            email: u.email,
-            role: 'COACH' as const,
-            roleLabel: "Coach Référent & Mentor",
-            language: 'Français',
-            createdAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR') : '09/10/2026',
-            activeBeneficiariesCount: 4,
-            groupsCount: 1,
-            lastLogin: u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('fr-FR') : 'Récemment',
-            isOwner: u.email === user?.email
-          }));
-        if (newFromApi.length === 0) return prev;
-        return [...prev, ...newFromApi];
-      });
+    if (usersRes?.items) {
+      const serverCoaches = usersRes.items
+        .filter((u: any) => {
+          const code = u.role?.code || u.role;
+          return code === 'COACH';
+        })
+        .map((u: any) => ({
+          id: u.id,
+          name: `${u.firstName || ''} ${u.lastName || ''}`.trim().toUpperCase() || u.email.toUpperCase(),
+          email: u.email,
+          role: 'COACH' as const,
+          roleLabel: "Coach Référent & Mentor",
+          language: 'Français',
+          createdAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR') : '—',
+          activeBeneficiariesCount: 0,
+          groupsCount: 0,
+          lastLogin: u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('fr-FR') : 'Récemment',
+          isOwner: u.email === user?.email
+        }));
+      setCoaches(serverCoaches);
     }
   }, [usersRes, user]);
-
-  // Sauvegarde locale stricte pour les coachs
-  useEffect(() => {
-    try {
-      localStorage.setItem('iml_coaches_only_v2', JSON.stringify(coaches.filter(c => c.role === 'COACH')));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [coaches]);
 
   // Recherche textuelle
   const [searchTerm, setSearchTerm] = useState('');
@@ -284,12 +247,22 @@ export default function CoachesPage() {
   };
 
   // Confirmation suppression
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!coachToDelete) return;
-    setCoaches(prev => prev.filter(c => c.id !== coachToDelete.id));
-    setToastMessage(`✓ Le coach ${coachToDelete.name} a été supprimé`);
-    setIsDeleteCoachOpen(false);
-    setCoachToDelete(null);
+    try {
+      if (coachToDelete.id && !coachToDelete.id.startsWith('coach-')) {
+        await api(`/users/${coachToDelete.id}`, { method: 'DELETE' });
+      }
+      setCoaches(prev => prev.filter(c => c.id !== coachToDelete.id));
+      queryClient.invalidateQueries({ queryKey: ['team-users-list'] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiary-options'] });
+      await refetchUsers();
+      setToastMessage(`✓ Le coach ${coachToDelete.name} a été définitivement supprimé`);
+      setIsDeleteCoachOpen(false);
+      setCoachToDelete(null);
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors de la suppression du coach.");
+    }
   };
 
   return (
@@ -515,6 +488,18 @@ export default function CoachesPage() {
           </thead>
 
           <tbody className="divide-y divide-slate-100 text-xs">
+            {displayedCoaches.length === 0 && (
+              <tr>
+                <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <div className="max-w-md mx-auto space-y-1.5">
+                    <p className="text-sm font-medium text-slate-600">Aucun coach enregistré</p>
+                    <p className="text-xs text-slate-400">
+                      L'équipe de coaching est actuellement vide. Cliquez sur « + Ajouter un coach » pour enregistrer un nouveau membre.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
             {displayedCoaches.map((c) => (
               <tr 
                 key={c.id} 

@@ -63,7 +63,12 @@ export async function purgeMockData() {
     });
     const coachIds = coaches.map((c) => c.id);
     if (coachIds.length > 0) {
+      await prisma.document.deleteMany({ where: { uploadedById: { in: coachIds } } });
+      await prisma.followUpNote.deleteMany({ where: { authorId: { in: coachIds } } });
+      await prisma.appointment.deleteMany({ where: { userId: { in: coachIds } } });
+      await prisma.assignment.deleteMany({ where: { userId: { in: coachIds } } });
       await prisma.session.deleteMany({ where: { userId: { in: coachIds } } });
+      await prisma.beneficiary.updateMany({ where: { assignedAgentId: { in: coachIds } }, data: { assignedAgentId: null } });
       await prisma.auditLog.deleteMany({ where: { userId: { in: coachIds } } });
       const delUsers = await prisma.user.deleteMany({ where: { id: { in: coachIds } } });
       deletedCoachesCount = delUsers.count;
