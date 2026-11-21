@@ -5,7 +5,7 @@ import fs from 'fs';
 import { requireAuth, requirePermission } from '../../middleware/auth';
 import { AppError } from '../../middleware/error';
 import { createApplicationSchema, idParam, listApplicationsSchema, updateApplicationSchema } from './applications.schemas';
-import { createApplication, getApplication, listApplications, updateApplication, trackApplicationPublic } from './applications.service';
+import { createApplication, getApplication, listApplications, updateApplication, trackApplicationPublic, resendDossierSummaryEmail } from './applications.service';
 
 export const applicationsRouter = Router();
 
@@ -76,6 +76,16 @@ applicationsRouter.get('/public/track', async (req, res, next) => {
     const q = String(req.query.q || req.query.query || req.query.code || '');
     const tracked = await trackApplicationPublic(q);
     res.json({ application: tracked });
+  } catch (e) { next(e); }
+});
+
+// Route publique : renvoyer par e-mail le récapitulatif complet du dossier et le lien d'entretien (visio ou sur place)
+applicationsRouter.post('/public/resend-summary', async (req, res, next) => {
+  try {
+    const q = String(req.body?.q || req.body?.code || req.query.q || '');
+    const email = req.body?.email ? String(req.body.email) : undefined;
+    const result = await resendDossierSummaryEmail(q, email);
+    res.json(result);
   } catch (e) { next(e); }
 });
 

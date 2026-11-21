@@ -32,7 +32,12 @@ appointmentsRouter.post('/:id/resend-convocation', async (req, res, next) => {
     const appt = await prisma.appointment.findUnique({
       where: { id },
       include: {
-        beneficiary: true,
+        beneficiary: {
+          include: {
+            projects: { select: { name: true } },
+            application: { select: { seqNumber: true, status: true } },
+          },
+        },
         user: true,
       }
     });
@@ -55,15 +60,28 @@ appointmentsRouter.post('/:id/resend-convocation', async (req, res, next) => {
       }).catch(() => {});
     }
 
+    const benDocs = await prisma.document.findMany({
+      where: { ownerId: appt.beneficiary.id, ownerType: 'BENEFICIARY' },
+      select: { title: true, category: true, status: true },
+      orderBy: { createdAt: 'desc' },
+    }).catch(() => []);
+
+    const seqNum = appt.beneficiary.application?.seqNumber || appt.beneficiary.fileSeq || 1;
+    const referenceCode = `IML-2026-${String(seqNum).padStart(4, '0')}`;
+
     const result = await sendAppointmentNotificationEmail({
       recipientEmail: targetEmail,
       recipientName: `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}`,
       coachName: `${appt.user.firstName} ${appt.user.lastName}`,
+      coachEmail: appt.user.email || undefined,
       datetime: formattedDate,
       durationMinutes: appt.duration,
       sessionType: isVideo ? 'video' : 'in_person',
-      locationOrUrl: appt.location || 'Siège IML Digit',
-      notes: undefined,
+      locationOrUrl: appt.location || 'Siège IML Digit - Espace PME, Libreville',
+      referenceCode,
+      companyName: appt.beneficiary.projects?.[0]?.name || undefined,
+      applicationStatus: appt.beneficiary.application?.status || appt.beneficiary.status,
+      documents: benDocs,
     });
     res.json(result);
   } catch (e) { next(e); }

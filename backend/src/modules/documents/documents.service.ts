@@ -7,6 +7,7 @@ import type { z } from 'zod';
 import type { documentUploadSchema, documentStatusSchema } from './documents.schemas';
 import { AppError } from '../../middleware/error';
 import { scopeWhere, fileNumber } from '../beneficiaries/beneficiaries.service';
+import { sendDocumentStatusEmail } from '../email/email.service';
 
 export const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
 if (!nodeFs.existsSync(UPLOAD_DIR)) {
@@ -98,8 +99,29 @@ export async function uploadDocument(data: z.infer<typeof documentUploadSchema>,
 }
 
 export async function updateDocumentStatus(id: string, data: z.infer<typeof documentStatusSchema>, auth: AuthContext) {
-  await assertDocumentAccess(id, auth);
-  return prisma.document.update({ where: { id }, data: { status: data.status } });
+  const existing = await assertDocumentAccess(id, auth);
+  const updated = await prisma.document.update({ where: { id }, data: { status: data.status } });
+
+  if (existing.ownerType === 'BENEFICIARY') {
+    prisma.beneficiary.findUnique({
+      where: { id: existing.ownerId },
+      include: { projects: { select: { name: true } } },
+    }).then((ben) => {
+      if (ben && ben.email && ben.email.includes('@') && !ben.email.endsWith('.local')) {
+        sendDocumentStatusEmail({
+          recipientEmail: ben.email,
+          recipientName: `${ben.firstName} ${ben.lastName}`.trim(),
+          companyName: ben.projects?.[0]?.name || undefined,
+          referenceCode: fileNumber(ben),
+          documentTitle: updated.title,
+          documentCategory: updated.category,
+          status: updated.status as 'VALIDE' | 'REFUSE' | 'EN_ATTENTE',
+        }).catch((err) => console.error('[EMAIL DOCUMENT STATUS ERROR]', err));
+      }
+    }).catch(() => {});
+  }
+
+  return updated;
 }
 
 export async function getDocumentForDownload(id: string, auth: AuthContext) {

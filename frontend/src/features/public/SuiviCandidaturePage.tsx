@@ -25,9 +25,10 @@ interface TrackedApplication {
   id: string;
   seqNumber: number;
   referenceCode: string;
-  status: 'BROUILLON' | 'SOUMISE' | 'EN_COURS_EXAMEN' | 'ACCEPTEE' | 'REFUSEE';
+  status: 'BROUILLON' | 'SOUMISE' | 'EN_COURS_EXAMEN' | 'ENTRETIEN' | 'ACCEPTEE' | 'REFUSEE';
   submittedAt?: string;
   applicantName: string;
+  applicantEmail?: string | null;
   structureType: 'PORTEUR_IDEE' | 'STARTUP' | 'PME' | 'ORGANISATION';
   companyName: string;
   rccm?: string;
@@ -36,6 +37,13 @@ interface TrackedApplication {
   hasVideoEquipment?: boolean;
   needs: string[];
   stage: string;
+  documents?: Array<{
+    id: string;
+    title: string;
+    category?: string;
+    status?: string;
+    createdAt?: string;
+  }>;
   appointment?: {
     id: string;
     datetime: string;
@@ -44,6 +52,7 @@ interface TrackedApplication {
     isVisio: boolean;
     videoUrl?: string | null;
     coachName: string;
+    coachEmail?: string | null;
   } | null;
 }
 
@@ -95,6 +104,8 @@ export default function SuiviCandidaturePage() {
   const [searchInput, setSearchInput] = useState(initialQuery);
   const [activeQuery, setActiveQuery] = useState(initialQuery);
   const [isDetailView, setIsDetailView] = useState(initialView);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailFeedback, setEmailFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-track-app', activeQuery],
@@ -158,6 +169,36 @@ export default function SuiviCandidaturePage() {
     setIsDetailView(false);
     setSearchParams({ code: searchInput, vue: 'recherche' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleResendSummaryEmail = async () => {
+    if (!app) return;
+    setIsSendingEmail(true);
+    setEmailFeedback(null);
+    try {
+      const res = await api<{ success: boolean; email: string; message: string }>('/applications/public/resend-summary', {
+        method: 'POST',
+        body: { q: app.referenceCode, email: app.applicantEmail || undefined },
+      });
+      if (res.success) {
+        setEmailFeedback({
+          type: 'success',
+          message: res.message || `E-mail complet envoyé avec succès à ${res.email}`,
+        });
+      } else {
+        setEmailFeedback({
+          type: 'error',
+          message: res.message || "Impossible d'envoyer l'e-mail pour le moment.",
+        });
+      }
+    } catch (err: any) {
+      setEmailFeedback({
+        type: 'error',
+        message: err?.message || "Erreur lors de l'envoi de l'e-mail récapitulatif.",
+      });
+    } finally {
+      setIsSendingEmail(false);
+    }
   };
 
   const currentStatusInfo = app ? STATUS_DETAILS[app.status] || STATUS_DETAILS.SOUMISE : null;
@@ -301,6 +342,45 @@ export default function SuiviCandidaturePage() {
               </div>
             </div>
 
+            {/* ENCADRÉ CENTRAL : ENVOI DIRECT PAR E-MAIL DU DOSSIER COMPLET & LIEN D'ENTRETIEN */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-slate-900 text-white shadow-lg space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#23c3b1]/20 text-[#23c3b1] uppercase tracking-wider">
+                    <Mail className="size-3" />
+                    <span>Réception directe par e-mail</span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-white">
+                    Recevoir la totalité de mon dossier & mon lien d'entretien par e-mail
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                    Toutes vos informations (état d'admission, validation de vos documents, convocation avec <strong>lien direct de la vidéo</strong> ou <strong>adresse de l'entretien sur place</strong>) vous sont envoyées directement dans votre boîte e-mail{app.applicantEmail ? ` (${app.applicantEmail})` : ''}.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSendingEmail}
+                  onClick={handleResendSummaryEmail}
+                  className="px-5 py-3 rounded-2xl bg-[#f06553] hover:bg-[#e05341] text-white text-xs sm:text-sm font-extrabold shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  {isSendingEmail ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
+                  <span>{isSendingEmail ? 'Envoi en cours...' : "M'envoyer l'e-mail complet maintenant"}</span>
+                </button>
+              </div>
+
+              {emailFeedback && (
+                <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                  emailFeedback.type === 'success'
+                    ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40'
+                    : 'bg-rose-500/20 text-rose-200 border border-rose-400/40'
+                }`}>
+                  {emailFeedback.type === 'success' ? <CheckCircle2 className="size-4 text-emerald-400 shrink-0" /> : <AlertCircle className="size-4 text-rose-400 shrink-0" />}
+                  <span>{emailFeedback.message}</span>
+                </div>
+              )}
+            </div>
+
             {/* SECTION CONVOCATION ENTRETIEN SI PROGRAMMÉ */}
             {app.appointment && (
               <div className="p-6 rounded-3xl bg-teal-50 border-2 border-teal-300 shadow-sm space-y-4 animate-in zoom-in-95">
@@ -311,14 +391,19 @@ export default function SuiviCandidaturePage() {
                     </div>
                     <div>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-900 border border-teal-300 uppercase tracking-wider inline-block mb-1">
-                        Entretien d'évaluation fixé
+                        {app.appointment.isVisio ? '🎥 Entretien Vidéo en Ligne Fixé' : '📍 Entretien Sur Place Fixé'}
                       </span>
                       <h3 className="text-base sm:text-lg font-black text-slate-900">
                         {new Date(app.appointment.datetime).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} à {new Date(app.appointment.datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                       </h3>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        Avec <strong>{app.appointment.coachName}</strong> · Modalité : {app.appointment.isVisio ? 'Visioconférence sécurisée' : 'Présentiel (Siège IML Digit - Espace PME)'}
+                      <p className="text-xs text-slate-700 mt-0.5">
+                        Avec <strong>{app.appointment.coachName}</strong> · Modalité : <strong>{app.appointment.isVisio ? 'Visioconférence en ligne' : 'Sur place (Siège IML Digit - Espace PME, Libreville)'}</strong>
                       </p>
+                      {!app.appointment.isVisio && (
+                        <p className="text-xs text-teal-900 font-semibold mt-1">
+                          📍 Lieu : {app.appointment.location || 'Siège IML Digit - Immeuble Espace PME, Quartier Awendjé, Libreville'}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -340,6 +425,56 @@ export default function SuiviCandidaturePage() {
               </div>
             )}
 
+            {/* SECTION DOCUMENTS & PIÈCES JUSTIFICATIVES DU DOSSIER */}
+            <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="size-4 text-[#23c3b1]" />
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Documents & Pièces du dossier
+                  </h4>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                  {app.documents?.length || 0} pièce(s)
+                </span>
+              </div>
+
+              {app.documents && app.documents.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {app.documents.map((doc) => {
+                    const isVal = doc.status === 'VALIDE';
+                    const isRef = doc.status === 'REFUSE';
+                    return (
+                      <div key={doc.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="size-3.5 text-slate-400 shrink-0" />
+                          <span className="font-bold text-slate-800 truncate">{doc.title}</span>
+                          {doc.category && (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
+                              {doc.category}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${
+                          isVal
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : isRef
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {isVal ? '✓ Validé' : isRef ? 'À mettre à jour' : '⏳ Reçu / En revue'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Votre fiche projet et votre formulaire administratif sont bien enregistrés dans le système.
+                </p>
+              )}
+            </div>
+
             {/* SECTION CANDIDATURE ADMISE : PRISE EN CHARGE AVEC LE COACH */}
             {app.status === 'ACCEPTEE' && !certificateData && (
               <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 shadow-md space-y-4 animate-in zoom-in-95">
@@ -356,19 +491,21 @@ export default function SuiviCandidaturePage() {
                         Votre dossier est officiellement admis au sein de l'incubateur
                       </h3>
                       <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                        Félicitations ! Votre candidature a été retenue. Vous allez maintenant travailler avec votre coach référent pour démarrer le cadrage, vos séances de travail et vos livrables.
+                        Félicitations ! Votre candidature est admise. Toutes vos convocations (avec le lien vidéo ou le lieu sur place) ainsi que les étapes avec votre coach vous sont envoyées directement par e-mail.
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-                    <Link
-                      to="/espace-beneficiaire"
+                    <button
+                      type="button"
+                      disabled={isSendingEmail}
+                      onClick={handleResendSummaryEmail}
                       className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
                     >
-                      <User className="size-4" />
-                      <span>Accéder à mon espace</span>
-                    </Link>
+                      <Mail className="size-4" />
+                      <span>Recevoir ma lettre d'admission par e-mail</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -428,22 +565,22 @@ export default function SuiviCandidaturePage() {
                     <MapPin className="size-4 text-[#f06553]" />
                   )}
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Modalité d'entretien souhaitée
+                    Modalité d'entretien & Réception des convocations
                   </h4>
                 </div>
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                  {app.interviewPreference === 'VIDEO' ? 'Visioconférence' : 'Présentiel'}
+                  {app.interviewPreference === 'VIDEO' ? 'Visioconférence en ligne' : 'Présentiel sur place'}
                 </span>
               </div>
 
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                 {app.interviewPreference === 'VIDEO' ? (
                   <span>
-                    Vous avez demandé un entretien à distance. Lorsque votre créneau sera fixé par votre conseiller, le lien sécurisé de visioconférence vous sera envoyé automatiquement par email/SMS.
+                    Entretien à distance en ligne : dès que votre créneau est programmé, vous recevez <strong>directement par e-mail sur votre téléphone</strong> le lien cliquable de la salle vidéo sans avoir besoin de mot de passe.
                   </span>
                 ) : (
                   <span>
-                    Entretien prévu au siège de l'incubateur <strong>IML Digit (Quartier B2, Libreville)</strong>. Une convocation officielle imprimable vous sera transmise avec le jour et l'horaire précis.
+                    Entretien sur place au siège de l'incubateur <strong>IML Digit (Immeuble Espace PME, Quartier Awendjé, Libreville)</strong> : vous recevez directement par e-mail votre convocation complète avec la date, l'horaire, le nom de votre coach et les documents à apporter.
                   </span>
                 )}
               </p>
@@ -643,15 +780,37 @@ export default function SuiviCandidaturePage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleOpenDetail}
-                className="px-7 py-3.5 rounded-2xl bg-[#f06553] hover:bg-[#e05341] text-white font-extrabold text-sm transition-all shadow-md shadow-[#f06553]/25 flex items-center justify-center gap-2.5 cursor-pointer hover:scale-105 shrink-0"
-              >
-                <span>Voir le détail du dossier</span>
-                <ArrowRight className="size-4" />
-              </button>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  disabled={isSendingEmail}
+                  onClick={handleResendSummaryEmail}
+                  className="px-4 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSendingEmail ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4 text-[#23c3b1]" />}
+                  <span>Recevoir tout par e-mail</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenDetail}
+                  className="px-6 py-3.5 rounded-2xl bg-[#f06553] hover:bg-[#e05341] text-white font-extrabold text-sm transition-all shadow-md shadow-[#f06553]/25 flex items-center justify-center gap-2.5 cursor-pointer hover:scale-105 shrink-0"
+                >
+                  <span>Voir le détail du dossier</span>
+                  <ArrowRight className="size-4" />
+                </button>
+              </div>
             </div>
+
+            {emailFeedback && (
+              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                emailFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                {emailFeedback.type === 'success' ? <CheckCircle2 className="size-4 text-emerald-600 shrink-0" /> : <AlertCircle className="size-4 text-rose-600 shrink-0" />}
+                <span>{emailFeedback.message}</span>
+              </div>
+            )}
           </div>
         )}
 

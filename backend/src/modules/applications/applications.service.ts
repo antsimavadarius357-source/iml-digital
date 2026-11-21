@@ -4,7 +4,11 @@ import type { AuthContext } from '../../middleware/auth';
 import type { z } from 'zod';
 import type { createApplicationSchema, listApplicationsSchema, updateApplicationSchema } from './applications.schemas';
 import { AppError } from '../../middleware/error';
-import { sendApplicationDecisionEmail } from '../email/email.service';
+import {
+  sendApplicationDecisionEmail,
+  sendApplicationSubmittedEmail,
+  sendAppointmentNotificationEmail,
+} from '../email/email.service';
 
 // Helper pour filtrer les candidatures selon le rôle (l'agent ne voit que ce qui lui est assigné s'il n'est pas DIRECTION/ADMIN)
 function scopeWhere(auth: AuthContext): Prisma.ApplicationWhereInput {
@@ -173,6 +177,20 @@ export async function createApplication(data: z.infer<typeof createApplicationSc
     }
   });
 
+  // Envoyer immédiatement l'accusé de réception complet par e-mail au candidat
+  if (email && email.includes('@') && !email.endsWith('.local')) {
+    const referenceCode = `IML-2026-${String(app.seqNumber).padStart(4, '0')}`;
+    const rawDocs = Array.isArray(project?.documents) ? project.documents : [];
+    sendApplicationSubmittedEmail({
+      recipientEmail: email,
+      recipientName: `${applicant?.firstName || ''} ${applicant?.lastName || ''}`.trim() || 'Porteur de projet',
+      companyName: applicant?.companyName?.trim() || project?.title?.trim() || 'Nouveau projet',
+      referenceCode,
+      interviewPreference: applicant?.interviewPreference || 'PRESENTIEL',
+      documents: rawDocs.map((d: any) => ({ title: d?.originalName || 'Document justificatif', category: d?.category || 'PROJET' })),
+    }).catch((err) => console.error('[EMAIL SOUMISSION CANDIDATURE ERROR]', err));
+  }
+
   return app;
 }
 
@@ -206,14 +224,43 @@ export async function updateApplication(id: string, data: z.infer<typeof updateA
       const year = updated.createdAt ? new Date(updated.createdAt).getUTCFullYear() : 2026;
       const referenceCode = `IML-${year}-${String(updated.seqNumber).padStart(4, '0')}`;
 
-      // Envoi de l'e-mail officiel de décision (asynchrone)
+      let docs: Array<{ title: string; status?: string }> = [];
+      let apptDatetime: string | undefined;
+      let apptLocation: string | undefined;
+      let coachName: string | undefined;
+
+      if (updated.beneficiaryId) {
+        const [benDocs, latestAppt] = await Promise.all([
+          prisma.document.findMany({
+            where: { ownerId: updated.beneficiaryId, ownerType: 'BENEFICIARY' },
+            select: { title: true, status: true },
+          }).catch(() => []),
+          prisma.appointment.findFirst({
+            where: { beneficiaryId: updated.beneficiaryId },
+            orderBy: { datetime: 'desc' },
+            include: { user: { select: { firstName: true, lastName: true } } },
+          }).catch(() => null),
+        ]);
+        docs = benDocs;
+        if (latestAppt) {
+          apptDatetime = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'full', timeStyle: 'short' }).format(new Date(latestAppt.datetime));
+          apptLocation = latestAppt.location || undefined;
+          coachName = latestAppt.user ? `${latestAppt.user.firstName} ${latestAppt.user.lastName}` : undefined;
+        }
+      }
+
+      // Envoi de l'e-mail officiel de décision complet (avec documents et RDV éventuel)
       sendApplicationDecisionEmail({
         recipientEmail,
         recipientName,
         companyName,
         referenceCode,
         decision: data.status as 'ACCEPTEE' | 'REFUSEE',
-        notes: data.evaluationNotes
+        notes: data.evaluationNotes,
+        coachName,
+        appointmentDatetime: apptDatetime,
+        appointmentLocation: apptLocation,
+        documents: docs,
       }).catch(err => console.error('[EMAIL DECISION ERROR]', err));
     }
 
@@ -274,11 +321,9 @@ export async function trackApplicationPublic(searchQuery: string) {
     app = apps.find(a => {
       const applicant = a.applicantData as any;
       if (!applicant) return false;
-      // Par email
       if (applicant.email && clean.includes('@') && applicant.email.toLowerCase().trim() === clean.toLowerCase().trim()) {
         return true;
       }
-      // Par téléphone (si au moins 6 chiffres)
       if (cleanDigits.length >= 6 && applicant.phone) {
         const appPhoneDigits = String(applicant.phone).replace(/\D/g, '');
         if (appPhoneDigits.includes(cleanDigits) || cleanDigits.includes(appPhoneDigits)) {
@@ -321,11 +366,19 @@ export async function trackApplicationPublic(searchQuery: string) {
       const project = ben.projects?.[0] || {};
       const year = ben.createdAt ? new Date(ben.createdAt).getUTCFullYear() : 2026;
       
-      const appt = await prisma.appointment.findFirst({
-        where: { beneficiaryId: ben.id },
-        orderBy: { datetime: 'desc' },
-        include: { user: { select: { firstName: true, lastName: true } } }
-      });
+      const [appt, benDocs] = await Promise.all([
+        prisma.appointment.findFirst({
+          where: { beneficiaryId: ben.id },
+          orderBy: { datetime: 'desc' },
+          include: { user: { select: { firstName: true, lastName: true, email: true } } }
+        }),
+        prisma.document.findMany({
+          where: { ownerId: ben.id, ownerType: 'BENEFICIARY' },
+          select: { id: true, title: true, category: true, status: true, createdAt: true },
+          orderBy: { createdAt: 'desc' }
+        }).catch(() => []),
+      ]);
+
       let appointmentInfo: any = null;
       if (appt) {
         const loc = appt.location || '';
@@ -338,7 +391,8 @@ export async function trackApplicationPublic(searchQuery: string) {
           location: loc,
           isVisio,
           videoUrl: match ? match[0] : (isVisio ? `https://meet.jit.si/imldigit-entretien-${appt.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}` : null),
-          coachName: appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML'
+          coachName: appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML',
+          coachEmail: appt.user?.email || null,
         };
       }
 
@@ -358,6 +412,7 @@ export async function trackApplicationPublic(searchQuery: string) {
         status,
         submittedAt: ben.createdAt,
         applicantName: `${ben.firstName || ''} ${ben.lastName || ''}`.trim() || 'Porteur / Entreprise',
+        applicantEmail: ben.email || null,
         structureType: ben.type || 'PORTEUR_IDEE',
         companyName: ben.companyName || project.name || 'Projet / Entreprise',
         rccm: ben.rccm,
@@ -366,6 +421,7 @@ export async function trackApplicationPublic(searchQuery: string) {
         hasVideoEquipment: false,
         needs: [],
         stage: project.stage || 'IDEE',
+        documents: benDocs,
         appointment: appointmentInfo
       };
     }
@@ -379,13 +435,22 @@ export async function trackApplicationPublic(searchQuery: string) {
   const project = (app.projectData as any) || {};
 
   let appointmentInfo: any = null;
+  let benDocs: any[] = [];
   const targetBenId = app.beneficiaryId;
   if (targetBenId) {
-    const appt = await prisma.appointment.findFirst({
-      where: { beneficiaryId: targetBenId },
-      orderBy: { datetime: 'desc' },
-      include: { user: { select: { firstName: true, lastName: true } } }
-    });
+    const [appt, docs] = await Promise.all([
+      prisma.appointment.findFirst({
+        where: { beneficiaryId: targetBenId },
+        orderBy: { datetime: 'desc' },
+        include: { user: { select: { firstName: true, lastName: true, email: true } } }
+      }),
+      prisma.document.findMany({
+        where: { ownerId: targetBenId, ownerType: 'BENEFICIARY' },
+        select: { id: true, title: true, category: true, status: true, createdAt: true },
+        orderBy: { createdAt: 'desc' }
+      }).catch(() => []),
+    ]);
+    benDocs = docs;
     if (appt) {
       const loc = appt.location || '';
       const isVisio = loc.toLowerCase().includes('visio') || loc.includes('http') || loc.toLowerCase().includes('meet');
@@ -397,9 +462,20 @@ export async function trackApplicationPublic(searchQuery: string) {
         location: loc,
         isVisio,
         videoUrl: match ? match[0] : (isVisio ? `https://meet.jit.si/imldigit-entretien-${appt.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}` : null),
-        coachName: appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML'
+        coachName: appt.user ? `${appt.user.firstName} ${appt.user.lastName}` : 'Coach Référent IML',
+        coachEmail: appt.user?.email || null,
       };
     }
+  }
+
+  if (benDocs.length === 0 && Array.isArray(project.documents)) {
+    benDocs = project.documents.map((d: any, idx: number) => ({
+      id: d.fileId || `doc-${idx}`,
+      title: d.originalName || 'Document justificatif',
+      category: d.category || 'PROJET',
+      status: 'EN_ATTENTE',
+      createdAt: app.submittedAt || app.createdAt,
+    }));
   }
 
   let status = app.status;
@@ -418,6 +494,7 @@ export async function trackApplicationPublic(searchQuery: string) {
     status,
     submittedAt: app.submittedAt,
     applicantName: `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() || 'Porteur / Entreprise',
+    applicantEmail: applicant.email || null,
     structureType: applicant.structureType || 'PORTEUR_IDEE',
     companyName: applicant.companyName || project.title || 'Projet / Entreprise',
     rccm: applicant.rccm,
@@ -426,6 +503,85 @@ export async function trackApplicationPublic(searchQuery: string) {
     hasVideoEquipment: applicant.hasVideoEquipment,
     needs: project.needs || [],
     stage: project.stage || 'IDEE',
+    documents: benDocs,
     appointment: appointmentInfo
+  };
+}
+
+/**
+ * Renvoie à la demande par e-mail le récapitulatif complet du dossier (Admission + Documents + Rendez-vous + Lien Vidéo ou Lieu sur place)
+ */
+export async function resendDossierSummaryEmail(searchQuery: string, overrideEmail?: string) {
+  const tracked = await trackApplicationPublic(searchQuery);
+  const targetEmail = (overrideEmail || tracked.applicantEmail || '').trim();
+
+  if (!targetEmail || !targetEmail.includes('@') || targetEmail.endsWith('.local')) {
+    throw new AppError(400, 'EMAIL_MANQUANT', "Aucune adresse e-mail valide associée à ce dossier. Veuillez saisir votre adresse e-mail.");
+  }
+
+  if (tracked.appointment) {
+    const formattedDate = new Intl.DateTimeFormat('fr-FR', {
+      dateStyle: 'full',
+      timeStyle: 'short',
+    }).format(new Date(tracked.appointment.datetime));
+
+    const mailRes = await sendAppointmentNotificationEmail({
+      recipientEmail: targetEmail,
+      recipientName: tracked.applicantName,
+      coachName: tracked.appointment.coachName,
+      coachEmail: tracked.appointment.coachEmail || undefined,
+      datetime: formattedDate,
+      durationMinutes: tracked.appointment.duration || 60,
+      sessionType: tracked.appointment.isVisio ? 'video' : 'in_person',
+      locationOrUrl: tracked.appointment.location || 'Siège IML Digit - Espace PME, Libreville',
+      videoUrl: tracked.appointment.videoUrl || undefined,
+      referenceCode: tracked.referenceCode,
+      companyName: tracked.companyName,
+      applicationStatus: tracked.status,
+      documents: tracked.documents,
+    });
+
+    return {
+      success: mailRes.success,
+      email: targetEmail,
+      message: mailRes.success
+        ? `Le récapitulatif complet de votre dossier et votre lien d'entretien ont été envoyés à ${targetEmail}.`
+        : (mailRes.message || "Erreur lors de l'envoi de l'e-mail"),
+    };
+  }
+
+  if (tracked.status === 'ACCEPTEE' || tracked.status === 'REFUSEE') {
+    const mailRes = await sendApplicationDecisionEmail({
+      recipientEmail: targetEmail,
+      recipientName: tracked.applicantName,
+      companyName: tracked.companyName,
+      referenceCode: tracked.referenceCode,
+      decision: tracked.status as 'ACCEPTEE' | 'REFUSEE',
+      documents: tracked.documents,
+    });
+    return {
+      success: mailRes.success,
+      email: targetEmail,
+      message: mailRes.success
+        ? `Le récapitulatif de décision et des documents de votre dossier a été envoyé à ${targetEmail}.`
+        : (mailRes.message || "Erreur lors de l'envoi de l'e-mail"),
+    };
+  }
+
+  const mailRes = await sendApplicationSubmittedEmail({
+    recipientEmail: targetEmail,
+    recipientName: tracked.applicantName,
+    companyName: tracked.companyName,
+    referenceCode: tracked.referenceCode,
+    interviewPreference: tracked.interviewPreference,
+    documents: tracked.documents,
+  });
+
+  return {
+    success: mailRes.success,
+    email: targetEmail,
+    message: mailRes.success
+      ? `L'accusé de réception complet de votre dossier (${tracked.referenceCode}) a été envoyé à ${targetEmail}.`
+      : (mailRes.message || "Erreur lors de l'envoi de l'e-mail"),
   };
 }

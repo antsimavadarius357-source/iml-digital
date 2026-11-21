@@ -222,7 +222,17 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
       },
       include: {
         beneficiary: {
-          select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+          select: {
+            id: true,
+            fileSeq: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            status: true,
+            projects: { select: { name: true } },
+            application: { select: { seqNumber: true, status: true, createdAt: true } },
+          },
         },
         user: {
           select: { id: true, firstName: true, lastName: true, email: true },
@@ -232,7 +242,19 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
 
     createdAppointments.push(appt);
 
-    // 3. Envoi de l'e-mail de convocation officiel au bénéficiaire (asynchrone non-bloquant pour exécution instantanée)
+    // Récupérer les documents du dossier pour les inclure dans le récapitulatif complet de l'e-mail
+    const benDocs = await prisma.document.findMany({
+      where: { ownerId: bId, ownerType: 'BENEFICIARY' },
+      select: { title: true, category: true, status: true },
+      orderBy: { createdAt: 'desc' },
+    }).catch(() => []);
+
+    const seqNum = appt.beneficiary?.application?.seqNumber || appt.beneficiary?.fileSeq || 1;
+    const referenceCode = `IML-2026-${String(seqNum).padStart(4, '0')}`;
+    const companyName = appt.beneficiary?.projects?.[0]?.name || undefined;
+    const applicationStatus = appt.beneficiary?.application?.status || appt.beneficiary?.status || 'EN_COURS_EXAMEN';
+
+    // 3. Envoi de l'e-mail de convocation officiel complet au bénéficiaire (Admission + Documents + RDV + Lien Vidéo ou Lieu Sur Place)
     const isSmtpReady = isSmtpConfigured();
     let recipientEmail = (data.candidateEmail || appt.beneficiary?.email || '').trim();
     if (recipientEmail.toLowerCase().endsWith('@glail.com')) {
@@ -244,30 +266,43 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
     }
 
     const hasValidEmail = Boolean(recipientEmail && recipientEmail.includes('@') && !recipientEmail.endsWith('.local'));
-    const isDelivered = isSmtpReady && hasValidEmail;
-    const isSimulated = !isSmtpReady && hasValidEmail;
-    const deliveryError = !hasValidEmail 
+    let isDelivered = isSmtpReady && hasValidEmail;
+    let isSimulated = !isSmtpReady && hasValidEmail;
+    let deliveryError: string | null = !hasValidEmail 
       ? 'Adresse e-mail manquante ou non valide' 
       : isSimulated 
       ? 'Serveur en mode simulation : aucun compte SMTP / Gmail configuré sur Render.' 
       : null;
 
     if (hasValidEmail) {
-      console.log(`[ENVOI CONVOCATION] Déclenchement de l'envoi immédiat à ${recipientEmail}`);
-      sendAppointmentNotificationEmail({
-        recipientEmail: recipientEmail,
-        recipientName: `${appt.beneficiary?.firstName || ''} ${appt.beneficiary?.lastName || ''}`.trim() || data.candidateName || 'Bénéficiaire',
-        coachName: coachFullName,
-        datetime: formattedDate,
-        durationMinutes: data.duration,
-        sessionType,
-        locationOrUrl: data.location || 'Siège IML Digit',
-        notes: data.notes,
-      }).then((res) => {
-        console.log(`[ENVOI CONVOCATION RÉSULTAT] ${recipientEmail}:`, res);
-      }).catch((err: any) => {
+      console.log(`[ENVOI CONVOCATION COMPLÈTE] Déclenchement de l'envoi à ${recipientEmail} (Réf: ${referenceCode})`);
+      try {
+        const mailRes = await sendAppointmentNotificationEmail({
+          recipientEmail,
+          recipientName: `${appt.beneficiary?.firstName || ''} ${appt.beneficiary?.lastName || ''}`.trim() || data.candidateName || 'Bénéficiaire',
+          coachName: coachFullName,
+          coachEmail: coachUser?.email || undefined,
+          datetime: formattedDate,
+          durationMinutes: data.duration,
+          sessionType,
+          locationOrUrl: data.location || 'Siège IML Digit - Espace PME, Libreville',
+          notes: data.notes,
+          referenceCode,
+          companyName,
+          applicationStatus,
+          documents: benDocs,
+        });
+        console.log(`[ENVOI CONVOCATION RÉSULTAT] ${recipientEmail}:`, mailRes);
+        isDelivered = Boolean(mailRes.success && !mailRes.simulated);
+        isSimulated = Boolean(mailRes.simulated);
+        if (!mailRes.success) {
+          deliveryError = mailRes.message || 'Échec lors de la remise SMTP';
+        }
+      } catch (err: any) {
         console.error(`[AVERTISSEMENT] Échec envoi email au bénéficiaire ${recipientEmail}:`, err);
-      });
+        isDelivered = false;
+        deliveryError = err?.message || 'Erreur lors de la remise e-mail';
+      }
     }
 
     deliveryStatusByBenId.set(appt.beneficiary.id, { isDelivered, isSimulated, deliveryError });
@@ -277,11 +312,12 @@ export async function createAppointment(data: z.infer<typeof createAppointmentSc
       sendCoachBriefingEmail({
         coachEmail: coachUser.email,
         coachName: coachFullName,
+        companyName,
         beneficiaryName: `${appt.beneficiary?.firstName || ''} ${appt.beneficiary?.lastName || ''}`.trim() || 'Porteur de projet',
         appointmentDatetime: formattedDate,
         appointmentLocation: data.location || (isVideo ? 'Visioconférence' : 'Immeuble Espace PME, Quartier Awendjé, Libreville'),
         beneficiaryPhone: appt.beneficiary?.phone || undefined,
-        beneficiaryEmail: appt.beneficiary?.email || undefined,
+        beneficiaryEmail: recipientEmail || undefined,
         agentName: schedulingAgentName,
         agentEmail: schedulingUser?.email || undefined,
         objectives: data.notes || "Entretien d'accompagnement et diagnostic initial",

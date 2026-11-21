@@ -6,10 +6,21 @@ export interface SendEmailResult {
   message?: string;
 }
 
-// Configuration du transporteur Nodemailer
+const VERCEL_RELAY_URL = process.env.EMAIL_RELAY_URL || 'https://iml-digital.vercel.app/api/send-email';
+const VERCEL_RELAY_SECRET = 'iml-digit-vercel-smtp-relay-2026-sec';
+
+function getAppBaseUrl(): string {
+  const raw = (process.env.FRONTEND_URL || process.env.APP_URL || 'https://iml-digital.vercel.app').trim().replace(/\/+$/, '');
+  if (raw.includes('localhost')) {
+    return 'https://iml-digital.vercel.app';
+  }
+  return raw;
+}
+
+// Configuration du transporteur Nodemailer (secours local)
 function getTransporter() {
   const host = (process.env.SMTP_HOST || '').trim();
-  const port = Number(process.env.SMTP_PORT) || 587;
+  const port = Number(process.env.SMTP_PORT) || 465;
   const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
   const rawPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
   const pass = rawPass.trim().replace(/\s+/g, '');
@@ -20,7 +31,9 @@ function getTransporter() {
 
   if (process.env.SMTP_SERVICE === 'gmail' || user.endsWith('@gmail.com') || host.includes('gmail')) {
     return nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: { user, pass },
       connectionTimeout: 8000,
       greetingTimeout: 5000,
@@ -44,34 +57,142 @@ function getTransporter() {
 }
 
 function getSender(label: string = 'IML Digit'): string {
-  if (process.env.SMTP_FROM) return process.env.SMTP_FROM;
+  const cleanLabel = label.replace(/"/g, '');
   const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
   if (user) {
-    return `"${label}" <${user}>`;
+    return `"${cleanLabel}" <${user}>`;
   }
-  return `"${label}" <no-reply@imldigit.com>`;
+  if (process.env.SMTP_FROM) return process.env.SMTP_FROM;
+  return `"${cleanLabel}" <no-reply@imldigit.com>`;
 }
 
 export function isSmtpConfigured(): boolean {
-  return getTransporter() !== null;
+  const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  const rawPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
+  return Boolean(user && rawPass.trim());
 }
 
 export function getSmtpInfo() {
   const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
   const rawPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
   const isConfigured = Boolean(user && rawPass.trim());
-  const maskedUser = user ? user.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}***${c}`) : null;
+  const maskedUser = user ? user.replace(/^(.)(.*)(@.*)$/, (_, a, _b, c) => `${a}***${c}`) : null;
   return {
     isConfigured,
     mode: isConfigured ? 'real' : 'simulation',
     user: maskedUser,
-    from: process.env.SMTP_FROM || 'IML Digit <no-reply@imldigit.com>',
+    from: user ? `"IML Digit" <${user}>` : (process.env.SMTP_FROM || 'IML Digit <no-reply@imldigit.com>'),
+    relay: VERCEL_RELAY_URL,
   };
 }
 
-export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
+/**
+ * Envoi centralisé d'e-mail :
+ * 1) Passe d'abord par le relais HTTPS Vercel (port 443) pour contourner le blocage des ports SMTP 465/587 sur Render Free Tier.
+ * 2) Repli sur Nodemailer direct en cas d'exécution locale hors-ligne.
+ */
+async function deliverMail(opts: {
+  fromLabel?: string;
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}): Promise<SendEmailResult> {
+  const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  const rawPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || '';
+  const pass = rawPass.trim().replace(/\s+/g, '');
+
+  if (!user || !pass) {
+    return {
+      success: true,
+      simulated: true,
+      message: "Serveur SMTP non configuré (mode simulation).",
+    };
+  }
+
+  const fromLabel = opts.fromLabel || 'IML Digit';
+  const sender = getSender(fromLabel);
+
+  // 1. Tentative prioritaire via le Relais HTTPS Vercel (port 443 jamais bloqué par Render)
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 14000);
+    const relayRes = await fetch(VERCEL_RELAY_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-iml-relay-secret': VERCEL_RELAY_SECRET,
+      },
+      body: JSON.stringify({
+        smtpUser: user,
+        smtpPass: pass,
+        smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
+        smtpPort: 465,
+        fromLabel,
+        from: sender,
+        to: opts.to,
+        subject: opts.subject,
+        text: opts.text,
+        html: opts.html,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (relayRes.ok) {
+      const json: any = await relayRes.json().catch(() => ({}));
+      if (json && json.success) {
+        console.log(`[EMAIL RELAIS HTTPS VERCEL OK] Expédié avec succès à ${opts.to} (${opts.subject})`);
+        return {
+          success: true,
+          simulated: false,
+          message: json.message || `E-mail expédié avec succès à ${opts.to}`,
+        };
+      }
+    } else {
+      const errText = await relayRes.text().catch(() => '');
+      console.warn(`[EMAIL RELAIS HTTPS AVERTISSEMENT] HTTP ${relayRes.status}: ${errText}`);
+    }
+  } catch (relayErr: any) {
+    console.warn(`[EMAIL RELAIS HTTPS FALLBACK] Passage au SMTP direct:`, relayErr?.message);
+  }
+
+  // 2. Secours : connexion SMTP directe (utile en développement local)
   const transporter = getTransporter();
   if (!transporter) {
+    return {
+      success: false,
+      simulated: true,
+      message: 'Transporteur SMTP indisponible',
+    };
+  }
+
+  try {
+    await transporter.sendMail({
+      from: sender,
+      to: opts.to,
+      subject: opts.subject,
+      text: opts.text,
+      html: opts.html,
+    });
+    console.log(`[EMAIL SMTP DIRECT OK] Expédié avec succès à ${opts.to}`);
+    return {
+      success: true,
+      simulated: false,
+      message: `E-mail expédié avec succès à ${opts.to}`,
+    };
+  } catch (err: any) {
+    console.error(`[ERREUR ENVOI EMAIL] Échec à ${opts.to}:`, err?.message);
+    return {
+      success: false,
+      simulated: false,
+      message: err?.message || "Erreur lors de l'envoi de l'e-mail",
+    };
+  }
+}
+
+export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
+  if (!isSmtpConfigured()) {
     return {
       success: false,
       simulated: true,
@@ -79,60 +200,53 @@ export async function sendTestEmail(toEmail: string): Promise<SendEmailResult> {
     };
   }
 
-  const sender = getSender('IML Digit');
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: toEmail,
-      subject: `[TEST RÉEL] Validation de connexion messagerie IML Digit`,
-      text: `Félicitations !\n\nLa connexion SMTP de la plateforme IML Digit est parfaitement opérationnelle.\nLes convocations et notifications seront désormais expédiées en temps réel à vos bénéficiaires.\n\nÉquipe IML Digit`,
-      html: `
-        <div style="font-family:sans-serif; max-width:520px; margin:0 auto; padding:24px; border:1px solid #e2e8f0; border-radius:16px;">
-          <h2 style="color:#23c3b1; margin-top:0;">iml digit<span style="color:#0f172a;">.</span></h2>
-          <h3 style="color:#0f172a;">✓ Connexion e-mail réussie</h3>
-          <p style="color:#475569; font-size:14px; line-height:1.6;">
-            Félicitations ! Votre serveur SMTP sur Render est correctement configuré avec vos identifiants.
-            Les convocations d'experts et rendez-vous d'accompagnement seront désormais expédiés en direct vers les boîtes e-mail de vos bénéficiaires.
-          </p>
-          <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:12px 16px; border-radius:10px; font-weight:600; font-size:13px; margin:20px 0;">
-            ✓ Test de délivrance synchrone validé avec succès
-          </div>
-          <p style="font-size:12px; color:#94a3b8; text-align:center; border-top:1px solid #f1f5f9; padding-top:14px;">
-            Plateforme IML Digit • République Gabonaise
-          </p>
+  return deliverMail({
+    fromLabel: 'IML Digit',
+    to: toEmail,
+    subject: `[TEST RÉEL] Validation de connexion messagerie IML Digit`,
+    text: `Félicitations !\n\nLa connexion messagerie de la plateforme IML Digit est parfaitement opérationnelle.\nLes convocations (avec lien vidéo direct ou lieu sur place), validations de documents et décisions d'admission seront désormais expédiées en temps réel sur le téléphone de vos bénéficiaires.\n\nÉquipe IML Digit`,
+    html: `
+      <div style="font-family:sans-serif; max-width:540px; margin:0 auto; padding:28px; border:1px solid #e2e8f0; border-radius:16px; background:#ffffff;">
+        <h2 style="color:#23c3b1; margin-top:0;">iml digit<span style="color:#0f172a;">.</span></h2>
+        <h3 style="color:#0f172a;">✓ Connexion e-mail temps réel opérationnelle</h3>
+        <p style="color:#475569; font-size:14px; line-height:1.6;">
+          Félicitations ! Votre messagerie IML Digit est désormais connectée via le relais sécurisé HTTPS.
+          Vos bénéficiaires recevront directement dans leur boîte e-mail sur leur téléphone :
+        </p>
+        <ul style="color:#334155; font-size:13.5px; line-height:1.7;">
+          <li><strong>Leur convocation d'entretien</strong> avec le <strong>lien vidéo cliquable en 1 clic</strong> (ou l'adresse exacte sur place)</li>
+          <li><strong>Le statut de leurs documents</strong> et pièces justificatives</li>
+          <li><strong>Leur décision officielle d'admission</strong> et numéro de dossier</li>
+        </ul>
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:12px 16px; border-radius:10px; font-weight:600; font-size:13px; margin:20px 0;">
+          ✓ Délivrance e-mail vérifiée avec succès sur votre boîte de réception
         </div>
-      `,
-    });
-    return { success: true, simulated: false, message: `E-mail de test expédié avec succès à ${toEmail}` };
-  } catch (err: any) {
-    return {
-      success: false,
-      simulated: false,
-      message: err?.message || "Erreur lors de l'envoi de l'e-mail de test via SMTP",
-    };
-  }
+        <p style="font-size:12px; color:#94a3b8; text-align:center; border-top:1px solid #f1f5f9; padding-top:14px;">
+          Plateforme IML Digit • République Gabonaise
+        </p>
+      </div>
+    `,
+  });
+}
+
+export function extractVideoUrl(raw?: string | null): string | null {
+  if (!raw) return null;
+  const match = raw.match(/(https?:\/\/[^\s\]>"')]+)/i);
+  return match && match[1] ? match[1].trim() : null;
 }
 
 /**
  * Envoie un code OTP à 6 chiffres par email
  */
 export async function sendOtpEmail(toEmail: string, code: string): Promise<SendEmailResult> {
-  const transporter = getTransporter();
-
-  // Si aucun serveur SMTP n'est encore configuré dans .env
-  if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[SIMULATION EMAIL] Destinataire: ${toEmail}`);
-    console.log(`[SIMULATION EMAIL] Code OTP: ${code}`);
-    console.log(`======================================================\n`);
+  if (!isSmtpConfigured()) {
+    console.log(`[SIMULATION EMAIL OTP] Destinataire: ${toEmail} | Code: ${code}`);
     return {
       success: true,
       simulated: true,
       message: 'SMTP non configuré dans .env : code simulé en console.',
     };
   }
-
-  const sender = getSender('iml digit');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -149,7 +263,7 @@ export async function sendOtpEmail(toEmail: string, code: string): Promise<SendE
           p { font-size: 14px; line-height: 1.6; color: #475569; }
           .otp-box { background: #162232; color: #ffffff; padding: 20px; border-radius: 16px; text-align: center; margin: 28px 0; }
           .otp-code { font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #f06553; font-family: monospace; }
-          .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 32px; border-top: 1px solid #f1f5f9; pt: 16px; }
+          .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
         </style>
       </head>
       <body>
@@ -171,24 +285,13 @@ export async function sendOtpEmail(toEmail: string, code: string): Promise<SendE
     </html>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: toEmail,
-      subject: `${code} est votre code de vérification iml digit`,
-      text: `Votre code de vérification iml digit est : ${code}. Il expire dans 10 minutes.`,
-      html: htmlContent,
-    });
-
-    console.log(`[EMAIL ENVOYÉ] Code OTP expédié avec succès à ${toEmail}`);
-    return { success: true, simulated: false };
-  } catch (error: any) {
-    console.error(`[ERREUR ENVOI EMAIL] Échec d'envoi à ${toEmail}:`, error);
-    return {
-      success: false,
-      message: error?.message || "Erreur lors de l'envoi de l'e-mail",
-    };
-  }
+  return deliverMail({
+    fromLabel: 'iml digit',
+    to: toEmail,
+    subject: `${code} est votre code de vérification iml digit`,
+    text: `Votre code de vérification iml digit est : ${code}. Il expire dans 10 minutes.`,
+    html: htmlContent,
+  });
 }
 
 export interface CoachBriefingData {
@@ -211,16 +314,10 @@ export interface CoachBriefingData {
  * Envoie un dossier de cadrage/briefing complet à un coach ou expert externe
  */
 export async function sendCoachBriefingEmail(data: CoachBriefingData): Promise<SendEmailResult> {
-  const transporter = getTransporter();
   const subject = `[Mission IML Digit] Dossier d'accompagnement : ${data.companyName || data.beneficiaryName}`;
 
-  if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[SIMULATION EMAIL MISSION COACH] Destinataire: ${data.coachEmail}`);
-    console.log(`[SIMULATION EMAIL MISSION COACH] Sujet: ${subject}`);
-    console.log(`[SIMULATION EMAIL MISSION COACH] Bénéficiaire: ${data.beneficiaryName} (${data.companyName || 'Projet'})`);
-    console.log(`[SIMULATION EMAIL MISSION COACH] Référent: ${data.agentName}`);
-    console.log(`======================================================\n`);
+  if (!isSmtpConfigured()) {
+    console.log(`[SIMULATION EMAIL MISSION COACH] Destinataire: ${data.coachEmail} | Sujet: ${subject}`);
     return {
       success: true,
       simulated: true,
@@ -228,8 +325,8 @@ export async function sendCoachBriefingEmail(data: CoachBriefingData): Promise<S
     };
   }
 
-  const sender = getSender('IML Digit Coordination');
-  const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/connexion`;
+  const loginUrl = `${getAppBaseUrl()}/connexion`;
+  const extractedVideo = extractVideoUrl(data.appointmentLocation);
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -282,10 +379,10 @@ export async function sendCoachBriefingEmail(data: CoachBriefingData): Promise<S
               <span class="label">Stade d'avancement :</span>
               <span class="value">${data.projectStage}</span>
             </div>` : ''}
-            ${data.beneficiaryPhone ? `
+            ${data.beneficiaryPhone || data.beneficiaryEmail ? `
             <div class="row">
               <span class="label">Contact bénéficiaire :</span>
-              <span class="value">${data.beneficiaryPhone} ${data.beneficiaryEmail ? `• ${data.beneficiaryEmail}` : ''}</span>
+              <span class="value">${data.beneficiaryPhone || ''} ${data.beneficiaryEmail ? `• ${data.beneficiaryEmail}` : ''}</span>
             </div>` : ''}
           </div>
 
@@ -297,7 +394,11 @@ export async function sendCoachBriefingEmail(data: CoachBriefingData): Promise<S
 
           ${data.appointmentDatetime ? `
           <div class="appt-box">
-            <strong>📅 Séance planifiée :</strong> ${data.appointmentDatetime} ${data.appointmentLocation ? `(${data.appointmentLocation})` : ''}
+            <strong>📅 Séance planifiée :</strong> ${data.appointmentDatetime}<br/>
+            ${extractedVideo
+              ? `<strong>🎥 Lien Visio Direct :</strong> <a href="${extractedVideo}" style="color:#0f766e; font-weight:700;">${extractedVideo}</a>`
+              : `<strong>📍 Lieu :</strong> ${data.appointmentLocation || 'Siège IML Digit - Espace PME, Libreville'}`
+            }
           </div>` : ''}
 
           <p style="font-size:13px; color:#475569;">
@@ -305,7 +406,12 @@ export async function sendCoachBriefingEmail(data: CoachBriefingData): Promise<S
           </p>
 
           <div style="text-align: center; margin: 26px 0;">
-            <a href="${loginUrl}" style="display:inline-block; background-color:#23c3b1; color:#ffffff !important; font-weight:700; font-size:14px; padding:12px 28px; border-radius:10px; text-decoration:none; box-shadow: 0 4px 12px rgba(35, 195, 177, 0.3);">
+            ${extractedVideo ? `
+              <a href="${extractedVideo}" style="display:inline-block; background-color:#f06553; color:#ffffff !important; font-weight:700; font-size:14px; padding:12px 24px; border-radius:10px; text-decoration:none; margin-right:8px; margin-bottom:8px;">
+                🎥 Rejoindre la Visioconférence
+              </a>
+            ` : ''}
+            <a href="${loginUrl}" style="display:inline-block; background-color:#23c3b1; color:#ffffff !important; font-weight:700; font-size:14px; padding:12px 24px; border-radius:10px; text-decoration:none;">
               Accéder à mon espace Coach
             </a>
           </div>
@@ -318,135 +424,260 @@ export async function sendCoachBriefingEmail(data: CoachBriefingData): Promise<S
     </html>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: data.coachEmail,
-      subject,
-      text: `Bonjour ${data.coachName},\n\nVous avez été désigné pour accompagner ${data.companyName || data.beneficiaryName}.\nObjectifs: ${data.objectives || 'Non renseignés'}\nRéférent: ${data.agentName}\n\nÉquipe IML Digit`,
-      html: htmlContent,
-    });
-    console.log(`[BRIEFING COACH EXPÉDIÉ] Envoyé à ${data.coachEmail}`);
-    return { success: true, simulated: false };
-  } catch (error: any) {
-    console.error(`[ERREUR BRIEFING COACH] Échec d'envoi à ${data.coachEmail}:`, error);
-    return {
-      success: false,
-      message: error?.message || "Erreur lors de l'envoi de l'e-mail de briefing",
-    };
-  }
+  return deliverMail({
+    fromLabel: 'IML Digit Coordination',
+    to: data.coachEmail,
+    subject,
+    text: `Bonjour ${data.coachName},\n\nVous avez été désigné pour accompagner ${data.companyName || data.beneficiaryName}.\nSéance: ${data.appointmentDatetime || 'À planifier'}\n${extractedVideo ? `Lien vidéo direct: ${extractedVideo}\n` : `Lieu: ${data.appointmentLocation || 'Siège IML Digit'}\n`}Objectifs: ${data.objectives || 'Non renseignés'}\nRéférent: ${data.agentName}\n\nÉquipe IML Digit`,
+    html: htmlContent,
+  });
 }
 
 export interface AppointmentNotificationData {
   recipientEmail: string;
   recipientName: string;
   coachName: string;
+  coachEmail?: string;
   datetime: string;
   durationMinutes: number;
   sessionType: 'video' | 'in_person';
   locationOrUrl: string;
+  videoUrl?: string;
   notes?: string;
+  referenceCode?: string;
+  companyName?: string;
+  applicationStatus?: string;
+  documents?: Array<{ title: string; category?: string; status?: string }>;
 }
 
+/**
+ * Envoie au bénéficiaire l'E-mail Officiel Complet de A à Z :
+ * - Statut d'admission & N° de dossier
+ * - État des documents déposés
+ * - Convocation au rendez-vous d'entretien
+ * - Lien vidéo direct cliquable en 1 clic (si en ligne) OU Adresse physique & pièces à fournir (si sur place)
+ */
 export async function sendAppointmentNotificationEmail(data: AppointmentNotificationData): Promise<SendEmailResult> {
-  const transporter = getTransporter();
-  const subject = `Convocation à votre session d'accompagnement - IML Digit`;
+  const isVideo = data.sessionType === 'video' || Boolean(extractVideoUrl(data.locationOrUrl)) || Boolean(data.videoUrl);
+  const extractedUrl = data.videoUrl || extractVideoUrl(data.locationOrUrl);
+  const safeRef = (data.referenceCode || 'Session').replace(/[^a-zA-Z0-9-]/g, '');
+  const effectiveVideoUrl = isVideo
+    ? (extractedUrl || `https://meet.jit.si/IML-Digit-${safeRef}`)
+    : null;
 
-  if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[SIMULATION EMAIL CONVOCATION] Destinataire: ${data.recipientEmail}`);
-    console.log(`[SIMULATION EMAIL CONVOCATION] Bénéficiaire: ${data.recipientName}`);
-    console.log(`[SIMULATION EMAIL CONVOCATION] Coach: ${data.coachName}`);
-    console.log(`[SIMULATION EMAIL CONVOCATION] Date: ${data.datetime}`);
-    console.log(`[SIMULATION EMAIL CONVOCATION] Format: ${data.sessionType === 'video' ? 'Visioconférence' : 'Présentiel'}`);
-    console.log(`[SIMULATION EMAIL CONVOCATION] Lieu/Lien: ${data.locationOrUrl}`);
-    console.log(`======================================================\n`);
+  // Nettoyer l'affichage du lieu présentiel (enlever la note si elle a été concaténée avec " - ")
+  let cleanInPersonLocation = (data.locationOrUrl || 'Siège IML Digit - Immeuble Espace PME, Quartier Awendjé, Libreville, Gabon').trim();
+  if (!isVideo && data.notes && cleanInPersonLocation.endsWith(` - ${data.notes}`)) {
+    cleanInPersonLocation = cleanInPersonLocation.slice(0, -(` - ${data.notes}`.length)).trim();
+  }
+
+  const refBadge = data.referenceCode ? ` (${data.referenceCode})` : '';
+  const subject = isVideo
+    ? `🎥 [Convocation & Lien Vidéo] Entretien IML Digit${refBadge} - ${data.datetime}`
+    : `📍 [Convocation Sur Place] Entretien IML Digit${refBadge} - ${data.datetime}`;
+
+  if (!isSmtpConfigured()) {
+    console.log(`[SIMULATION EMAIL CONVOCATION COMPLÈTE] Destinataire: ${data.recipientEmail} | Format: ${isVideo ? 'VISIO' : 'SUR PLACE'} | Lien/Lieu: ${effectiveVideoUrl || cleanInPersonLocation}`);
     return { success: true, simulated: true };
   }
 
-  const sender = getSender('IML Digit');
-  const isVideo = data.sessionType === 'video';
-  const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/connexion`;
+  const appBase = getAppBaseUrl();
+  const trackUrl = data.referenceCode
+    ? `${appBase}/suivi?code=${encodeURIComponent(data.referenceCode)}`
+    : `${appBase}/suivi?code=${encodeURIComponent(data.recipientEmail)}`;
+
+  const statusLabel =
+    data.applicationStatus === 'ACCEPTEE' || data.applicationStatus === 'ACTIF'
+      ? '✅ Dossier Admis en Programme d’Accompagnement'
+      : '📋 Dossier Enregistré — Entretien d’Évaluation & Cadrage';
+
+  const docsListHtml =
+    data.documents && data.documents.length > 0
+      ? data.documents
+          .map((d) => {
+            const isVal = d.status === 'VALIDE';
+            const badge = isVal
+              ? `<span style="background:#dcfce7; color:#15803d; font-weight:700; font-size:11px; padding:2px 8px; border-radius:99px;">✓ Validé</span>`
+              : `<span style="background:#fef3c7; color:#b45309; font-weight:700; font-size:11px; padding:2px 8px; border-radius:99px;">⏳ Reçu / En revue</span>`;
+            return `<li style="margin-bottom:6px; font-size:13px; color:#334155;"><strong>${d.title}</strong> ${d.category ? `<span style="color:#64748b;">(${d.category})</span>` : ''} — ${badge}</li>`;
+          })
+          .join('')
+      : `<li style="font-size:13px; color:#334155;">Dossier administratif et fiche projet enregistrés auprès de la coordination IML Digit — <span style="background:#dcfce7; color:#15803d; font-weight:700; font-size:11px; padding:2px 8px; border-radius:99px;">✓ Enregistré</span></li>`;
 
   const htmlContent = `
     <!DOCTYPE html>
-    <html>
+    <html lang="fr">
       <head>
         <meta charset="utf-8" />
         <title>${subject}</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
-          .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 16px; color: #1e293b; }
+          .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 18px; padding: 28px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
           .header { border-bottom: 2px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 20px; }
-          .logo { font-size: 22px; font-weight: 900; color: #0f172a; }
-          .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px 0; }
-          .detail-row { margin-bottom: 10px; font-size: 14px; }
-          .label { color: #64748b; font-weight: 500; display: inline-block; width: 140px; }
-          .val { color: #0f172a; font-weight: 600; }
-          .action-btn { display: inline-block; background-color: #23c3b1; color: #ffffff !important; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 16px; }
-          .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+          .logo { font-size: 24px; font-weight: 900; color: #0f172a; }
+          .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; margin: 18px 0; }
+          .detail-row { margin-bottom: 10px; font-size: 13.5px; line-height: 1.5; }
+          .label { color: #64748b; font-weight: 600; display: inline-block; width: 155px; }
+          .val { color: #0f172a; font-weight: 700; }
+          .video-box { background: #f0fdfa; border: 2px solid #14b8a6; border-radius: 14px; padding: 20px; margin: 22px 0; text-align: center; }
+          .onsite-box { background: #fff7ed; border: 2px solid #f97316; border-radius: 14px; padding: 20px; margin: 22px 0; }
+          .btn-video { display: inline-block; background-color: #f06553; color: #ffffff !important; font-weight: 800; font-size: 15px; padding: 14px 28px; border-radius: 12px; text-decoration: none; margin: 12px 0; box-shadow: 0 4px 12px rgba(240, 101, 83, 0.3); }
+          .btn-secondary { display: inline-block; background-color: #0f172a; color: #ffffff !important; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 10px; text-decoration: none; margin-top: 8px; }
+          .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 26px; border-top: 1px solid #f1f5f9; padding-top: 16px; line-height: 1.5; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <div class="logo">iml digit<span style="color:#23c3b1;">.</span></div>
+            <span style="float:right; background:${isVideo ? '#ccfbf1' : '#ffedd5'}; color:${isVideo ? '#0f766e' : '#c2410c'}; font-weight:800; font-size:11px; padding:5px 12px; border-radius:999px; text-transform:uppercase;">
+              ${isVideo ? '🎥 Entretien Vidéo en Ligne' : '📍 Entretien Sur Place'}
+            </span>
+            <div class="logo">iml digit<span style="color:#f06553;">.</span></div>
           </div>
-          <h2 style="margin-top:0; color:#0f172a;">Confirmation de votre rendez-vous</h2>
-          <p>Bonjour <strong>${data.recipientName}</strong>,</p>
-          <p>Votre rendez-vous d'accompagnement a été programmé avec votre coach <strong>${data.coachName}</strong> :</p>
-          
+
+          <h2 style="margin-top:0; color:#0f172a; font-size:20px;">Convocation officielle & Récapitulatif complet de votre dossier</h2>
+          <p style="font-size:14px; color:#334155; line-height:1.6;">
+            Bonjour <strong>${data.recipientName}</strong>,<br/>
+            Vous trouverez ci-dessous <strong>la totalité des informations de votre dossier</strong> (état d'admission, pièces justificatives et convocation à votre entretien) directement dans cet e-mail.
+          </p>
+
+          <!-- 1. ENCADRÉ PRINCIPAL : LIEN VIDÉO DIRECT OU ADRESSE SUR PLACE -->
+          ${isVideo ? `
+            <div class="video-box">
+              <div style="font-size:12px; font-weight:800; color:#0f766e; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">
+                🎥 Salon de Visioconférence Direct — Sans mot de passe requis
+              </div>
+              <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:10px;">
+                ${data.datetime} (${data.durationMinutes} min)
+              </div>
+              <a href="${effectiveVideoUrl}" target="_blank" class="btn-video">
+                🎥 REJOINDRE L'ENTRETIEN VIDÉO EN DIRECT
+              </a>
+              <div style="margin-top:12px; font-size:12.5px; color:#334155; word-break:break-all; background:#ffffff; padding:10px 12px; border-radius:8px; border:1px solid #99f6e4;">
+                <strong>Lien direct à ouvrir sur votre téléphone ou ordinateur :</strong><br/>
+                <a href="${effectiveVideoUrl}" target="_blank" style="color:#0d9488; font-weight:700;">${effectiveVideoUrl}</a>
+              </div>
+            </div>
+          ` : `
+            <div class="onsite-box">
+              <div style="font-size:12px; font-weight:800; color:#c2410c; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">
+                📍 Convocation en Présentiel — Sur Place au Siège IML Digit
+              </div>
+              <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:10px;">
+                📅 ${data.datetime} (${data.durationMinutes} min)
+              </div>
+              <div style="font-size:13.5px; color:#1e293b; background:#ffffff; padding:12px 14px; border-radius:10px; border:1px solid #fed7aa; margin-bottom:12px;">
+                <strong>📍 Lieu exact de l'entretien :</strong><br/>
+                ${cleanInPersonLocation}
+              </div>
+              <div style="font-size:12.5px; color:#7c2d12; line-height:1.6;">
+                <strong>📋 Pièces et documents à présenter à l'accueil le jour du rendez-vous :</strong>
+                <ul style="margin:6px 0 0 0; padding-left:18px;">
+                  <li>Votre pièce d'identité en cours de validité</li>
+                  <li>Vos documents de projet (Business Plan, présentation ou statuts si disponibles)</li>
+                  <li>Ce courriel de convocation (sur votre téléphone ou imprimé)</li>
+                </ul>
+              </div>
+            </div>
+          `}
+
+          <!-- 2. DÉTAILS DU RENDEZ-VOUS & DU COACH -->
           <div class="card">
+            <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#0f766e; letter-spacing:0.5px; margin-bottom:12px;">
+              1. Détails de votre entretien
+            </div>
             <div class="detail-row">
               <span class="label">📅 Date & Heure :</span>
               <span class="val">${data.datetime}</span>
             </div>
             <div class="detail-row">
-              <span class="label">⏱ Durée :</span>
+              <span class="label">⏱ Durée prévue :</span>
               <span class="val">${data.durationMinutes} minutes</span>
             </div>
             <div class="detail-row">
-              <span class="label">👨‍💼 Coach référent :</span>
-              <span class="val">${data.coachName}</span>
+              <span class="label">👨‍💼 Coach / Expert :</span>
+              <span class="val">${data.coachName}${data.coachEmail ? ` (${data.coachEmail})` : ''}</span>
             </div>
             <div class="detail-row">
-              <span class="label">${isVideo ? '🌐 Format :' : '📍 Lieu :'}</span>
-              <span class="val">${isVideo ? 'Visioconférence sécurisée (Espace IML Digit)' : data.locationOrUrl}</span>
+              <span class="label">${isVideo ? '🌐 Modalité :' : '📍 Lieu sur place :'}</span>
+              <span class="val">${isVideo ? 'En ligne par Visioconférence (lien ci-dessus)' : cleanInPersonLocation}</span>
+            </div>
+            ${data.notes ? `
+            <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #cbd5e1; font-size:13px; color:#334155;">
+              <strong>🎯 Ordre du jour & Objectifs de l'entretien :</strong><br/>
+              ${data.notes}
+            </div>` : ''}
+          </div>
+
+          <!-- 3. ÉTAT COMPLET DU DOSSIER : ADMISSION & DOCUMENTS -->
+          <div class="card">
+            <div style="font-size:12px; font-weight:800; text-transform:uppercase; color:#f06553; letter-spacing:0.5px; margin-bottom:12px;">
+              2. État de votre dossier & Documents déposés
+            </div>
+            ${data.referenceCode ? `
+            <div class="detail-row">
+              <span class="label">📁 N° de Dossier :</span>
+              <span class="val">${data.referenceCode}</span>
+            </div>` : ''}
+            ${data.companyName ? `
+            <div class="detail-row">
+              <span class="label">🏢 Projet / Structure :</span>
+              <span class="val">${data.companyName}</span>
+            </div>` : ''}
+            <div class="detail-row">
+              <span class="label">📌 Statut du dossier :</span>
+              <span class="val" style="color:#0f766e;">${statusLabel}</span>
+            </div>
+            <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #cbd5e1;">
+              <strong style="font-size:12.5px; color:#475569; display:block; margin-bottom:6px;">📄 Pièces & Documents rattachés à votre dossier :</strong>
+              <ul style="margin:0; padding-left:18px;">
+                ${docsListHtml}
+              </ul>
             </div>
           </div>
 
-          <div style="margin-top:20px; text-align:center;">
-            <a href="${loginUrl}" target="_blank" class="action-btn">Accéder à mon espace IML Digit</a>
-            <p style="font-size:12px; color:#64748b; margin-top:10px;">
-              ${isVideo ? 'Connectez-vous à votre espace personnel pour préparer votre séance et rejoindre le salon visioconférence en 1 clic.' : 'Connectez-vous pour consulter vos documents d’accompagnement et votre feuille de route.'}
-            </p>
+          <div style="text-align:center; margin-top:20px;">
+            <a href="${trackUrl}" target="_blank" class="btn-secondary">
+              Consulter l'avancement visuel de mon dossier en ligne →
+            </a>
           </div>
 
-          ${data.notes ? `<p style="font-size:13px; color:#475569; background:#f1f5f9; padding:12px; border-radius:8px;"><strong>Note de séance :</strong> ${data.notes}</p>` : ''}
-
           <div class="footer">
-            Plateforme IML Digit • Espace d'accompagnement entrepreneurial<br/>
-            Si vous avez un empêchement, merci de prévenir votre coach ou conseiller IML.
+            <strong>Incubateur & Accélérateur d'Entreprises IML Digit</strong><br/>
+            Immeuble Espace PME, Quartier Awendjé, Libreville, Gabon<br/>
+            En cas d'empêchement, répondez directement à cet e-mail pour prévenir votre coach référent.
           </div>
         </div>
       </body>
     </html>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: data.recipientEmail,
-      subject,
-      text: `Bonjour ${data.recipientName},\n\nVotre rendez-vous avec ${data.coachName} est fixé le ${data.datetime} (${isVideo ? 'Format: Visioconférence IML Digit' : 'Lieu: ' + data.locationOrUrl}).\n\nPour y accéder, préparer votre séance et consulter vos documents, connectez-vous directement sur votre espace personnel : ${loginUrl}\n\nÉquipe IML Digit`,
-      html: htmlContent,
-    });
-    console.log(`[EMAIL CONVOCATION EXPÉDIÉ] Envoyé à ${data.recipientEmail}`);
-    return { success: true, simulated: false };
-  } catch (error: any) {
-    console.error(`[ERREUR EMAIL CONVOCATION] Échec d'envoi à ${data.recipientEmail}:`, error);
-    return { success: false, message: error?.message };
-  }
+  const plainText = [
+    `Bonjour ${data.recipientName},`,
+    ``,
+    `Voici la convocation officielle et le récapitulatif complet de votre dossier IML Digit :`,
+    data.referenceCode ? `- N° de Dossier : ${data.referenceCode}` : '',
+    data.companyName ? `- Projet / Structure : ${data.companyName}` : '',
+    `- Statut : ${statusLabel}`,
+    `- Date & Heure de l'entretien : ${data.datetime} (${data.durationMinutes} min)`,
+    `- Coach référent : ${data.coachName}`,
+    isVideo
+      ? `- ENTRETIEN VIDÉO EN LIGNE — Cliquez sur ce lien direct à l'heure du RDV : ${effectiveVideoUrl}`
+      : `- ENTRETIEN SUR PLACE — Lieu : ${cleanInPersonLocation}`,
+    data.notes ? `- Objectifs de la séance : ${data.notes}` : '',
+    ``,
+    `Suivi en ligne de votre dossier : ${trackUrl}`,
+    ``,
+    `Équipe IML Digit`,
+  ].filter(Boolean).join('\n');
+
+  return deliverMail({
+    fromLabel: 'IML Digit Convocations',
+    to: data.recipientEmail,
+    subject,
+    text: plainText,
+    html: htmlContent,
+  });
 }
 
 export interface AppointmentReminderData {
@@ -470,9 +701,8 @@ export interface AppointmentReminderData {
  * Envoie un e-mail officiel de rappel automatisé (J-X, J-1 ou Jour J) au porteur de projet ou au coach
  */
 export async function sendAppointmentReminderEmail(data: AppointmentReminderData): Promise<SendEmailResult> {
-  const transporter = getTransporter();
-  const isVideo = data.sessionType === 'video';
-  const effectiveVideoUrl = data.videoUrl || (data.locationOrUrl.startsWith('http') ? data.locationOrUrl : null);
+  const isVideo = data.sessionType === 'video' || Boolean(extractVideoUrl(data.locationOrUrl)) || Boolean(data.videoUrl);
+  const effectiveVideoUrl = data.videoUrl || extractVideoUrl(data.locationOrUrl) || (isVideo ? `https://meet.jit.si/IML-Digit-Session` : null);
 
   let countdownText = `dans ${data.daysRemaining} jours`;
   let countdownBadge = `<span style="background:#e0f2fe; color:#0369a1; font-weight:800; font-size:12px; padding:6px 14px; border-radius:999px;">📅 DANS ${data.daysRemaining} JOURS</span>`;
@@ -494,20 +724,12 @@ export async function sendAppointmentReminderEmail(data: AppointmentReminderData
       ? `⏰ [RAPPEL DEMAIN à ${data.formattedTimeOnly}] Votre entretien d'accompagnement IML Digit`
       : `📅 [RAPPEL DANS ${data.daysRemaining} JOURS] Votre entretien IML Digit fixé le ${data.formattedDateOnly}`;
 
-  if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[SIMULATION EMAIL RAPPEL AUTOMATIQUE] Destinataire: ${data.recipientEmail}`);
-    console.log(`[SIMULATION EMAIL RAPPEL AUTOMATIQUE] Sujet: ${subject}`);
-    console.log(`[SIMULATION EMAIL RAPPEL AUTOMATIQUE] Pour: ${data.recipientName} (${data.isCoach ? 'Coach' : 'Bénéficiaire'})`);
-    console.log(`[SIMULATION EMAIL RAPPEL AUTOMATIQUE] Avec: ${data.partnerName} (${data.partnerRole})`);
-    console.log(`[SIMULATION EMAIL RAPPEL AUTOMATIQUE] Date: ${data.datetime} (${countdownText})`);
-    console.log(`[SIMULATION EMAIL RAPPEL AUTOMATIQUE] Visio: ${isVideo ? (effectiveVideoUrl || 'Visio IML') : 'Présentiel'}`);
-    console.log(`======================================================\n`);
+  if (!isSmtpConfigured()) {
+    console.log(`[SIMULATION EMAIL RAPPEL AUTOMATIQUE] Destinataire: ${data.recipientEmail} | Sujet: ${subject}`);
     return { success: true, simulated: true };
   }
 
-  const sender = getSender('IML Digit Rappels');
-  const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/connexion`;
+  const loginUrl = `${getAppBaseUrl()}/suivi`;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -574,18 +796,12 @@ export async function sendAppointmentReminderEmail(data: AppointmentReminderData
 
           ${isVideo ? `
             <div style="text-align:center; margin: 26px 0;">
-              ${effectiveVideoUrl ? `
-                <a href="${effectiveVideoUrl}" target="_blank" class="btn-visio">
-                  📹 Rejoindre directement la visioconférence →
-                </a>
-                <p style="font-size: 12px; color: #64748b; margin-top: 10px;">
-                  Lien de visio : <a href="${effectiveVideoUrl}" style="color:#f06553;">${effectiveVideoUrl}</a>
-                </p>
-              ` : `
-                <a href="${loginUrl}" target="_blank" class="btn-visio">
-                  📹 Rejoindre la visioconférence via mon espace →
-                </a>
-              `}
+              <a href="${effectiveVideoUrl}" target="_blank" class="btn-visio">
+                📹 Rejoindre directement la visioconférence →
+              </a>
+              <p style="font-size: 12px; color: #64748b; margin-top: 10px;">
+                Lien direct : <a href="${effectiveVideoUrl}" style="color:#f06553; font-weight:700;">${effectiveVideoUrl}</a>
+              </p>
             </div>
           ` : `
             <div style="text-align:center; margin: 26px 0;">
@@ -606,7 +822,7 @@ export async function sendAppointmentReminderEmail(data: AppointmentReminderData
           </div>
 
           <div style="text-align: center; margin-top: 16px;">
-            <a href="${loginUrl}" target="_blank" class="btn-portal">Accéder à mon espace plateforme →</a>
+            <a href="${loginUrl}" target="_blank" class="btn-portal">Consulter le suivi de mon dossier →</a>
           </div>
 
           <div class="footer">
@@ -619,20 +835,13 @@ export async function sendAppointmentReminderEmail(data: AppointmentReminderData
     </html>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: data.recipientEmail,
-      subject,
-      text: `Bonjour ${data.recipientName},\n\nRappel : votre entretien avec ${data.partnerName} a lieu ${countdownText} (${data.datetime}).\nModalité: ${isVideo ? 'Visioconférence (' + (effectiveVideoUrl || 'Via votre espace') + ')' : data.locationOrUrl}\n\nÉquipe IML Digit`,
-      html: htmlContent,
-    });
-    console.log(`[EMAIL RAPPEL AUTOMATIQUE EXPÉDIÉ] Envoyé à ${data.recipientEmail} (${countdownText})`);
-    return { success: true, simulated: false };
-  } catch (error: any) {
-    console.error(`[ERREUR EMAIL RAPPEL AUTOMATIQUE] Échec d'envoi à ${data.recipientEmail}:`, error);
-    return { success: false, message: error?.message };
-  }
+  return deliverMail({
+    fromLabel: 'IML Digit Rappels',
+    to: data.recipientEmail,
+    subject,
+    text: `Bonjour ${data.recipientName},\n\nRappel : votre entretien avec ${data.partnerName} a lieu ${countdownText} (${data.datetime}).\nModalité: ${isVideo ? 'Visioconférence (' + effectiveVideoUrl + ')' : data.locationOrUrl}\n\nÉquipe IML Digit`,
+    html: htmlContent,
+  });
 }
 
 export interface StepValidationAlertData {
@@ -652,23 +861,13 @@ export interface StepValidationAlertData {
  * Envoie une alerte immédiate à l'agent de planification lorsqu'une étape du circuit d'accompagnement est validée par le coach
  */
 export async function sendStepValidationAlertEmail(data: StepValidationAlertData): Promise<SendEmailResult> {
-  const transporter = getTransporter();
-  const dossierUrl = `${process.env.APP_URL || 'http://localhost:5173'}/beneficiaires/${data.beneficiaryId}`;
+  const dossierUrl = `${getAppBaseUrl()}/beneficiaires/${data.beneficiaryId}`;
   const subject = `🔔 [Circuit IML] Étape ${data.stepNumber} (${data.stepName}) validée pour ${data.companyName || data.beneficiaryName}`;
 
-  if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[SIMULATION EMAIL ALERTE ÉTAPE AGENT]`);
-    console.log(`Destinataire (Agent): ${data.agentEmail} (${data.agentName})`);
-    console.log(`Coach: ${data.coachName}`);
-    console.log(`Bénéficiaire: ${data.beneficiaryName} (${data.companyName || 'Projet'})`);
-    console.log(`Étape: ${data.stepNumber}. ${data.stepName} -> ${data.statusText}`);
-    console.log(`Lien dossier: ${dossierUrl}`);
-    console.log(`======================================================\n`);
+  if (!isSmtpConfigured()) {
+    console.log(`[SIMULATION EMAIL ALERTE ÉTAPE AGENT] Destinataire: ${data.agentEmail} | Étape ${data.stepNumber}`);
     return { success: true, simulated: true };
   }
-
-  const sender = getSender('IML Digit Coordination');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -747,20 +946,13 @@ export async function sendStepValidationAlertEmail(data: StepValidationAlertData
     </html>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: data.agentEmail,
-      subject,
-      text: `Bonjour ${data.agentName},\n\nLe coach ${data.coachName} a validé l'étape ${data.stepNumber} (${data.stepName}) pour ${data.beneficiaryName} (${data.companyName || ''}).\nAccéder au dossier: ${dossierUrl}\n\nÉquipe IML Digit`,
-      html: htmlContent,
-    });
-    console.log(`[ALERTE ÉTAPE EXPÉDIÉE] Envoyée à ${data.agentEmail} (Étape ${data.stepNumber})`);
-    return { success: true, simulated: false };
-  } catch (error: any) {
-    console.error(`[ERREUR ALERTE ÉTAPE] Échec d'envoi à ${data.agentEmail}:`, error);
-    return { success: false, message: error?.message };
-  }
+  return deliverMail({
+    fromLabel: 'IML Digit Coordination',
+    to: data.agentEmail,
+    subject,
+    text: `Bonjour ${data.agentName},\n\nLe coach ${data.coachName} a validé l'étape ${data.stepNumber} (${data.stepName}) pour ${data.beneficiaryName} (${data.companyName || ''}).\nAccéder au dossier: ${dossierUrl}\n\nÉquipe IML Digit`,
+    html: htmlContent,
+  });
 }
 
 export interface ApplicationDecisionEmailData {
@@ -770,36 +962,39 @@ export interface ApplicationDecisionEmailData {
   referenceCode: string;
   decision: 'ACCEPTEE' | 'REFUSEE';
   notes?: string;
+  coachName?: string;
+  appointmentDatetime?: string;
+  appointmentLocation?: string;
+  documents?: Array<{ title: string; status?: string }>;
 }
 
 /**
  * Envoie un email officiel au candidat pour l'informer de l'admission ou du refus de son dossier
  */
 export async function sendApplicationDecisionEmail(data: ApplicationDecisionEmailData): Promise<SendEmailResult> {
-  const transporter = getTransporter();
   const isAccepted = data.decision === 'ACCEPTEE';
-  const appBaseUrl = process.env.APP_URL || 'http://localhost:5173';
-  const trackUrl = `${appBaseUrl}/suivi-candidature?code=${encodeURIComponent(data.referenceCode)}`;
+  const appBaseUrl = getAppBaseUrl();
+  const trackUrl = `${appBaseUrl}/suivi?code=${encodeURIComponent(data.referenceCode)}`;
+  const extractedVideo = extractVideoUrl(data.appointmentLocation);
 
   const subject = isAccepted
-    ? `[IML Digit] Félicitations ! Votre candidature (${data.referenceCode}) est retenue`
+    ? `✅ [Admission Officielle IML Digit] Votre dossier (${data.referenceCode}) est retenu !`
     : `[IML Digit] Suite donnée à votre candidature (${data.referenceCode})`;
 
-  if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[SIMULATION EMAIL DÉCISION CANDIDATURE]`);
-    console.log(`Destinataire: ${data.recipientEmail}`);
-    console.log(`Bénéficiaire: ${data.recipientName} (${data.companyName})`);
-    console.log(`Référence: ${data.referenceCode}`);
-    console.log(`Décision: ${isAccepted ? '✅ ADMISE (Comité & Direction)' : '❌ NON RETENUE'}`);
-    console.log(`Sujet: ${subject}`);
-    console.log(`Lien de suivi: ${trackUrl}`);
-    if (data.notes) console.log(`Notes comité: ${data.notes}`);
-    console.log(`======================================================\n`);
+  if (!isSmtpConfigured()) {
+    console.log(`[SIMULATION EMAIL DÉCISION CANDIDATURE] Destinataire: ${data.recipientEmail} | Décision: ${data.decision}`);
     return { success: true, simulated: true };
   }
 
-  const sender = getSender('Incubateur IML Digit');
+  const docsHtml =
+    data.documents && data.documents.length > 0
+      ? `<div style="margin-top:12px; padding-top:10px; border-top:1px dashed #cbd5e1;">
+          <strong style="font-size:12.5px; color:#475569; display:block; margin-bottom:6px;">📄 Pièces & Documents validés au dossier :</strong>
+          <ul style="margin:0; padding-left:18px; font-size:13px; color:#334155;">
+            ${data.documents.map((d) => `<li><strong>${d.title}</strong> — <span style="color:#15803d; font-weight:700;">✓ Enregistré</span></li>`).join('')}
+          </ul>
+        </div>`
+      : '';
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -817,7 +1012,7 @@ export async function sendApplicationDecisionEmail(data: ApplicationDecisionEmai
           h1 { font-size: 20px; font-weight: 800; color: #0f172a; margin-top: 0; line-height: 1.3; }
           .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px 0; }
           .detail-row { margin-bottom: 8px; font-size: 13.5px; }
-          .label { color: #64748b; font-weight: 500; display: inline-block; width: 140px; }
+          .label { color: #64748b; font-weight: 500; display: inline-block; width: 145px; }
           .val { color: #0f172a; font-weight: 700; }
           .btn-primary { display: inline-block; background-color: ${isAccepted ? '#10b981' : '#0f172a'}; color: #ffffff !important; font-weight: 800; font-size: 14px; padding: 12px 28px; border-radius: 9999px; text-decoration: none; margin: 16px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
           .steps-box { background: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; border-radius: 8px; font-size: 13px; color: #065f46; margin: 18px 0; }
@@ -837,7 +1032,7 @@ export async function sendApplicationDecisionEmail(data: ApplicationDecisionEmai
           ${isAccepted ? `
             <h1>Félicitations ${data.recipientName} !</h1>
             <p style="font-size:14px; line-height:1.6; color:#334155;">
-              Le <strong>Comité de sélection et la Direction de l'incubateur IML Digit</strong> ont le plaisir de vous annoncer que votre projet a été officiellement <strong>admis</strong> au sein de notre programme d'incubation et d'accélération.
+              Le <strong>Comité de sélection et la Direction de l'incubateur IML Digit</strong> ont le plaisir de vous annoncer que votre dossier a été officiellement <strong>admis</strong> au sein de notre programme d'incubation et d'accompagnement.
             </p>
 
             <div class="card">
@@ -853,21 +1048,38 @@ export async function sendApplicationDecisionEmail(data: ApplicationDecisionEmai
                 <span class="label">Bénéficiaire :</span>
                 <span class="val">${data.recipientName}</span>
               </div>
+              ${data.coachName ? `
+              <div class="detail-row">
+                <span class="label">Coach Référent :</span>
+                <span class="val">${data.coachName}</span>
+              </div>` : ''}
               <div class="detail-row">
                 <span class="label">Décision finale :</span>
-                <span class="val" style="color:#10b981;">Admis en cohorte d'accompagnement</span>
+                <span class="val" style="color:#10b981;">✅ Admis en cohorte d'accompagnement</span>
               </div>
+              ${docsHtml}
             </div>
+
+            ${data.appointmentDatetime ? `
+            <div style="background:#f0fdfa; border:2px solid #14b8a6; border-radius:12px; padding:16px; margin:18px 0;">
+              <strong style="color:#0f766e; font-size:13.5px; display:block; margin-bottom:6px;">📅 Votre prochain rendez-vous d'entretien :</strong>
+              <div style="font-size:14px; font-weight:700; color:#0f172a; margin-bottom:6px;">${data.appointmentDatetime}</div>
+              ${extractedVideo
+                ? `<a href="${extractedVideo}" target="_blank" style="display:inline-block; background:#f06553; color:#ffffff !important; font-weight:800; font-size:13px; padding:10px 20px; border-radius:8px; text-decoration:none; margin-top:6px;">🎥 Rejoindre l'entretien vidéo en direct</a>
+                   <div style="font-size:12px; color:#0f766e; margin-top:6px;">Lien direct : ${extractedVideo}</div>`
+                : `<div style="font-size:13px; color:#334155;">📍 Lieu : ${data.appointmentLocation || 'Siège IML Digit - Espace PME, Libreville'}</div>`
+              }
+            </div>` : ''}
 
             <div class="steps-box">
               <strong style="display:block; margin-bottom:6px;">🚀 Vos prochaines étapes d'intégration :</strong>
-              1. Un Coach référent de l'incubateur prendra contact avec vous sous 48h.<br/>
-              2. Signature de votre convention d'accompagnement et définition de votre feuille de route.<br/>
+              1. Toutes vos convocations (avec lien vidéo direct ou lieu sur place) vous sont envoyées directement par e-mail.<br/>
+              2. Définition de votre feuille de route avec votre Coach référent.<br/>
               3. Démarrage des séances de diagnostic, mentorat et accès aux ateliers.
             </div>
 
             <div style="text-align:center; margin: 24px 0;">
-              <a href="${trackUrl}" class="btn-primary">Consulter mon dossier d'admission →</a>
+              <a href="${trackUrl}" class="btn-primary">Consulter l'état de mon dossier →</a>
             </div>
           ` : `
             <h1>Information concernant votre candidature</h1>
@@ -910,7 +1122,7 @@ export async function sendApplicationDecisionEmail(data: ApplicationDecisionEmai
 
           <div class="footer">
             <strong>Incubateur & Accélérateur d'Entreprises IML Digit</strong><br/>
-            Immeuble Espace PME, Quartier Awendjé, Libreville, Gabon • imlGabon2@gmail.com<br/>
+            Immeuble Espace PME, Quartier Awendjé, Libreville, Gabon<br/>
             Ceci est un message officiel transmis suite aux délibérations du Comité de sélection.
           </div>
         </div>
@@ -918,22 +1130,170 @@ export async function sendApplicationDecisionEmail(data: ApplicationDecisionEmai
     </html>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: data.recipientEmail,
-      subject,
-      text: isAccepted
-        ? `Félicitations ${data.recipientName} ! Votre candidature ${data.referenceCode} pour ${data.companyName} a été retenue par l'incubateur IML Digit. Suivi: ${trackUrl}`
-        : `Bonjour ${data.recipientName}, suite aux délibérations du Comité IML Digit, votre dossier ${data.referenceCode} n'a pas pu être retenu pour cette session. Suivi: ${trackUrl}`,
-      html: htmlContent,
-    });
-    console.log(`[EMAIL DÉCISION CANDIDATURE EXPÉDIÉ] Envoyé à ${data.recipientEmail} (${data.decision})`);
-    return { success: true, simulated: false };
-  } catch (error: any) {
-    console.error(`[ERREUR EMAIL DÉCISION CANDIDATURE] Échec d'envoi à ${data.recipientEmail}:`, error);
-    return { success: false, message: error?.message };
+  return deliverMail({
+    fromLabel: 'Incubateur IML Digit',
+    to: data.recipientEmail,
+    subject,
+    text: isAccepted
+      ? `Félicitations ${data.recipientName} ! Votre candidature ${data.referenceCode} pour ${data.companyName} a été retenue par l'incubateur IML Digit.${extractedVideo ? `\nLien vidéo direct d'entretien : ${extractedVideo}` : ''}\nSuivi: ${trackUrl}`
+      : `Bonjour ${data.recipientName}, suite aux délibérations du Comité IML Digit, votre dossier ${data.referenceCode} n'a pas pu être retenu pour cette session. Suivi: ${trackUrl}`,
+    html: htmlContent,
+  });
+}
+
+export interface ApplicationSubmittedEmailData {
+  recipientEmail: string;
+  recipientName: string;
+  companyName: string;
+  referenceCode: string;
+  interviewPreference?: string;
+  documents?: Array<{ title: string; category?: string }>;
+}
+
+/**
+ * Envoie un e-mail immédiat au porteur dès le dépôt de son dossier avec son numéro de référence et la liste de ses documents
+ */
+export async function sendApplicationSubmittedEmail(data: ApplicationSubmittedEmailData): Promise<SendEmailResult> {
+  if (!isSmtpConfigured()) {
+    return { success: true, simulated: true };
   }
+
+  const appBaseUrl = getAppBaseUrl();
+  const trackUrl = `${appBaseUrl}/suivi?code=${encodeURIComponent(data.referenceCode)}`;
+  const isVideoPref = data.interviewPreference === 'VIDEO';
+  const subject = `📁 [Accusé de réception IML Digit] Dossier ${data.referenceCode} enregistré (${data.companyName})`;
+
+  const docsHtml =
+    data.documents && data.documents.length > 0
+      ? data.documents.map((d) => `<li style="margin-bottom:4px;"><strong>${d.title}</strong> (${d.category || 'Document projet'}) — <span style="color:#15803d; font-weight:700;">✓ Reçu</span></li>`).join('')
+      : `<li>Fiche projet & Formulaire de candidature — <span style="color:#15803d; font-weight:700;">✓ Enregistrés</span></li>`;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8" />
+        <title>${subject}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b;">
+        <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0;">
+          <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 20px;">
+            <span style="float:right; background:#e0f2fe; color:#0369a1; font-weight:800; font-size:11px; padding:4px 10px; border-radius:99px;">DOSSIER ENREGISTRÉ</span>
+            <div style="font-size: 22px; font-weight: 900; color: #0f172a;">iml digit<span style="color:#f06553;">.</span></div>
+          </div>
+
+          <h2 style="margin-top:0; color:#0f172a;">Accusé de réception officiel de votre dossier</h2>
+          <p style="font-size:14px; line-height:1.6; color:#334155;">
+            Bonjour <strong>${data.recipientName}</strong>,<br/>
+            Votre dossier de candidature pour <strong>${data.companyName}</strong> a bien été réceptionné par l'incubateur IML Digit.
+          </p>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:18px; margin:18px 0; font-size:13.5px;">
+            <div style="margin-bottom:8px;"><strong>📁 Numéro officiel de dossier :</strong> <span style="color:#f06553; font-weight:800;">${data.referenceCode}</span></div>
+            <div style="margin-bottom:8px;"><strong>🏢 Structure / Projet :</strong> ${data.companyName}</div>
+            <div style="margin-bottom:8px;"><strong>🎯 Format d'entretien souhaité :</strong> ${isVideoPref ? '🎥 En ligne (Visioconférence)' : '📍 Sur place (Siège IML Digit - Espace PME)'}</div>
+            <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #cbd5e1;">
+              <strong>📄 Documents réceptionnés :</strong>
+              <ul style="margin:6px 0 0 0; padding-left:18px;">${docsHtml}</ul>
+            </div>
+          </div>
+
+          <div style="background:#f0fdf4; border-left:4px solid #10b981; padding:14px; border-radius:8px; font-size:13px; color:#065f46; margin:18px 0;">
+            <strong>📬 Suite de votre parcours par e-mail :</strong><br/>
+            Dès que notre équipe fixe votre entretien d'évaluation ou valide vos documents, vous recevrez <strong>directement par e-mail sur votre téléphone</strong> votre convocation contenant le <strong>lien vidéo direct</strong> (ou l'adresse sur place) ainsi que votre décision d'admission.
+          </div>
+
+          <div style="text-align:center; margin:22px 0;">
+            <a href="${trackUrl}" style="display:inline-block; background:#0f172a; color:#ffffff !important; font-weight:700; font-size:13.5px; padding:12px 24px; border-radius:10px; text-decoration:none;">
+              Consulter le statut de mon dossier (${data.referenceCode}) →
+            </a>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return deliverMail({
+    fromLabel: 'Incubateur IML Digit',
+    to: data.recipientEmail,
+    subject,
+    text: `Bonjour ${data.recipientName},\n\nVotre dossier ${data.referenceCode} pour ${data.companyName} est bien enregistré chez IML Digit.\nVous recevrez directement par e-mail votre convocation d'entretien (avec le lien vidéo ou le lieu sur place) et votre décision d'admission.\nSuivi : ${trackUrl}`,
+    html: htmlContent,
+  });
+}
+
+export interface DocumentStatusEmailData {
+  recipientEmail: string;
+  recipientName: string;
+  companyName?: string;
+  referenceCode?: string;
+  documentTitle: string;
+  documentCategory?: string;
+  status: 'VALIDE' | 'REFUSE' | 'EN_ATTENTE';
+}
+
+/**
+ * Envoie un e-mail au bénéficiaire lorsqu'un document de son dossier est validé ou mis à jour
+ */
+export async function sendDocumentStatusEmail(data: DocumentStatusEmailData): Promise<SendEmailResult> {
+  if (!isSmtpConfigured()) {
+    return { success: true, simulated: true };
+  }
+
+  const isVal = data.status === 'VALIDE';
+  const isRef = data.status === 'REFUSE';
+  const subject = isVal
+    ? `✅ [Document Validé] "${data.documentTitle}" certifié sur votre dossier IML Digit`
+    : isRef
+      ? `⚠️ [Action requise] Document "${data.documentTitle}" à mettre à jour - IML Digit`
+      : `📄 [Document enregistré] "${data.documentTitle}" ajouté à votre dossier IML Digit`;
+
+  const appBaseUrl = getAppBaseUrl();
+  const trackUrl = `${appBaseUrl}/suivi?code=${encodeURIComponent(data.referenceCode || data.recipientEmail)}`;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head><meta charset="utf-8" /></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b;">
+        <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 30px; border: 1px solid #e2e8f0;">
+          <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 14px; margin-bottom: 18px;">
+            <span style="float:right; background:${isVal ? '#dcfce7' : isRef ? '#fee2e2' : '#fef3c7'}; color:${isVal ? '#15803d' : isRef ? '#b91c1c' : '#b45309'}; font-weight:800; font-size:11px; padding:4px 10px; border-radius:99px;">
+              ${isVal ? '✓ DOCUMENT VALIDÉ' : isRef ? 'À CORRIGER' : 'EN EXAMEN'}
+            </span>
+            <div style="font-size: 22px; font-weight: 900; color: #0f172a;">iml digit<span style="color:#23c3b1;">.</span></div>
+          </div>
+
+          <h2 style="margin-top:0; color:#0f172a; font-size:19px;">Mise à jour documentaire de votre dossier</h2>
+          <p style="font-size:14px; line-height:1.6; color:#334155;">
+            Bonjour <strong>${data.recipientName}</strong>,<br/>
+            L'équipe d'accompagnement IML Digit vient de mettre à jour le statut d'une pièce justificative de votre dossier :
+          </p>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin:18px 0; font-size:13.5px;">
+            ${data.referenceCode ? `<div style="margin-bottom:6px;"><strong>📁 Dossier :</strong> ${data.referenceCode}</div>` : ''}
+            ${data.companyName ? `<div style="margin-bottom:6px;"><strong>🏢 Structure :</strong> ${data.companyName}</div>` : ''}
+            <div style="margin-bottom:6px;"><strong>📄 Document :</strong> ${data.documentTitle}</div>
+            <div><strong>📌 Nouveau statut :</strong> <strong style="color:${isVal ? '#15803d' : isRef ? '#b91c1c' : '#b45309'};">${isVal ? 'Validé & Conforme ✓' : isRef ? 'Refusé / À remplacer' : 'En attente de revue'}</strong></div>
+          </div>
+
+          <div style="text-align:center; margin-top:20px;">
+            <a href="${trackUrl}" style="display:inline-block; background:#0f172a; color:#ffffff !important; font-weight:700; font-size:13px; padding:10px 22px; border-radius:10px; text-decoration:none;">
+              Consulter le récapitulatif de mon dossier →
+            </a>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return deliverMail({
+    fromLabel: 'IML Digit Documents',
+    to: data.recipientEmail,
+    subject,
+    text: `Bonjour ${data.recipientName},\n\nLe document "${data.documentTitle}" de votre dossier IML Digit est désormais au statut : ${isVal ? 'Validé & Conforme' : isRef ? 'À remplacer' : 'En attente de revue'}.\nSuivi : ${trackUrl}`,
+    html: htmlContent,
+  });
 }
 
 export interface RoomBookingNotificationData {
@@ -954,9 +1314,6 @@ export interface RoomBookingNotificationData {
  * Envoie un email officiel de confirmation, report ou refus d'une réservation de salle
  */
 export async function sendRoomBookingNotificationEmail(data: RoomBookingNotificationData): Promise<SendEmailResult> {
-  const transporter = getTransporter();
-
-  const isConfirmed = data.action === 'CONFIRMED';
   const isRescheduled = data.action === 'RESCHEDULED';
   const isRejected = data.action === 'REJECTED';
 
@@ -1084,31 +1441,17 @@ export async function sendRoomBookingNotificationEmail(data: RoomBookingNotifica
     </html>
   `;
 
-  if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[SIMULATION EMAIL RÉSERVATION SALLE] Destinataire: ${data.recipientEmail}`);
-    console.log(`[SIMULATION EMAIL RÉSERVATION SALLE] Sujet: ${subject}`);
-    console.log(`[SIMULATION EMAIL RÉSERVATION SALLE] Action: ${data.action} (Réf: ${data.reference})`);
-    console.log(`[SIMULATION EMAIL RÉSERVATION SALLE] Date: ${dateStr} (${timeStr})`);
-    console.log(`======================================================\n`);
+  if (!isSmtpConfigured()) {
     return { success: true, simulated: true };
   }
 
-  const sender = getSender('IML Digit Salles');
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: data.recipientEmail,
-      subject,
-      text: `${title} - Réf: ${data.reference}. Date: ${dateStr} de ${timeStr}. Lieu: Hub IML Digit, Awendjé, Libreville.`,
-      html: htmlContent,
-    });
-    console.log(`[EMAIL RÉSERVATION SALLE ENVOYÉ] Envoyé à ${data.recipientEmail} (${data.action} - ${data.reference})`);
-    return { success: true, simulated: false };
-  } catch (error: any) {
-    console.error(`[ERREUR EMAIL RÉSERVATION SALLE] Échec d'envoi à ${data.recipientEmail}:`, error);
-    return { success: false, message: error?.message };
-  }
+  return deliverMail({
+    fromLabel: 'IML Digit Salles',
+    to: data.recipientEmail,
+    subject,
+    text: `${title} - Réf: ${data.reference}. Date: ${dateStr} de ${timeStr}. Lieu: Hub IML Digit, Awendjé, Libreville.`,
+    html: htmlContent,
+  });
 }
 
 export interface RoomBookingAdminAlertData {
@@ -1132,7 +1475,6 @@ export interface RoomBookingAdminAlertData {
  * Alerte immédiatement la direction par e-mail lorsqu'une nouvelle réservation de salle est soumise
  */
 export async function sendRoomBookingAdminAlertEmail(data: RoomBookingAdminAlertData): Promise<SendEmailResult> {
-  const transporter = getTransporter();
   const b = data.booking;
   const adminEmail = process.env.DIRECTION_EMAIL || process.env.ADMIN_EMAIL || 'direction@imldigit.ga';
 
@@ -1186,7 +1528,7 @@ export async function sendRoomBookingAdminAlertEmail(data: RoomBookingAdminAlert
           </p>
 
           <div style="text-align:center;">
-            <a href="${process.env.APP_URL || 'http://localhost:5173'}/dashboard?tab=salle" class="btn">
+            <a href="${getAppBaseUrl()}/dashboard?tab=salle" class="btn">
               Accéder au suivi dans le tableau de bord →
             </a>
           </div>
@@ -1200,30 +1542,16 @@ export async function sendRoomBookingAdminAlertEmail(data: RoomBookingAdminAlert
     </html>
   `;
 
-  if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[ALERTE DIRECTION NOUVELLE RÉSERVATION] Destinataire: ${adminEmail}`);
-    console.log(`[ALERTE DIRECTION NOUVELLE RÉSERVATION] Organisateur: ${b.organizerName} (${b.phone})`);
-    console.log(`[ALERTE DIRECTION NOUVELLE RÉSERVATION] Date: ${dateStr} (${timeStr})`);
-    console.log(`[ALERTE DIRECTION NOUVELLE RÉSERVATION] Réf: ${b.reference}`);
-    console.log(`======================================================\n`);
+  if (!isSmtpConfigured()) {
     return { success: true, simulated: true };
   }
 
-  const sender = getSender('IML Digit Salles');
-  try {
-    await transporter.sendMail({
-      from: sender,
-      to: adminEmail,
-      subject,
-      text: `Nouvelle réservation de salle IML - Réf: ${b.reference}. Organisateur: ${b.organizerName} (${b.phone}). Date: ${dateStr} de ${timeStr}.`,
-      html: htmlContent,
-    });
-    console.log(`[ALERTE DIRECTION SALLE ENVOYÉE] Réf ${b.reference} transmise à ${adminEmail}`);
-    return { success: true, simulated: false };
-  } catch (error: any) {
-    console.error(`[ERREUR ALERTE DIRECTION SALLE] Échec d'envoi à ${adminEmail}:`, error);
-    return { success: false, message: error?.message };
-  }
+  return deliverMail({
+    fromLabel: 'IML Digit Salles',
+    to: adminEmail,
+    subject,
+    text: `Nouvelle réservation de salle IML - Réf: ${b.reference}. Organisateur: ${b.organizerName} (${b.phone}). Date: ${dateStr} de ${timeStr}.`,
+    html: htmlContent,
+  });
 }
 
