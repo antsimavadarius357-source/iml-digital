@@ -16,7 +16,8 @@ import {
   Printer,
   Presentation,
   CalendarClock,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -44,6 +45,7 @@ interface RoomBookingDetailModalProps {
   onClose: () => void;
   onDecide: (id: string, status: 'CONFIRMEE' | 'REFUSEE') => Promise<void> | void;
   onReschedule?: (updated: RoomBookingItem) => void;
+  onDelete?: (id: string) => void;
 }
 
 export default function RoomBookingDetailModal({
@@ -51,6 +53,7 @@ export default function RoomBookingDetailModal({
   onClose,
   onDecide,
   onReschedule,
+  onDelete,
 }: RoomBookingDetailModalProps) {
   const [currentBooking, setCurrentBooking] = useState<RoomBookingItem | null>(booking);
   const [copied, setCopied] = useState(false);
@@ -544,9 +547,25 @@ export default function RoomBookingDetailModal({
 
         {/* Footer des actions */}
         <div className="px-4 py-2.5 bg-white border-t border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0">
-          <div className="text-[10px] text-slate-400">
+          <div className="flex items-center gap-2">
+            {onDelete && (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (window.confirm("Êtes-vous sûr de vouloir supprimer définitivement cette réservation de salle ?")) {
+                    onDelete(currentBooking.id);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg bg-white hover:bg-rose-50 border border-rose-300 text-rose-600 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                title="Supprimer définitivement la réservation"
+              >
+                <Trash2 className="size-3.5 text-rose-600" />
+                <span>Supprimer la réservation</span>
+              </button>
+            )}
             {currentBooking.createdAt && (
-              <span>Demande du {new Date(currentBooking.createdAt).toLocaleDateString('fr-FR')}</span>
+              <span className="text-[10px] text-slate-400">Demande du {new Date(currentBooking.createdAt).toLocaleDateString('fr-FR')}</span>
             )}
           </div>
 

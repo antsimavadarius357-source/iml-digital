@@ -22,6 +22,7 @@ export async function purgeMockData() {
   // 1. Supprimer les sessions de service et rendez-vous
   await prisma.serviceSession.deleteMany({});
   await prisma.appointment.deleteMany({});
+  await prisma.roomBooking.deleteMany({});
 
   // 2. Supprimer les notes de suivi
   await prisma.followUpNote.deleteMany({});

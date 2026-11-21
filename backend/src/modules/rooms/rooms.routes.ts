@@ -9,7 +9,7 @@ import {
   listRoomBookingsSchema,
   updateRoomBookingSchema,
 } from './rooms.schemas';
-import { createRoomBooking, decideRoomBooking, getDayAvailability, listRoomBookings, updateRoomBooking } from './rooms.service';
+import { createRoomBooking, decideRoomBooking, deleteRoomBooking, getDayAvailability, listRoomBookings, updateRoomBooking } from './rooms.service';
 
 export const roomsRouter = Router();
 
@@ -48,6 +48,13 @@ roomsRouter.patch('/bookings/:id', async (req, res, next) => {
 roomsRouter.patch('/bookings/:id/reschedule', async (req, res, next) => {
   try {
     res.json({ booking: await updateRoomBooking(idParam.parse(req.params.id), updateRoomBookingSchema.parse(req.body), req.auth!) });
+  } catch (e) { next(e); }
+});
+
+roomsRouter.delete('/bookings/:id', async (req, res, next) => {
+  try {
+    await deleteRoomBooking(idParam.parse(req.params.id), req.auth!, req.ip);
+    res.status(200).json({ success: true, message: 'Réservation supprimée avec succès' });
   } catch (e) { next(e); }
 });
 

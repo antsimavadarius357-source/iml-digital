@@ -25,7 +25,8 @@ import {
   Users,
   Eye,
   Target,
-  ArrowRight
+  ArrowRight,
+  Trash2
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -354,6 +355,22 @@ export default function DashboardPage() {
       void refetchRoomBookings();
     } catch (err: any) {
       alert(err?.message || 'Erreur lors du traitement de la réservation.');
+    }
+  };
+
+  const handleDeleteRoomBooking = async (id: string, name?: string) => {
+    if (!window.confirm(`Confirmez-vous la suppression définitive de la réservation de salle pour "${name || 'cette demande'}" ?`)) {
+      return;
+    }
+    try {
+      await api(`/rooms/bookings/${id}`, { method: 'DELETE' });
+      setDashboardToast('✓ Réservation de salle définitivement supprimée.');
+      void refetchRoomBookings();
+      if (selectedRoomBooking?.id === id) {
+        setSelectedRoomBooking(null);
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Erreur lors de la suppression de la réservation.');
     }
   };
 
@@ -1574,6 +1591,16 @@ export default function DashboardPage() {
                               <span>Détails</span>
                             </button>
 
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRoomBooking(b.id, b.organizerName)}
+                              className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 border border-slate-300 hover:border-rose-300 text-slate-600 hover:text-rose-600 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                              title="Supprimer définitivement cette réservation"
+                            >
+                              <Trash2 className="size-3.5 text-rose-500" />
+                              <span>Supprimer</span>
+                            </button>
+
                             {isPending && (
                               <>
                                 <button
@@ -2128,6 +2155,9 @@ export default function DashboardPage() {
             await handleDecideRoomBooking(id, status);
             refetchRoomBookings();
             setSelectedRoomBooking(null);
+          }}
+          onDelete={async (id) => {
+            await handleDeleteRoomBooking(id);
           }}
           onReschedule={() => {
             refetchRoomBookings();

@@ -229,3 +229,24 @@ export async function updateRoomBooking(id: string, input: z.infer<typeof update
 
   return updated;
 }
+
+export async function deleteRoomBooking(id: string, auth: AuthContext, ip?: string) {
+  const booking = await db.roomBooking.findUnique({ where: { id } });
+  if (!booking) throw new AppError(404, 'Réservation de salle introuvable.', 'NON_TROUVE');
+
+  await db.auditLog.deleteMany({ where: { entityType: 'RoomBooking', entityId: id } }).catch(() => {});
+  await db.roomBooking.delete({ where: { id } });
+
+  await db.auditLog.create({
+    data: {
+      userId: auth.userId,
+      action: 'room_booking.deleted',
+      entityType: 'RoomBooking',
+      entityId: id,
+      metadata: { reference: booking.reference, organizerName: booking.organizerName, eventType: booking.eventType },
+      ipAddress: ip,
+    },
+  }).catch(() => {});
+
+  return { success: true };
+}
