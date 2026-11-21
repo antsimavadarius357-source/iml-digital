@@ -93,13 +93,14 @@ export default function ApplicationsPage() {
     queryKey: ['applications', qs, page],
     queryFn: () => api<Page>(`/applications?${qs}&page=${page}`),
     placeholderData: (p) => p,
+    refetchInterval: 6_000,
   });
 
   // Query to get general stats
   const allList = useQuery({
     queryKey: ['applications-all-stats'],
     queryFn: () => api<Page>(`/applications?pageSize=100`),
-    staleTime: 60_000,
+    refetchInterval: 6_000,
   });
 
   const data = list.data;

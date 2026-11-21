@@ -87,6 +87,7 @@ export default function DashboardPage() {
   const { data: appointmentsRes } = useQuery({
     queryKey: ['appointments'],
     queryFn: () => api<{ items: any[] }>('/appointments').then(r => r.items).catch(() => []),
+    refetchInterval: 6_000,
   });
   const appointments = appointmentsRes || [];
 
@@ -94,6 +95,7 @@ export default function DashboardPage() {
   const { data: beneficiariesRes, refetch: refetchBeneficiaries } = useQuery({
     queryKey: ['beneficiaries-dashboard'],
     queryFn: () => api<{ items: any[]; total: number }>('/beneficiaries?pageSize=100'),
+    refetchInterval: 6_000,
   });
   const beneficiariesList = beneficiariesRes?.items || [];
 
@@ -101,7 +103,7 @@ export default function DashboardPage() {
   const { data: applicationsRes } = useQuery({
     queryKey: ['applications-dashboard'],
     queryFn: () => api<{ items: any[]; total: number }>('/applications?pageSize=50').catch(() => ({ items: [], total: 0 })),
-    staleTime: 30_000,
+    refetchInterval: 6_000,
   });
   const applicationsList = applicationsRes?.items || [];
 
