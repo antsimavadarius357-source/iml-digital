@@ -291,20 +291,9 @@ export async function sendManualAppointmentReminder(appointmentId: string): Prom
 }
 
 /**
- * Initialise le cron automatique récurrent pour les rappels de rendez-vous
- * Exécution chaque matin à 08:00
+ * Rappels de rendez-vous déclenchés uniquement à la demande manuelle de l'agent ou de la direction
+ * (aucun envoi automatique en tâche de fond par défaut).
  */
 export function initAppointmentReminderScheduler(): void {
-  // Planification quotidienne : tous les matins à 08:00
-  // Syntaxe cron: '0 8 * * *'
-  cron.schedule('0 8 * * *', async () => {
-    logger.info('[CRON RAPPEL RDV] Exécution automatique quotidienne à 08:00...');
-    try {
-      await runDailyAppointmentReminders(false);
-    } catch (err: any) {
-      logger.error(`[CRON RAPPEL RDV] Erreur lors de l'exécution automatique : ${err?.message}`);
-    }
-  });
-
-  logger.info('⏰ Automatisation des rappels de rendez-vous configurée (chaque matin à 08:00)');
+  logger.info('Service de rappels de rendez-vous prêt (déclenchement manuel uniquement, aucun cron automatique par défaut).');
 }
