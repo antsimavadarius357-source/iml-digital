@@ -36,89 +36,6 @@ interface PrestationItem {
   deliverable?: string;
 }
 
-const DEFAULT_PRESTATIONS: PrestationItem[] = [
-  {
-    id: 'prest-1',
-    title: 'Diagnostic Stratégique & Cadrage global',
-    category: 'Stratégie & Diagnostic',
-    beneficiaryId: 'b-1',
-    beneficiaryName: 'Sylvie NDONG',
-    companyName: 'EcoGabon SARL',
-    beneficiaryPhone: '+241 65 30 11 22',
-    beneficiaryEmail: 'sylvie.ndong@ecogabon.ga',
-    coachName: 'Alexandre AGENT IML',
-    date: '2026-10-14',
-    durationMinutes: 120,
-    status: 'REALISE',
-    summary: 'Analyse approfondie de la chaîne de valeur, forces/faiblesses et identification des leviers de croissance.',
-    deliverable: 'Rapport_Diagnostic_Initial_EcoGabon.pdf'
-  },
-  {
-    id: 'prest-2',
-    title: 'Élaboration du Plan d’Affaires & Modèle Financier',
-    category: 'Finance & Trésorerie',
-    beneficiaryId: 'b-2',
-    beneficiaryName: 'Jean-Marc OBIANG',
-    companyName: 'Kamba Tech',
-    beneficiaryPhone: '+241 77 12 45 89',
-    beneficiaryEmail: 'jm.obiang@kambatech.ga',
-    coachName: 'Dr. Guy Roger MBOUMBA',
-    date: '2026-10-12',
-    durationMinutes: 90,
-    status: 'REALISE',
-    summary: 'Finalisation du compte de résultat prévisionnel sur 3 ans et plan de financement initial pour le comité bancaire.',
-    deliverable: 'Business_Plan_KambaTech_v3.xlsx'
-  },
-  {
-    id: 'prest-3',
-    title: 'Accompagnement Formalisation Juridique & Statuts ANPI',
-    category: 'Juridique & Administratif',
-    beneficiaryId: 'b-3',
-    beneficiaryName: 'Marcelle BIVEGHE',
-    companyName: 'AgriBio Gabon Coopérative',
-    beneficiaryPhone: '+241 62 88 90 14',
-    beneficiaryEmail: 'contact@agrobiogabon.com',
-    coachName: 'Sarah BILOGHE',
-    date: '2026-10-10',
-    durationMinutes: 60,
-    status: 'EN_COURS',
-    summary: 'Rédaction des statuts de coopérative agricole et constitution du dossier d’immatriculation au guichet ANPI.',
-    deliverable: 'Statuts_Projet_AgriBio.docx'
-  },
-  {
-    id: 'prest-4',
-    title: 'Stratégie Commerciale B2B & Prospection Terrain',
-    category: 'Commercial & Vente',
-    beneficiaryId: 'b-4',
-    beneficiaryName: 'Paul MVE',
-    companyName: 'BTP Gabon Services',
-    beneficiaryPhone: '+241 66 44 22 11',
-    beneficiaryEmail: 'p.mve@btpgabon.ga',
-    coachName: 'Alexandre AGENT IML',
-    date: '2026-10-08',
-    durationMinutes: 90,
-    status: 'REALISE',
-    summary: 'Définition des offres packs entreprises, grille tarifaire et argumentaire commercial pour appels d’offres.',
-    deliverable: 'Grille_Tarifaire_Packs_BTP.pdf'
-  },
-  {
-    id: 'prest-5',
-    title: 'Mise à niveau Organisationnelle & Gestion RH',
-    category: 'Organisation & RH',
-    beneficiaryId: 'b-5',
-    beneficiaryName: 'Aïssatou DIOP',
-    companyName: 'Mode & Création Libreville',
-    beneficiaryPhone: '+241 74 33 55 77',
-    beneficiaryEmail: 'aissatou.mode@gmail.com',
-    coachName: 'Sarah BILOGHE',
-    date: '2026-10-05',
-    durationMinutes: 60,
-    status: 'REALISE',
-    summary: 'Fiches de poste, modèle de contrat de travail et organisation des plannings d’ateliers de confection.',
-    deliverable: 'Guide_RH_Atelier_2026.pdf'
-  }
-];
-
 export default function ServicesPage() {
   const { user } = useAuth();
   const isCoach = user?.role === 'COACH';
@@ -129,17 +46,19 @@ export default function ServicesPage() {
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [filterMyPrestations, setFilterMyPrestations] = useState(false);
 
-  // État local persistant des prestations
+  // État local persistant des prestations réelles
   const [prestations, setPrestations] = useState<PrestationItem[]>(() => {
     try {
       const saved = localStorage.getItem('iml_prestations_records_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(p => !p.id?.startsWith('prest-'));
+        }
       }
-      return DEFAULT_PRESTATIONS;
+      return [];
     } catch {
-      return DEFAULT_PRESTATIONS;
+      return [];
     }
   });
 

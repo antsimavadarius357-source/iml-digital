@@ -26,65 +26,21 @@ export interface MessageItem {
   replies?: { author: string; text: string; date: string; channel?: string }[];
 }
 
-const DEFAULT_MESSAGES: MessageItem[] = [
-  {
-    id: 'msg-1',
-    senderName: 'Marine LOUPE',
-    senderRole: 'Porteuse de projet • Start-up BioTech',
-    senderType: 'STARTUP',
-    senderEmail: 'marine.loupe@test.com',
-    subject: 'Questions sur le canevas de Business Model (Phase 1)',
-    content: 'Bonjour Coach Darius,\n\nJ\'ai finalisé la mise à jour des segments clients et du modèle de revenus dans notre canevas d\'incubation. Pourriez-vous y jeter un œil avant notre séance de coaching prévue lundi à 14h30 ?\n\nJ\'aimerais particulièrement votre avis sur la structure des coûts de distribution au Gabon.\n\nMerci beaucoup pour votre accompagnement,\nMarine',
-    createdAt: '13 Octobre 2026',
-    timeAgo: 'Il y a 1 heure',
-    isRead: false,
-    replies: []
-  },
-  {
-    id: 'msg-2',
-    senderName: 'Alexandre Agent IML',
-    senderRole: 'Agent de coordination IML Digit',
-    senderType: 'AGENT',
-    senderEmail: 'agent@imldigit.com',
-    subject: 'Attribution du dossier SOPHIATECH GABON',
-    content: 'Bonjour Darius,\n\nNous t\'avons attribué la supervision de SOPHIATECH GABON SARL pour leur accompagnement à la restructuration financière.\n\nLe dossier d\'immatriculation et le bilan préliminaire ont été validés par l\'accueil. Tu peux consulter les éléments directement dans ta session et planifier le prochain entretien d\'étape.\n\nBien à toi,\nAlexandre',
-    createdAt: '12 Octobre 2026',
-    timeAgo: 'Hier à 16:45',
-    isRead: false,
-    replies: []
-  },
-  {
-    id: 'msg-4',
-    senderName: 'COOPÉRATIVE AGRI-GABON',
-    senderRole: 'Bénéficiaire Organisation',
-    senderType: 'ORGANISATION',
-    senderEmail: 'contact@agrigabon.ga',
-    subject: 'Ajustement horaire pour l\'atelier gouvernance',
-    content: 'Bonjour Monsieur le Coach,\n\nSuite à un impératif de collecte avec les coopérateurs ruraux ce mercredi, est-il envisageable de décaler le début de notre séance de 30 minutes (commencer à 09h30 au lieu de 09h00) ?\n\nNous restons à votre entière disposition pour confirmer ce créneau.\n\nRespectueusement,\nLe bureau exécutif Agri-Gabon',
-    createdAt: '08 Octobre 2026',
-    timeAgo: 'Il y a 5 jours',
-    isRead: true,
-    replies: [
-      {
-        author: 'Darius Coach IML',
-        text: 'C\'est bien noté pour 09h30 mercredi. Rendez-vous confirmé !',
-        date: '08/10/2026 à 18h12',
-        channel: 'Email direct'
-      }
-    ]
-  }
-];
-
 export default function CoachMessagesPage() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<MessageItem[]>(() => {
     try {
       const saved = localStorage.getItem('iml_coach_messages_v1');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((m: any) => !m.id?.startsWith('msg-'));
+        }
+      }
     } catch {
       // fallback
     }
-    return DEFAULT_MESSAGES;
+    return [];
   });
 
   const [selectedId, setSelectedId] = useState<string>(messages[0]?.id || 'msg-1');

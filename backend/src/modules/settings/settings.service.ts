@@ -26,8 +26,8 @@ export async function purgeMockData() {
   // 2. Supprimer les notes de suivi
   await prisma.followUpNote.deleteMany({});
 
-  // 3. Supprimer les documents de bénéficiaires
-  await prisma.document.deleteMany({ where: { ownerType: 'BENEFICIARY' } });
+  // 3. Supprimer TOUS les documents de démonstration
+  await prisma.document.deleteMany({});
 
   // 4. Supprimer les étapes de parcours et parcours
   await prisma.pathwayStep.deleteMany({});
@@ -43,7 +43,17 @@ export async function purgeMockData() {
   // 7. Supprimer les bénéficiaires
   const deletedBeneficiaries = await prisma.beneficiary.deleteMany({});
 
-  // 8. Trouver et supprimer les coachs
+  // 8. Supprimer les faux logs d'audit de démonstration
+  await prisma.auditLog.deleteMany({
+    where: {
+      OR: [
+        { entityId: { in: ['b-1', 'doc-1', 'CERT-IML-2026-084', 'step-4', 'cand-001', 'appt-1'] } },
+        { action: { in: ['certificate.issued', 'document.validated', 'pathway.completed_100_percent', 'pathway.step_validated'] } }
+      ]
+    }
+  }).catch(() => {});
+
+  // 9. Trouver et supprimer les coachs
   const coachRole = await prisma.role.findUnique({ where: { code: 'COACH' } });
   let deletedCoachesCount = 0;
   if (coachRole) {

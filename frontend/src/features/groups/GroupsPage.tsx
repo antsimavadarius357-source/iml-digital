@@ -23,39 +23,6 @@ interface GroupItem {
   createdAt: string;
 }
 
-const DEFAULT_GROUPS: GroupItem[] = [
-  {
-    id: 'grp-1',
-    name: 'Cohorte Accélération Digitale 2026',
-    candidatesCount: 12,
-    groupDiscussion: true,
-    chatInterParticipants: true,
-    pathwayTemplate: 'Parcours Numérique & Croissance',
-    articlesCount: 8,
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'grp-2',
-    name: 'Programme PME & Agro-Industrie',
-    candidatesCount: 9,
-    groupDiscussion: true,
-    chatInterParticipants: false,
-    pathwayTemplate: 'Parcours Structuration PME',
-    articlesCount: 5,
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'grp-3',
-    name: 'Incubation Porteurs d\'idées Innovantes',
-    candidatesCount: 15,
-    groupDiscussion: true,
-    chatInterParticipants: true,
-    pathwayTemplate: 'Parcours Amorçage & Idéation',
-    articlesCount: 12,
-    createdAt: new Date().toISOString()
-  }
-];
-
 export default function GroupsPage() {
   // Liste des groupes (persistance locale)
   const [groups, setGroups] = useState<GroupItem[]>(() => {
@@ -63,11 +30,13 @@ export default function GroupsPage() {
       const saved = localStorage.getItem('iml_groups_records_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(g => !g.id?.startsWith('grp-'));
+        }
       }
-      return DEFAULT_GROUPS;
+      return [];
     } catch {
-      return DEFAULT_GROUPS;
+      return [];
     }
   });
 

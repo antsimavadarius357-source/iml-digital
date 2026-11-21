@@ -100,14 +100,6 @@ export default function QuickEmailModal({
       });
     });
 
-    if (list.length === 0) {
-      list.push(
-        { id: 'b1', name: 'Marine LOUPE', role: 'Dossier IML-2026-0003', email: 'marine.loupe@test.com', type: 'beneficiary' },
-        { id: 'b2', name: 'Alain MVE', role: 'Dossier IML-2026-0004', email: 'alain.mve@test.com', type: 'beneficiary' },
-        { id: 'c1', name: 'Coach Principal IML', role: 'Coach référent', email: 'coach.principal@imldigit.ga', type: 'coach' }
-      );
-    }
-
     return list;
   }, [benefData, usersData]);
 

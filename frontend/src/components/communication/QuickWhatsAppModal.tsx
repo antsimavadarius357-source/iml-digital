@@ -103,15 +103,6 @@ export default function QuickWhatsAppModal({
       });
     });
 
-    // Contacts par défaut si la base est en cours d'initialisation
-    if (list.length === 0) {
-      list.push(
-        { id: 'b1', name: 'Marine LOUPE', role: 'Dossier IML-2026-0003', phone: '+24177123456', type: 'beneficiary' },
-        { id: 'b2', name: 'Alain MVE', role: 'Dossier IML-2026-0004', phone: '+24174987654', type: 'beneficiary' },
-        { id: 'c1', name: 'Coach Principal IML', role: 'Coach référent', phone: '+24166112233', type: 'coach' }
-      );
-    }
-
     return list;
   }, [benefData, usersData]);
 

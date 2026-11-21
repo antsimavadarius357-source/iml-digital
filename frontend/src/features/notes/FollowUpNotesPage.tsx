@@ -33,65 +33,6 @@ interface FollowUpNote {
   priority: 'HAUTE' | 'NORMALE' | 'BASSE';
 }
 
-const DEFAULT_NOTES: FollowUpNote[] = [
-  {
-    id: 'note-1',
-    beneficiaryId: 'b-1',
-    beneficiaryName: 'Sylvie NDONG',
-    companyName: 'EcoGabon SARL',
-    beneficiaryPhone: '+241 65 30 11 22',
-    beneficiaryEmail: 'sylvie.ndong@ecogabon.ga',
-    coachName: 'Alexandre AGENT IML',
-    date: '2026-10-14',
-    topic: 'Finance & Trésorerie',
-    content: 'Revue complète des charges d’exploitation du trimestre. Sylvie a clarifié les coûts logistiques liés au transport des déchets plastiques. Le besoin en fonds de roulement estimé à 12M FCFA est cohérent.',
-    nextSteps: 'Finaliser le tableau des flux de trésorerie prévisionnel avant le 20 octobre pour dépôt chez BGFIBank.',
-    priority: 'HAUTE'
-  },
-  {
-    id: 'note-2',
-    beneficiaryId: 'b-2',
-    beneficiaryName: 'Jean-Marc OBIANG',
-    companyName: 'Kamba Tech',
-    beneficiaryPhone: '+241 77 12 45 89',
-    beneficiaryEmail: 'jm.obiang@kambatech.ga',
-    coachName: 'Dr. Guy Roger MBOUMBA',
-    date: '2026-10-13',
-    topic: 'Stratégie & Produit',
-    content: 'Point d’étape sur le déploiement de la version bêta de la solution ERP. 4 entreprises pilotes testent actuellement le logiciel à Libreville et Port-Gentil. Retours très positifs sur l’interface.',
-    nextSteps: 'Préparer la grille tarifaire pour le passage en phase commerciale et formaliser le contrat de maintenance.',
-    priority: 'NORMALE'
-  },
-  {
-    id: 'note-3',
-    beneficiaryId: 'b-3',
-    beneficiaryName: 'Marcelle BIVEGHE',
-    companyName: 'AgriBio Gabon Coopérative',
-    beneficiaryPhone: '+241 62 88 90 14',
-    beneficiaryEmail: 'contact@agrobiogabon.com',
-    coachName: 'Sarah BILOGHE',
-    date: '2026-10-11',
-    topic: 'Organisation & Gouvernance',
-    content: 'Structuration du bureau de la coopérative agricole. Tenue de l’assemblée générale constitutive validée par les 8 membres fondateurs. Répartition claire des responsabilités entre production et commercialisation.',
-    nextSteps: 'Déposer le procès-verbal d’AG et les statuts enregistrés auprès de la Direction Générale des PME (DGPME).',
-    priority: 'NORMALE'
-  },
-  {
-    id: 'note-4',
-    beneficiaryId: 'b-4',
-    beneficiaryName: 'Paul MVE',
-    companyName: 'BTP Gabon Services',
-    beneficiaryPhone: '+241 66 44 22 11',
-    beneficiaryEmail: 'p.mve@btpgabon.ga',
-    coachName: 'Alexandre AGENT IML',
-    date: '2026-10-09',
-    topic: 'Commercial & Marchés Publics',
-    content: 'Accompagnement au montage du premier dossier de réponse à un appel d’offres public pour la rénovation de voiries urbaines. Tous les quitus fiscaux et CNSS sont à jour.',
-    nextSteps: 'Vérifier la caution bancaire de soumission avant le dépôt officiel de l’offre le 18 octobre.',
-    priority: 'HAUTE'
-  }
-];
-
 export default function FollowUpNotesPage() {
   const { user } = useAuth();
   const isCoach = user?.role === 'COACH';
@@ -100,17 +41,19 @@ export default function FollowUpNotesPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [filterMyNotes, setFilterMyNotes] = useState(false);
 
-  // Notes locales persistantes
+  // Notes locales persistantes (uniquement les notes réellement rédigées par l'équipe)
   const [notes, setNotes] = useState<FollowUpNote[]>(() => {
     try {
       const saved = localStorage.getItem('iml_followup_notes_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(p => !p.id?.startsWith('note-'));
+        }
       }
-      return DEFAULT_NOTES;
+      return [];
     } catch {
-      return DEFAULT_NOTES;
+      return [];
     }
   });
 
@@ -565,7 +508,7 @@ export default function FollowUpNotesPage() {
                   <label className="block text-slate-700 font-semibold mb-1">Entreprise / Projet</label>
                   <input
                     type="text"
-                    placeholder="Ex : EcoGabon SARL"
+                    placeholder="Ex : Gabon Innovation SARL"
                     value={newCompanyName}
                     onChange={(e) => setNewCompanyName(e.target.value)}
                     className="w-full rounded-md border border-slate-300 p-2 text-xs focus:border-[#23c3b1] outline-none"

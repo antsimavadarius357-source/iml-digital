@@ -36,89 +36,6 @@ interface AuditLogItem {
   createdAt: string;
 }
 
-const DEFAULT_AUDIT_LOGS: AuditLogItem[] = [
-  {
-    id: 'log-1',
-    action: 'auth.login_success',
-    user: { firstName: 'Alexandre', lastName: 'AGENT IML', role: { code: 'AGENT' } },
-    entityType: 'User',
-    entityId: 'agent-1',
-    ipAddress: '197.214.120.45',
-    metadata: { client: 'Chrome 122 / Windows', location: 'Libreville, Gabon', status: 'SUCCESS' },
-    createdAt: new Date(Date.now() - 1000 * 60 * 6).toISOString()
-  },
-  {
-    id: 'log-2',
-    action: 'certificate.issued',
-    user: { firstName: 'Darius', lastName: 'Coach IML', role: { code: 'COACH' } },
-    entityType: 'Certificate',
-    entityId: 'CERT-IML-2026-084',
-    ipAddress: '197.214.120.45',
-    metadata: { template: 'incubation', recipient: 'Sylvie NDONG', verified: true, company: 'EcoGabon SARL' },
-    createdAt: new Date(Date.now() - 1000 * 60 * 18).toISOString()
-  },
-  {
-    id: 'log-3',
-    action: 'pathway.step_validated',
-    user: { firstName: 'Darius', lastName: 'Coach IML', role: { code: 'COACH' } },
-    entityType: 'PathwayStep',
-    entityId: 'step-3',
-    ipAddress: '197.214.120.45',
-    metadata: { stepTitle: 'Étape 3 : Plan de Financement & Prévisionnel 3 ans', verdict: 'CONFORME' },
-    createdAt: new Date(Date.now() - 1000 * 60 * 42).toISOString()
-  },
-  {
-    id: 'log-4',
-    action: 'beneficiary.status_updated',
-    user: { firstName: 'Alexandre', lastName: 'AGENT IML', role: { code: 'AGENT' } },
-    entityType: 'Beneficiary',
-    entityId: 'b-1',
-    ipAddress: '197.214.120.45',
-    metadata: { oldStatus: 'EN_ATTENTE', newStatus: 'ACTIF', company: 'EcoGabon SARL' },
-    createdAt: new Date(Date.now() - 1000 * 60 * 95).toISOString()
-  },
-  {
-    id: 'log-5',
-    action: 'document.validation',
-    user: { firstName: 'Alexandre', lastName: 'AGENT IML', role: { code: 'AGENT' } },
-    entityType: 'Document',
-    entityId: 'doc-business-plan',
-    ipAddress: '197.214.120.45',
-    metadata: { documentName: 'Business_Plan_EcoGabon_Final_v2.xlsx', verdict: 'VALIDE' },
-    createdAt: new Date(Date.now() - 1000 * 60 * 160).toISOString()
-  },
-  {
-    id: 'log-6',
-    action: 'appointment.scheduled',
-    user: { firstName: 'Alexandre', lastName: 'AGENT IML', role: { code: 'AGENT' } },
-    entityType: 'Appointment',
-    entityId: 'appt-1',
-    ipAddress: '197.214.120.45',
-    metadata: { type: 'PRESENTIEL', coach: 'Darius Coach IML', beneficiary: 'Jean-Marc OBIANG' },
-    createdAt: new Date(Date.now() - 1000 * 60 * 320).toISOString()
-  },
-  {
-    id: 'log-7',
-    action: 'application.admitted',
-    user: { firstName: 'Directeur', lastName: 'Général IML', role: { code: 'DIRECTION' } },
-    entityType: 'Application',
-    entityId: 'cand-001',
-    ipAddress: '197.214.120.45',
-    metadata: { juryDecision: 'ADMIS', candidate: 'Sylvie NDONG', program: 'Incubation Multisectorielle' },
-    createdAt: new Date(Date.now() - 1000 * 60 * 600).toISOString()
-  },
-  {
-    id: 'log-8',
-    action: 'auth.login_success',
-    user: { firstName: 'Darius', lastName: 'Coach IML', role: { code: 'COACH' } },
-    entityType: 'User',
-    entityId: 'coach-1',
-    ipAddress: '197.214.120.45',
-    metadata: { client: 'Chrome / Windows', location: 'Libreville, Gabon', status: 'SUCCESS' },
-    createdAt: new Date(Date.now() - 1000 * 60 * 750).toISOString()
-  }
-];
-
 const ACTION_DESCRIPTIONS: Record<string, { label: string; badge: string; icon: any }> = {
   'auth.login': { label: 'Connexion utilisateur sécurisée', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Lock },
   'auth.login_success': { label: 'Connexion utilisateur sécurisée', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Lock },
@@ -142,12 +59,9 @@ export default function AuditPage() {
     queryFn: () => api<{ items: AuditLogItem[] }>('/audit').then(r => r.items).catch(() => []),
   });
 
-  // Si l'API retourne des logs, on les utilise en priorité, sinon on prend le journal par défaut
+  // Seuls les vrais journaux d'audit du serveur sont affichés
   const logs: AuditLogItem[] = useMemo(() => {
-    if (serverLogs && serverLogs.length > 0) {
-      return serverLogs;
-    }
-    return DEFAULT_AUDIT_LOGS;
+    return serverLogs || [];
   }, [serverLogs]);
 
   // Filtrage réactif

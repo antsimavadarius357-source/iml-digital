@@ -248,7 +248,7 @@ export default function CoachDetailPage() {
       return {
         id: appt.id,
         date: d.toLocaleDateString('fr-FR'),
-        beneficiaryName: appt.beneficiary ? `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}` : 'Marine LOUPE',
+        beneficiaryName: appt.beneficiary ? `${appt.beneficiary.firstName} ${appt.beneficiary.lastName}` : 'Bénéficiaire accompagné',
         duration: durationStr || '1h 00m',
         project: 'Projet emploi',
         pathway: appt.session?.nextActions?.replace('Parcours: ', '') || "Création d'entreprise",
@@ -271,38 +271,7 @@ export default function CoachDetailPage() {
   // Export CSV
   const handleExportCSV = () => {
     const csvHeader = "Date;Bénéficiaire;Durée;Projet emploi;Parcours;Société;Description\n";
-    const rows = (filteredPrestations.length > 0 ? filteredPrestations : [
-      {
-        id: '1',
-        date: new Date().toLocaleDateString('fr-FR'),
-        beneficiaryName: 'Marine LOUPE',
-        duration: '1h 30m',
-        project: 'BioTech Solutions',
-        pathway: "Création d'entreprise (Start-up)",
-        company: 'BioTech Solutions',
-        description: 'Session de cadrage initial et business model'
-      },
-      {
-        id: '2',
-        date: new Date().toLocaleDateString('fr-FR'),
-        beneficiaryName: 'SOPHIATECH GABON',
-        duration: '2h 00m',
-        project: 'Optimisation opérationnelle',
-        pathway: "Développement PME",
-        company: 'Sophiatech Gabon SARL',
-        description: 'Audit organisationnel, financier et plan de restructuration'
-      },
-      {
-        id: '3',
-        date: new Date().toLocaleDateString('fr-FR'),
-        beneficiaryName: 'COOPÉRATIVE AGRI-GABON',
-        duration: '1h 45m',
-        project: 'Structuration filière agricole',
-        pathway: "Accompagnement Organisation",
-        company: 'Fédération Agricole & Développement',
-        description: 'Cadrage de gouvernance et modèle de gestion collective'
-      }
-    ]).map(p => `"${p.date}";"${p.beneficiaryName}";"${p.duration}";"${p.project}";"${p.pathway}";"${p.company}";"${p.description}"`).join('\n');
+    const rows = filteredPrestations.map(p => `"${p.date}";"${p.beneficiaryName}";"${p.duration}";"${p.project}";"${p.pathway}";"${p.company}";"${p.description}"`).join('\n');
     
     const blob = new Blob([csvHeader + rows], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -338,56 +307,7 @@ export default function CoachDetailPage() {
     lastAction: string;
   }
 
-  const [coachBeneficiaries] = useState<CoachBeneficiaryItem[]>([
-    {
-      id: 'aac47994-4788-4561-9697-d5a1d9eec49c',
-      name: 'Marine LOUPE',
-      entityType: 'STARTUP',
-      entityTypeLabel: 'Start-up',
-      company: 'BioTech Solutions',
-      country: 'FR',
-      language: 'Français',
-      status: 'En attente de parcours',
-      step: '0/0',
-      lastAction: 'Aucune'
-    },
-    {
-      id: 'b14946a3-7339-4eb9-90b2-1279e9bd9143',
-      name: 'SOPHIATECH GABON',
-      entityType: 'PME',
-      entityTypeLabel: 'PME',
-      company: 'Sophiatech Gabon SARL',
-      country: 'GA',
-      language: 'Français',
-      status: 'En cours',
-      step: '3/6',
-      lastAction: 'Diagnostic opérationnel & restructuration'
-    },
-    {
-      id: 'c50f48c6-1d36-4e23-b75f-e68ef3cb250b',
-      name: 'COOPÉRATIVE AGRI-GABON',
-      entityType: 'ORGANISATION',
-      entityTypeLabel: 'Organisation',
-      company: 'Fédération Agricole & Développement',
-      country: 'GA',
-      language: 'Français',
-      status: 'En cours',
-      step: '2/5',
-      lastAction: 'Structuration gouvernance & modèle collectif'
-    },
-    {
-      id: 'a2303e05-8a37-4ffc-b789-8cc5b89679e5',
-      name: 'LOGISTIQUE EQUATORIALE',
-      entityType: 'ENTREPRISE',
-      entityTypeLabel: 'Entreprise',
-      company: 'Logistique Équatoriale SA',
-      country: 'GA',
-      language: 'Français',
-      status: 'En cours',
-      step: '4/6',
-      lastAction: 'Validation stratégie de croissance'
-    }
-  ]);
+  const [coachBeneficiaries] = useState<CoachBeneficiaryItem[]>([]);
 
   const filteredBeneficiaries = useMemo(() => {
     let result = [...coachBeneficiaries];
@@ -744,10 +664,6 @@ export default function CoachDetailPage() {
                     className="appearance-none bg-white border border-slate-200 rounded px-3 py-1.5 pr-7 text-xs text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-[#23c3b1] cursor-pointer"
                   >
                     <option value="Toutes les organisations">Toutes les structures & organisations</option>
-                    <option value="BioTech Solutions">BioTech Solutions (Start-up)</option>
-                    <option value="Sophiatech Gabon SARL">Sophiatech Gabon SARL (PME)</option>
-                    <option value="Fédération Agricole & Développement">Fédération Agricole (Organisation)</option>
-                    <option value="Logistique Équatoriale SA">Logistique Équatoriale SA (Entreprise)</option>
                     <option value="Start-up">Filtrer par type : Start-ups</option>
                     <option value="PME">Filtrer par type : PME</option>
                     <option value="Organisation">Filtrer par type : Organisations</option>

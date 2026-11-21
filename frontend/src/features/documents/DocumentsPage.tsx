@@ -36,93 +36,6 @@ interface DocumentItem {
   url?: string;
 }
 
-const DEFAULT_DOCUMENTS: DocumentItem[] = [
-  {
-    id: 'doc-1',
-    title: 'Business Plan Prévisionnel 3 ans - EcoGabon',
-    category: 'Finance & Trésorerie',
-    beneficiaryId: 'b-1',
-    beneficiaryName: 'Sylvie NDONG',
-    companyName: 'EcoGabon SARL',
-    beneficiaryPhone: '+241 65 30 11 22',
-    beneficiaryEmail: 'sylvie.ndong@ecogabon.ga',
-    format: 'PDF',
-    size: '2.4 Mo',
-    date: '2026-10-14',
-    status: 'VALIDE'
-  },
-  {
-    id: 'doc-2',
-    title: 'Statuts Notariés & Immatriculation RCCM Libreville',
-    category: 'Juridique & Légal',
-    beneficiaryId: 'b-2',
-    beneficiaryName: 'Jean-Marc OBIANG',
-    companyName: 'Kamba Tech',
-    beneficiaryPhone: '+241 77 12 45 89',
-    beneficiaryEmail: 'jm.obiang@kambatech.ga',
-    format: 'PDF',
-    size: '1.8 Mo',
-    date: '2026-10-12',
-    status: 'VALIDE'
-  },
-  {
-    id: 'doc-3',
-    title: 'Dossier de Demande de Financement Bancaire (BGFIBank)',
-    category: 'Finance & Trésorerie',
-    beneficiaryId: 'b-1',
-    beneficiaryName: 'Sylvie NDONG',
-    companyName: 'EcoGabon SARL',
-    beneficiaryPhone: '+241 65 30 11 22',
-    beneficiaryEmail: 'sylvie.ndong@ecogabon.ga',
-    format: 'XLSX',
-    size: '850 Ko',
-    date: '2026-10-11',
-    status: 'EN_ATTENTE'
-  },
-  {
-    id: 'doc-4',
-    title: 'Fiche d’Immatriculation ANPI & Agrément Coopérative',
-    category: 'Juridique & Légal',
-    beneficiaryId: 'b-3',
-    beneficiaryName: 'Marcelle BIVEGHE',
-    companyName: 'AgriBio Gabon Coopérative',
-    beneficiaryPhone: '+241 62 88 90 14',
-    beneficiaryEmail: 'contact@agrobiogabon.com',
-    format: 'PDF',
-    size: '1.1 Mo',
-    date: '2026-10-09',
-    status: 'VALIDE'
-  },
-  {
-    id: 'doc-5',
-    title: 'Pitch Deck & Support de Présentation Investisseurs',
-    category: 'Stratégie & Pitch',
-    beneficiaryId: 'b-2',
-    beneficiaryName: 'Jean-Marc OBIANG',
-    companyName: 'Kamba Tech',
-    beneficiaryPhone: '+241 77 12 45 89',
-    beneficiaryEmail: 'jm.obiang@kambatech.ga',
-    format: 'PPTX',
-    size: '4.6 Mo',
-    date: '2026-10-07',
-    status: 'VALIDE'
-  },
-  {
-    id: 'doc-6',
-    title: 'Grille Tarifaire B2B & Spécifications Prestations BTP',
-    category: 'Commercial & Vente',
-    beneficiaryId: 'b-4',
-    beneficiaryName: 'Paul MVE',
-    companyName: 'BTP Gabon Services',
-    beneficiaryPhone: '+241 66 44 22 11',
-    beneficiaryEmail: 'p.mve@btpgabon.ga',
-    format: 'PDF',
-    size: '720 Ko',
-    date: '2026-10-04',
-    status: 'EN_ATTENTE'
-  }
-];
-
 export default function DocumentsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -180,17 +93,15 @@ export default function DocumentsPage() {
       };
     });
 
-    // On affiche en priorité absolue tous les vrais documents déposés
-    return [...realDocs, ...DEFAULT_DOCUMENTS];
+    // Seuls les vrais documents déposés dans la base de données sont affichés
+    return realDocs;
   }, [docsRes]);
 
   // Suppression d'un document réel via l'API
   const handleDeleteDoc = async (id: string, title: string) => {
     if (window.confirm(`Confirmez-vous la suppression du document « ${title} » ?`)) {
       try {
-        if (id.includes('-') && id.length > 20) {
-          await api(`/documents/${id}`, { method: 'DELETE' });
-        }
+        await api(`/documents/${id}`, { method: 'DELETE' });
         await queryClient.invalidateQueries({ queryKey: ['documents'] });
         await refetch();
       } catch (err: any) {
@@ -202,9 +113,7 @@ export default function DocumentsPage() {
   // Modification du statut réel via l'API (Valider / En attente / Rejeter)
   const handleToggleStatus = async (id: string, newStatus: 'VALIDE' | 'EN_ATTENTE' | 'REJETE') => {
     try {
-      if (id.includes('-') && id.length > 20) {
-        await api(`/documents/${id}/status`, { method: 'PATCH', body: { status: newStatus } });
-      }
+      await api(`/documents/${id}/status`, { method: 'PATCH', body: { status: newStatus } });
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
       await refetch();
     } catch (err: any) {
@@ -214,10 +123,8 @@ export default function DocumentsPage() {
 
   // Téléchargement réel
   const handleDownloadDoc = (doc: DocumentItem) => {
-    if (doc.id.includes('-') && doc.id.length > 20) {
+    if (doc.id) {
       window.open(`/api/v1/documents/${doc.id}/download`, '_blank');
-    } else {
-      alert(`Téléchargement de démonstration pour « ${doc.title} » (${doc.size}).`);
     }
   };
 

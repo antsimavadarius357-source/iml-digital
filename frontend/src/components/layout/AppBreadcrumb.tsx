@@ -83,7 +83,7 @@ export default function AppBreadcrumb() {
       } else if (path !== '/beneficiaires') {
         crumbs = [
           { label: 'Bénéficiaires', to: '/beneficiaires', icon: UserIcon },
-          { label: 'Marine LOUPE', icon: UserIcon }
+          { label: 'Fiche bénéficiaire', icon: UserIcon }
         ];
       } else {
         crumbs = [
@@ -106,7 +106,7 @@ export default function AppBreadcrumb() {
       } else {
         crumbs = [
           { label: 'Coachs', to: '/equipe', icon: Users },
-          { label: 'ALEXANDRE AGENT IML', icon: UserIcon }
+          { label: 'Fiche accompagnant', icon: UserIcon }
         ];
       }
     } else if (path.startsWith('/agendas')) {
