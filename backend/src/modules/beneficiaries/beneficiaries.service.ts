@@ -430,3 +430,25 @@ export async function notifyCoach(
 
   return { success: result.success, message: result.message || 'Briefing expédié par e-mail avec succès.' };
 }
+
+export async function deleteBeneficiary(id: string, auth: AuthContext) {
+  if (!['ADMIN', 'DIRECTION', 'AGENT'].includes(auth.role)) {
+    throw new AppError(403, 'Suppression réservée aux conseillers et à la direction.', 'INTERDIT');
+  }
+
+  const b = await prisma.beneficiary.findUnique({ where: { id } });
+  if (!b) throw new AppError(404, 'Bénéficiaire introuvable.', 'NON_TROUVE');
+
+  // Nettoyage en cascade de toutes les entités dépendantes
+  await prisma.serviceSession.deleteMany({ where: { appointment: { beneficiaryId: id } } });
+  await prisma.appointment.deleteMany({ where: { beneficiaryId: id } });
+  await prisma.followUpNote.deleteMany({ where: { beneficiaryId: id } });
+  await prisma.document.deleteMany({ where: { ownerId: id, ownerType: 'BENEFICIARY' } });
+  await prisma.pathwayStep.deleteMany({ where: { pathway: { beneficiaryId: id } } });
+  await prisma.pathway.deleteMany({ where: { beneficiaryId: id } });
+  await prisma.assignment.deleteMany({ where: { beneficiaryId: id } });
+  await prisma.project.deleteMany({ where: { beneficiaryId: id } });
+  await prisma.application.deleteMany({ where: { beneficiaryId: id } });
+
+  return prisma.beneficiary.delete({ where: { id } });
+}

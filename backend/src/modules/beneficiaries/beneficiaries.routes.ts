@@ -5,7 +5,7 @@ import {
   createBeneficiarySchema, idParam, listBeneficiariesSchema, updateBeneficiarySchema, updateProjectSchema,
 } from './beneficiaries.schemas';
 import {
-  createBeneficiary, exportCsv, getBeneficiary, getHistory, getOptions, listBeneficiaries, notifyCoach, updateBeneficiary, updateProject,
+  createBeneficiary, deleteBeneficiary, exportCsv, getBeneficiary, getHistory, getOptions, listBeneficiaries, notifyCoach, updateBeneficiary, updateProject,
 } from './beneficiaries.service';
 import { createNote, createNoteSchema, deleteNote, listNotes, listRecentNotes } from './notes.service';
 import { prisma } from '../../database/prisma';
@@ -62,6 +62,13 @@ function beforeRoutes() {
     try {
       const b = await updateBeneficiary(idParam.parse(req.params.id), updateBeneficiarySchema.parse(req.body), req.auth!, req.ip);
       res.json({ beneficiary: b });
+    } catch (e) { next(e); }
+  });
+
+  beneficiariesRouter.delete('/:id', write, async (req, res, next) => {
+    try {
+      await deleteBeneficiary(idParam.parse(req.params.id), req.auth!);
+      res.status(204).end();
     } catch (e) { next(e); }
   });
 

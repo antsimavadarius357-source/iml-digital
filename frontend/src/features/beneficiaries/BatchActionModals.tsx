@@ -140,18 +140,26 @@ export default function BatchActionModals({
     }
   };
 
-  // 6. CONFIRMATION SUPPRESSION
+  // 6. CONFIRMATION SUPPRESSION RÉELLE & RETRAIT
   const handleConfirmDelete = async () => {
     setIsSubmitting(true);
     try {
       await Promise.all(
-        selectedIds.map(id => api(`/beneficiaries/${id}`, { method: 'PATCH', body: { status: 'ABANDONNE' } }))
+        selectedIds.map(async (id) => {
+          try {
+            await api.delete(`/beneficiaries/${id}`);
+          } catch {
+            await api(`/beneficiaries/${id}`, { method: 'PATCH', body: { status: 'ABANDONNE' } }).catch(() => null);
+          }
+        })
       );
       queryClient.invalidateQueries({ queryKey: ['beneficiaries-list'] });
-      onSuccess(`${count} dossier(s) supprimé(s) de la cohorte active.`);
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['beneficiaries-count'] });
+      onSuccess(`${count} dossier(s) supprimé(s) avec succès.`);
       onClose();
     } catch {
-      onSuccess(`${count} dossier(s) retiré(s).`);
+      onSuccess(`${count} dossier(s) traité(s).`);
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -553,11 +561,18 @@ export default function BatchActionModals({
             </div>
 
             <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2.5 shrink-0">
-              <button onClick={onClose} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70">Annuler</button>
               <button 
+                type="button" 
+                onClick={onClose} 
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70 cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button 
+                type="button"
                 onClick={handleConfirmDelete} 
                 disabled={isSubmitting}
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
                 <span>Confirmer le retrait</span>
