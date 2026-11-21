@@ -154,7 +154,7 @@ export default function DocumentsPage() {
   // Statistiques dynamiques basées sur l'ensemble des documents
   const validatedCount = useMemo(() => docs.filter(d => d.status === 'VALIDE').length, [docs]);
   const pendingCount = useMemo(() => docs.filter(d => d.status === 'EN_ATTENTE').length, [docs]);
-  const totalBeneficiariesCount = bRes?.total || beneficiaries.length || 17;
+  const totalBeneficiariesCount = bRes?.total ?? beneficiaries.length ?? 0;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16 animate-fade-in-up font-sans text-slate-800">
