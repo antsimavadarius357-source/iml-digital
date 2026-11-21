@@ -51,84 +51,6 @@ interface BeneficiaryItem {
   createdAt?: string;
 }
 
-const DEFAULT_KNOWN_BENEFICIARIES: BeneficiaryItem[] = [
-  {
-    id: 'aac47994-4788-4561-9697-d5a1d9eec49c',
-    fileSeq: 3,
-    fileNumber: 'IML-2026-0003',
-    firstName: 'Marine',
-    lastName: 'LOUPE',
-    email: 'marine.loupe@test.com',
-    status: 'EN_ATTENTE',
-    type: 'STARTUP',
-    priority: 'NORMALE',
-    language: 'Français',
-    lastActivityAt: 'Aujourd\'hui',
-    projects: [{ id: 'p1', name: 'BioTech Solutions', stage: 'PROTOTYPE', legalStatus: 'SAS' }],
-    companyName: 'BioTech Solutions'
-  },
-  {
-    id: 'b14946a3-7339-4eb9-90b2-1279e9bd9143',
-    fileSeq: 4,
-    fileNumber: 'IML-2026-0004',
-    firstName: 'Sophiatech',
-    lastName: 'GABON',
-    email: 'contact@sophiatech-gabon.ga',
-    status: 'ACTIF',
-    type: 'ENTREPRISE',
-    priority: 'HAUTE',
-    language: 'Français',
-    lastActivityAt: 'Récemment',
-    projects: [{ id: 'p2', name: 'Sophiatech Gabon SARL', stage: 'CROISSANCE', legalStatus: 'SARL', companySize: 'PETITE' }],
-    companyName: 'Sophiatech Gabon SARL'
-  },
-  {
-    id: 'c50f48c6-1d36-4e23-b75f-e68ef3cb250b',
-    fileSeq: 5,
-    fileNumber: 'IML-2026-0005',
-    firstName: 'Coopérative',
-    lastName: 'AGRI-GABON',
-    email: 'direction@agrigabon-coop.ga',
-    status: 'ACTIF',
-    type: 'ENTREPRISE',
-    priority: 'NORMALE',
-    language: 'Français',
-    lastActivityAt: 'Récemment',
-    projects: [{ id: 'p3', name: 'Fédération Agricole & Développement', stage: 'CROISSANCE', legalStatus: 'COOPERATIVE', companySize: 'MOYENNE' }],
-    companyName: 'Fédération Agricole & Développement'
-  },
-  {
-    id: 'a2303e05-8a37-4ffc-b789-8cc5b89679e5',
-    fileSeq: 6,
-    fileNumber: 'IML-2026-0006',
-    firstName: 'Logistique',
-    lastName: 'EQUATORIALE',
-    email: 'contact@logistique-equatoriale.ga',
-    status: 'ACTIF',
-    type: 'ENTREPRISE',
-    priority: 'HAUTE',
-    language: 'Français',
-    lastActivityAt: 'Récemment',
-    projects: [{ id: 'p4', name: 'Logistique Équatoriale SA', stage: 'MATURITE', legalStatus: 'SA', companySize: 'GRANDE' }],
-    companyName: 'Logistique Équatoriale SA'
-  },
-  {
-    id: '47f4e1d6-b425-4fb1-9a8c-867220520860',
-    fileSeq: 2,
-    fileNumber: 'IML-2026-0002',
-    firstName: 'Sophie',
-    lastName: 'MARTIN',
-    email: 'sophie.martin@test.com',
-    status: 'EN_ATTENTE',
-    type: 'PORTEUR_IDEE',
-    priority: 'NORMALE',
-    language: 'Français',
-    lastActivityAt: 'Récemment',
-    projects: [{ id: 'p0', name: 'Projet Sophie Solutions', stage: 'IDEE' }],
-    companyName: 'Projet Sophie Solutions'
-  }
-];
-
 interface BeneficiariesResponse {
   items: BeneficiaryItem[];
   total: number;
@@ -192,57 +114,14 @@ export default function BeneficiariesPage() {
 
   const apiItems = data?.items || [];
   const beneficiaries = useMemo(() => {
-    try {
-      // Pour le coach : STRICTEMENT et UNIQUEMENT les bénéficiaires autorisés par le backend (qui lui sont confiés/programmés par l'agent)
-      if (isCoach) {
-        return (apiItems || []).map(item => ({
-          ...item,
-          companyName: item.projects?.[0]?.name || item.companyName,
-          type: item.type || 'PORTEUR_IDEE',
-        }));
-      }
-
-      if (!apiItems || !Array.isArray(apiItems) || apiItems.length === 0) {
-        return DEFAULT_KNOWN_BENEFICIARIES;
-      }
-      const list: BeneficiaryItem[] = [];
-      apiItems.forEach(item => {
-        if (!item) return;
-        const itemEmail = typeof item.email === 'string' ? item.email.toLowerCase().trim() : '';
-        const match = DEFAULT_KNOWN_BENEFICIARIES.find(d => {
-          if (!d) return false;
-          if (d.id && item.id && d.id === item.id) return true;
-          const dEmail = typeof d.email === 'string' ? d.email.toLowerCase().trim() : '';
-          return Boolean(dEmail && itemEmail && dEmail === itemEmail);
-        });
-        const pName = item.projects?.[0]?.name || match?.companyName || item.companyName;
-        list.push({
-          ...item,
-          companyName: pName,
-          type: item.type || match?.type || 'PORTEUR_IDEE',
-        });
-      });
-
-      DEFAULT_KNOWN_BENEFICIARIES.forEach(d => {
-        if (!d) return;
-        const dEmail = typeof d.email === 'string' ? d.email.toLowerCase().trim() : '';
-        const alreadyExists = list.some(x => {
-          if (!x) return false;
-          if (x.id && d.id && x.id === d.id) return true;
-          const xEmail = typeof x.email === 'string' ? x.email.toLowerCase().trim() : '';
-          return Boolean(xEmail && dEmail && xEmail === dEmail);
-        });
-        if (!alreadyExists) {
-          list.push(d);
-        }
-      });
-      return list;
-    } catch (err) {
-      console.error('Erreur lors du calcul de la liste des bénéficiaires:', err);
-      return isCoach ? [] : DEFAULT_KNOWN_BENEFICIARIES;
-    }
-  }, [apiItems, isCoach]);
-  const total = isCoach ? (data?.total ?? beneficiaries.length) : Math.max(data?.total || 0, beneficiaries.length);
+    if (!apiItems || !Array.isArray(apiItems)) return [];
+    return apiItems.map(item => ({
+      ...item,
+      companyName: item.projects?.[0]?.name || item.companyName,
+      type: item.type || 'PORTEUR_IDEE',
+    }));
+  }, [apiItems]);
+  const total = data?.total ?? beneficiaries.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Filtrage des bénéficiaires
