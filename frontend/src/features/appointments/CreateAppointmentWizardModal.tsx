@@ -11,7 +11,8 @@ import {
   Check,
   Send,
   UserCheck,
-  Users
+  Users,
+  ExternalLink
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
@@ -499,16 +500,25 @@ export default function CreateAppointmentWizardModal({
                 </div>
               </div>
 
-              {/* Champs spécifiques à la VISIOCONFÉRENCE : Lien sécurisé en 1 clic */}
+              {/* Champs spécifiques à la VISIOCONFÉRENCE : Lien direct */}
               {sessionType === 'video' && (
-                <div className="space-y-2 p-3.5 rounded-xl bg-orange-50/50 border border-orange-200/70 animate-in fade-in duration-150">
-                  <div className="flex items-center justify-between">
+                <div className="space-y-2.5 p-3.5 rounded-xl bg-orange-50/50 border border-orange-200/70 animate-in fade-in duration-150">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                     <label className="block text-xs font-semibold text-slate-800">
-                      Lien direct de visioconférence <span className="text-[#f06553]">*</span>
+                      Lien de visioconférence <span className="text-[#f06553]">*</span>
                     </label>
-                    <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                      <Check className="size-3" /> Salle sécurisée prête (sans inscription)
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href="https://meet.google.com/new"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10.5px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded-md border border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Ouvrir Google Meet pour créer un lien"
+                      >
+                        <span>Créer un lien Google Meet</span>
+                        <ExternalLink className="size-3" />
+                      </a>
+                    </div>
                   </div>
 
                   <div className="flex gap-2">
@@ -516,7 +526,7 @@ export default function CreateAppointmentWizardModal({
                       type="url"
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://meet.jit.si/imldigit-..."
+                      placeholder="Collez ici votre lien Google Meet (https://meet.google.com/...) ou Jitsi"
                       className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-[#f06553] focus:ring-1 focus:ring-[#f06553] text-slate-800 font-mono shadow-2xs"
                     />
                     <button
@@ -534,9 +544,14 @@ export default function CreateAppointmentWizardModal({
                     </button>
                   </div>
 
-                  <p className="text-[10px] text-slate-500">
-                    💡 Ce lien d'accès direct sera automatiquement inséré dans la convocation envoyée au candidat. Vous pouvez aussi coller votre propre lien Google Meet ou Zoom.
-                  </p>
+                  <div className="p-2.5 rounded-lg bg-blue-50/80 border border-blue-200 text-[11px] text-blue-900 leading-snug space-y-1">
+                    <div className="font-bold flex items-center gap-1 text-blue-950">
+                      <span>📱 Conseil pour les téléphones & iPhones :</span>
+                    </div>
+                    <p>
+                      Les iPhones bloquent souvent l'audio/caméra dans les navigateurs sur Jitsi. Pour que le candidat accède directement sans installer d'application, cliquez sur <strong>« Créer un lien Google Meet »</strong> ci-dessus, puis collez l'adresse Google Meet générée.
+                    </p>
+                  </div>
                 </div>
               )}
 
