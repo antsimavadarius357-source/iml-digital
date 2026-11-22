@@ -55,7 +55,7 @@ export default function PublicApplicationPage() {
 
   // Spécifique Groupe 1 (Porteur d'Idée / Startup)
   const [role, setRole] = useState<'PORTEUR_UNIQUE' | 'CO_FONDATEUR' | 'LEADER_PROJET'>('PORTEUR_UNIQUE');
-  const [ageRange, setAgeRange] = useState<'MOINS_25' | '25_35' | 'PLUS_35'>('25_35');
+  const [age, setAge] = useState('');
   const [showcaseUrl, setShowcaseUrl] = useState('');
   const [marketTest, setMarketTest] = useState<'OUI' | 'EN_COURS' | 'NON'>('NON');
   const [oapiProtection, setOapiProtection] = useState<'OUI' | 'EN_COURS' | 'NON'>('NON');
@@ -335,7 +335,8 @@ export default function PublicApplicationPage() {
         companyName: compName,
         // Spécifique Porteur / Startup
         role: isIndividualOrStartup ? role : undefined,
-        ageRange: isIndividualOrStartup ? ageRange : undefined,
+        age: isIndividualOrStartup && age.trim() ? (parseInt(age.trim(), 10) || age.trim()) : undefined,
+        ageRange: isIndividualOrStartup && age.trim() ? (parseInt(age.trim(), 10) < 25 ? 'MOINS_25' : parseInt(age.trim(), 10) <= 35 ? '25_35' : 'PLUS_35') : undefined,
         // Spécifique PME / Organisation
         position: isPmeOrOrg ? (position.trim() || undefined) : undefined,
         businessPhone: isPmeOrOrg ? (businessPhone.trim() || undefined) : undefined,
@@ -800,17 +801,17 @@ export default function PublicApplicationPage() {
 
                           <div>
                             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                              Tranche d'âge
+                              Âge
                             </label>
-                            <select
-                              value={ageRange}
-                              onChange={(e) => setAgeRange(e.target.value as any)}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
-                            >
-                              <option value="MOINS_25">Moins de 25 ans</option>
-                              <option value="25_35">25 à 35 ans</option>
-                              <option value="PLUS_35">Plus de 35 ans</option>
-                            </select>
+                            <input
+                              type="number"
+                              min={16}
+                              max={99}
+                              value={age}
+                              onChange={(e) => setAge(e.target.value)}
+                              placeholder="Âge"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] transition-all"
+                            />
                           </div>
                         </div>
                       )}
@@ -825,7 +826,7 @@ export default function PublicApplicationPage() {
                             <input
                               value={position}
                               onChange={(e) => setPosition(e.target.value)}
-                              placeholder={structureType === 'ORGANISATION' ? "Ex: Président(e), Secrétaire Général" : "Ex: Gérant(e), DG, Administrateur"}
+                              placeholder={structureType === 'ORGANISATION' ? "Président(e), Secrétaire Général" : "Gérant(e), DG, Administrateur"}
                               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
                             />
                           </div>
@@ -837,7 +838,7 @@ export default function PublicApplicationPage() {
                             <input
                               value={headquartersAddress}
                               onChange={(e) => setHeadquartersAddress(e.target.value)}
-                              placeholder="Ex: Oloumi, Boulevard Triomphal, Akanda..."
+                              placeholder="Oloumi, Boulevard Triomphal, Akanda..."
                               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
                             />
                           </div>
@@ -901,7 +902,7 @@ export default function PublicApplicationPage() {
                               value={city}
                               onChange={(e) => setCity(e.target.value)}
                               required 
-                              placeholder="Ex: Libreville"
+                              placeholder="Libreville"
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
                             <datalist id="gabon-cities-list">
@@ -931,7 +932,7 @@ export default function PublicApplicationPage() {
                               list="arrondissements-list"
                               value={arrondissement}
                               onChange={(e) => setArrondissement(e.target.value)}
-                              placeholder="Ex: 1er, 2e, 3e, 4e..."
+                              placeholder="1er, 2e, 3e, 4e..."
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
                             <datalist id="arrondissements-list">
@@ -956,7 +957,7 @@ export default function PublicApplicationPage() {
                               type="text"
                               value={quartier}
                               onChange={(e) => setQuartier(e.target.value)}
-                              placeholder="Ex: Louis, Oloumi, Nzeng-Ayong..."
+                              placeholder="Louis, Oloumi, Nzeng-Ayong..."
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
                           </div>
@@ -992,7 +993,7 @@ export default function PublicApplicationPage() {
                             value={companyName}
                             onChange={(e) => setCompanyName(e.target.value)}
                             required 
-                            placeholder={structureType === 'PME' ? "Ex: Gabon Services & Logistique SARL" : "Ex: PayGabon Tech"}
+                            placeholder={structureType === 'PME' ? "Gabon Services & Logistique SARL" : "PayGabon Tech"}
                             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
@@ -1251,7 +1252,7 @@ export default function PublicApplicationPage() {
                               <input 
                                 value={filiere}
                                 onChange={(e) => setFiliere(e.target.value)}
-                                placeholder="Ex: Manioc & Dérivés, Maraîchage, Pêche, Artisanat..."
+                                placeholder="Manioc & Dérivés, Maraîchage, Pêche, Artisanat..."
                                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
                               />
                             </div>
