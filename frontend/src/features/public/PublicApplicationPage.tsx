@@ -119,26 +119,22 @@ export default function PublicApplicationPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [province, setProvince] = useState('Estuaire');
-  const [city, setCity] = useState('Libreville');
+  const [province, setProvince] = useState('');
+  const [city, setCity] = useState('');
   const [arrondissement, setArrondissement] = useState('');
   const [department, setDepartment] = useState('');
   const [quartier, setQuartier] = useState('');
 
   const handleProvinceChange = (newProvince: string) => {
     setProvince(newProvince);
-    const defaultCity = PROVINCE_CITIES[newProvince]?.[0] || '';
-    setCity(defaultCity);
-    if (newProvince === 'Estuaire') {
-      setDepartment('');
-    } else {
-      setArrondissement('');
-      setDepartment(PROVINCE_DEPARTMENTS[newProvince]?.[0] || '');
-    }
+    setCity('');
+    setArrondissement('');
+    setDepartment('');
+    setQuartier('');
   };
 
   // Spécifique Groupe 1 (Porteur d'Idée / Startup)
-  const [role, setRole] = useState('Porteur de projet');
+  const [role, setRole] = useState('');
   const [customRole, setCustomRole] = useState('');
   const [age, setAge] = useState('');
   const [showcaseUrl, setShowcaseUrl] = useState('');
@@ -413,8 +409,8 @@ export default function PublicApplicationPage() {
         photo: (structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP') ? (photoPreview || undefined) : undefined,
         email: email.trim(),
         phone: phone.trim(),
-        province: province.trim() || 'Estuaire',
-        city: city.trim() || (province === 'Estuaire' ? 'Libreville' : ''),
+        province: province.trim() || undefined,
+        city: city.trim() || undefined,
         arrondissement: province === 'Estuaire' && arrondissement.trim() ? arrondissement.trim() : undefined,
         department: province !== 'Estuaire' && department.trim() ? department.trim() : undefined,
         quartier: quartier.trim() || undefined,
@@ -849,7 +845,7 @@ export default function PublicApplicationPage() {
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
                             required 
-                            placeholder="Prénom"
+                            placeholder=""
                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
@@ -862,7 +858,7 @@ export default function PublicApplicationPage() {
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
                             required 
-                            placeholder="Nom de famille"
+                            placeholder=""
                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
@@ -880,6 +876,7 @@ export default function PublicApplicationPage() {
                               onChange={(e) => setRole(e.target.value)}
                               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
                             >
+                              <option value="">Sélectionnez un rôle...</option>
                               <option value="Porteur de projet">Porteur de projet</option>
                               <option value="Co-fondateur">Co-fondateur</option>
                               <option value="Associé">Associé</option>
@@ -895,7 +892,7 @@ export default function PublicApplicationPage() {
                                 type="text"
                                 value={customRole}
                                 onChange={(e) => setCustomRole(e.target.value)}
-                                placeholder="Précisez votre rôle"
+                                placeholder=""
                                 className="w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
                               />
                             )}
@@ -911,7 +908,7 @@ export default function PublicApplicationPage() {
                               max={99}
                               value={age}
                               onChange={(e) => setAge(e.target.value)}
-                              placeholder="Âge"
+                              placeholder=""
                               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] transition-all"
                             />
                           </div>
@@ -928,7 +925,7 @@ export default function PublicApplicationPage() {
                             <input
                               value={position}
                               onChange={(e) => setPosition(e.target.value)}
-                              placeholder={structureType === 'ORGANISATION' ? "Président(e), Secrétaire Général" : "Gérant(e), DG, Administrateur"}
+                              placeholder=""
                               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
                             />
                           </div>
@@ -940,7 +937,7 @@ export default function PublicApplicationPage() {
                             <input
                               value={headquartersAddress}
                               onChange={(e) => setHeadquartersAddress(e.target.value)}
-                              placeholder="Oloumi, Boulevard Triomphal, Akanda..."
+                              placeholder=""
                               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
                             />
                           </div>
@@ -952,7 +949,7 @@ export default function PublicApplicationPage() {
                             <input
                               value={businessPhone}
                               onChange={(e) => setBusinessPhone(e.target.value)}
-                              placeholder="Fixe ou second contact officiel"
+                              placeholder=""
                               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
                             />
                           </div>
@@ -970,7 +967,7 @@ export default function PublicApplicationPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required 
-                            placeholder={isPmeOrOrg ? "direction@entreprise.ga" : "votre-email@gmail.com"}
+                            placeholder=""
                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
@@ -984,7 +981,7 @@ export default function PublicApplicationPage() {
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                             required 
-                            placeholder="+241 77 00 00 00"
+                            placeholder=""
                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
@@ -1003,6 +1000,7 @@ export default function PublicApplicationPage() {
                               onChange={(e) => handleProvinceChange(e.target.value)}
                               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
                             >
+                              <option value="">Sélectionnez une province...</option>
                               {GABON_PROVINCES.map((p) => (
                                 <option key={p} value={p}>{p}</option>
                               ))}
@@ -1020,7 +1018,7 @@ export default function PublicApplicationPage() {
                               value={city}
                               onChange={(e) => setCity(e.target.value)}
                               required 
-                              placeholder={PROVINCE_CITIES[province]?.[0] || "Ville"}
+                              placeholder=""
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
                             <datalist id="current-province-cities-list">
@@ -1041,7 +1039,7 @@ export default function PublicApplicationPage() {
                                 list="arrondissements-list"
                                 value={arrondissement}
                                 onChange={(e) => setArrondissement(e.target.value)}
-                                placeholder="1er, 2e, 3e, 4e..."
+                                placeholder=""
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                               />
                               <datalist id="arrondissements-list">
@@ -1067,7 +1065,7 @@ export default function PublicApplicationPage() {
                                 list="current-province-departments-list"
                                 value={department}
                                 onChange={(e) => setDepartment(e.target.value)}
-                                placeholder={PROVINCE_DEPARTMENTS[province]?.[0] || "Département"}
+                                placeholder=""
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                               />
                               <datalist id="current-province-departments-list">
@@ -1088,7 +1086,7 @@ export default function PublicApplicationPage() {
                               list="current-province-quartiers-list"
                               value={quartier}
                               onChange={(e) => setQuartier(e.target.value)}
-                              placeholder="Quartier, secteur ou zone..."
+                              placeholder=""
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
                             <datalist id="current-province-quartiers-list">
