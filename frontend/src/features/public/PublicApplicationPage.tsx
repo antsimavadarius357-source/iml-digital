@@ -290,7 +290,7 @@ export default function PublicApplicationPage() {
       applicantData: {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        photo: photoPreview || undefined,
+        photo: (structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP') ? (photoPreview || undefined) : undefined,
         email: email.trim(),
         phone: phone.trim(),
         city: city.trim() || 'Libreville',
@@ -536,7 +536,13 @@ export default function PublicApplicationPage() {
                               key={type.id}
                               type="button"
                               onClick={() => {
-                                setStructureType(prev => (prev === type.id ? '' : (type.id as any)));
+                                setStructureType(prev => {
+                                  const nextVal = prev === type.id ? '' : (type.id as any);
+                                  if (nextVal === 'PME' || nextVal === 'ORGANISATION') {
+                                    handleRemovePhoto();
+                                  }
+                                  return nextVal;
+                                });
                                 setStepError('');
                               }}
                               className={`p-3 sm:p-4 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between min-h-[110px] sm:h-36 select-none ${
@@ -609,60 +615,62 @@ export default function PublicApplicationPage() {
                         </p>
                       </div>
 
-                      {/* Photo d'identité / Portrait du candidat (comme sur la fiche agent) */}
-                      <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center gap-4">
-                        <div className="relative size-16 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-inner group">
-                          {photoPreview ? (
-                            <img src={photoPreview} alt="Aperçu photo" className="size-full object-cover" />
-                          ) : (
-                            <User className="size-8 text-slate-400" />
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="block text-xs font-bold text-slate-800">
-                              Photo du porteur de projet / dirigeant
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-medium px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">
-                              Recommandé
-                            </span>
-                          </div>
-                          <span className="block text-[11px] text-slate-400 mt-0.5 mb-2">
-                            Prise ou fichier (JPG, PNG – max 5 Mo)
-                          </span>
-
-                          <input 
-                            type="file" 
-                            ref={photoInputRef}
-                            accept="image/*"
-                            onChange={handlePhotoChange}
-                            className="hidden" 
-                          />
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => photoInputRef.current?.click()}
-                              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer hover:text-[#f06553] shadow-2xs"
-                            >
-                              <Camera className="size-3.5 text-[#f06553]" />
-                              <span>{photoPreview ? 'Changer la photo' : 'Prendre / Charger'}</span>
-                            </button>
-
-                            {photoPreview && (
-                              <button
-                                type="button"
-                                onClick={handleRemovePhoto}
-                                className="px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-semibold transition cursor-pointer"
-                                title="Supprimer la photo"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </button>
+                      {/* Photo d'identité / Portrait du candidat (uniquement pour Bénéficiaire individuel / Porteur d'idée ou Startup) */}
+                      {(structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP') && (
+                        <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center gap-4">
+                          <div className="relative size-16 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-inner group">
+                            {photoPreview ? (
+                              <img src={photoPreview} alt="Aperçu photo" className="size-full object-cover" />
+                            ) : (
+                              <User className="size-8 text-slate-400" />
                             )}
                           </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="block text-xs font-bold text-slate-800">
+                                Photo du porteur de projet / dirigeant
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">
+                                Recommandé
+                              </span>
+                            </div>
+                            <span className="block text-[11px] text-slate-400 mt-0.5 mb-2">
+                              Prise ou fichier (JPG, PNG – max 5 Mo)
+                            </span>
+
+                            <input 
+                              type="file" 
+                              ref={photoInputRef}
+                              accept="image/*"
+                              onChange={handlePhotoChange}
+                              className="hidden" 
+                            />
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => photoInputRef.current?.click()}
+                                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer hover:text-[#f06553] shadow-2xs"
+                              >
+                                <Camera className="size-3.5 text-[#f06553]" />
+                                <span>{photoPreview ? 'Changer la photo' : 'Prendre / Charger'}</span>
+                              </button>
+
+                              {photoPreview && (
+                                <button
+                                  type="button"
+                                  onClick={handleRemovePhoto}
+                                  className="px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-semibold transition cursor-pointer"
+                                  title="Supprimer la photo"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       <div className="grid sm:grid-cols-2 gap-5">
                         <div>
