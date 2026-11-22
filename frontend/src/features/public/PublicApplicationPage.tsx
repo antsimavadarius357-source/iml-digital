@@ -793,8 +793,8 @@ export default function PublicApplicationPage() {
                               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
                             >
                               <option value="PORTEUR_UNIQUE">Porteur de projet unique</option>
-                              <option value="CO_FONDATEUR">Co-fondateur / Associé</option>
-                              <option value="LEADER_PROJET">Chef d'équipe / Leader</option>
+                              <option value="CO_FONDATEUR">Co-fondateur et Associé</option>
+                              <option value="LEADER_PROJET">Chef d'équipe et Leader</option>
                             </select>
                           </div>
 
@@ -808,7 +808,7 @@ export default function PublicApplicationPage() {
                               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
                             >
                               <option value="MOINS_25">Moins de 25 ans</option>
-                              <option value="25_35">25 à 35 ans (Jeune entrepreneur)</option>
+                              <option value="25_35">25 à 35 ans</option>
                               <option value="PLUS_35">Plus de 35 ans</option>
                             </select>
                           </div>
@@ -820,7 +820,7 @@ export default function PublicApplicationPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
                           <div className="sm:col-span-1">
                             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                              Fonction / Mandat officiel <span className="text-[#f06553]">*</span>
+                              Fonction et Mandat officiel <span className="text-[#f06553]">*</span>
                             </label>
                             <input
                               value={position}
@@ -832,7 +832,7 @@ export default function PublicApplicationPage() {
 
                           <div className="sm:col-span-1">
                             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                              Quartier / Zone du Siège
+                              Quartier et Zone du Siège
                             </label>
                             <input
                               value={headquartersAddress}
@@ -844,7 +844,7 @@ export default function PublicApplicationPage() {
 
                           <div className="sm:col-span-1">
                             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                              Téléphone du bureau / Siège (Optionnel)
+                              Téléphone du bureau et Siège (Optionnel)
                             </label>
                             <input
                               value={businessPhone}
@@ -874,7 +874,7 @@ export default function PublicApplicationPage() {
 
                         <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Téléphone WhatsApp / Appel direct <span className="text-[#f06553]">*</span>
+                            Téléphone WhatsApp et Appel direct <span className="text-[#f06553]">*</span>
                           </label>
                           <input 
                             type="tel" 

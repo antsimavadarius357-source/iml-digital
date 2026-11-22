@@ -674,7 +674,7 @@ export default function ApplicationDetailPage() {
                   </div>
                   {(c.position || c.role) && (
                     <span className="text-xs text-slate-500 font-medium block mt-0.5">
-                      {c.position || (c.role === 'PORTEUR_UNIQUE' ? 'Porteur de projet unique' : c.role === 'CO_FONDATEUR' ? 'Co-fondateur' : c.role === 'LEADER_PROJET' ? 'Chef de projet' : c.role)}
+                      {c.position || (c.role === 'PORTEUR_UNIQUE' ? 'Porteur de projet unique' : c.role === 'CO_FONDATEUR' ? 'Co-fondateur et Associé' : c.role === 'LEADER_PROJET' ? "Chef d'équipe et Leader" : c.role)}
                       {c.ageRange ? ` • ${c.ageRange === '25_35' ? '25-35 ans' : c.ageRange === 'MOINS_25' ? '< 25 ans' : '> 35 ans'}` : ''}
                     </span>
                   )}
