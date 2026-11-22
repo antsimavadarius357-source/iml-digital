@@ -50,11 +50,12 @@ export default function PublicApplicationPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('Libreville');
+  const [arrondissement, setArrondissement] = useState('');
+  const [quartier, setQuartier] = useState('');
 
   // Spécifique Groupe 1 (Porteur d'Idée / Startup)
   const [role, setRole] = useState<'PORTEUR_UNIQUE' | 'CO_FONDATEUR' | 'LEADER_PROJET'>('PORTEUR_UNIQUE');
   const [ageRange, setAgeRange] = useState<'MOINS_25' | '25_35' | 'PLUS_35'>('25_35');
-  const [availability, setAvailability] = useState<'TEMPS_PLEIN' | 'TEMPS_PARTIEL'>('TEMPS_PLEIN');
   const [showcaseUrl, setShowcaseUrl] = useState('');
   const [marketTest, setMarketTest] = useState<'OUI' | 'EN_COURS' | 'NON'>('NON');
   const [oapiProtection, setOapiProtection] = useState<'OUI' | 'EN_COURS' | 'NON'>('NON');
@@ -328,12 +329,13 @@ export default function PublicApplicationPage() {
         email: email.trim(),
         phone: phone.trim(),
         city: city.trim() || 'Libreville',
+        arrondissement: arrondissement.trim() || undefined,
+        quartier: quartier.trim() || undefined,
         structureType,
         companyName: compName,
         // Spécifique Porteur / Startup
         role: isIndividualOrStartup ? role : undefined,
         ageRange: isIndividualOrStartup ? ageRange : undefined,
-        availability: isIndividualOrStartup ? availability : undefined,
         // Spécifique PME / Organisation
         position: isPmeOrOrg ? (position.trim() || undefined) : undefined,
         businessPhone: isPmeOrOrg ? (businessPhone.trim() || undefined) : undefined,
@@ -780,7 +782,7 @@ export default function PublicApplicationPage() {
 
                       {/* Champs spécifiques : Groupe 1 (Porteur / Startup) */}
                       {isIndividualOrStartup && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-orange-50/40 border border-orange-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-orange-50/40 border border-orange-100">
                           <div>
                             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                               Rôle dans le projet
@@ -788,7 +790,7 @@ export default function PublicApplicationPage() {
                             <select
                               value={role}
                               onChange={(e) => setRole(e.target.value as any)}
-                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553]"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
                             >
                               <option value="PORTEUR_UNIQUE">Porteur de projet unique</option>
                               <option value="CO_FONDATEUR">Co-fondateur / Associé</option>
@@ -803,25 +805,11 @@ export default function PublicApplicationPage() {
                             <select
                               value={ageRange}
                               onChange={(e) => setAgeRange(e.target.value as any)}
-                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553]"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
                             >
                               <option value="MOINS_25">Moins de 25 ans</option>
                               <option value="25_35">25 à 35 ans (Jeune entrepreneur)</option>
                               <option value="PLUS_35">Plus de 35 ans</option>
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                              Disponibilité pour le projet
-                            </label>
-                            <select
-                              value={availability}
-                              onChange={(e) => setAvailability(e.target.value as any)}
-                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553]"
-                            >
-                              <option value="TEMPS_PLEIN">100% Temps plein</option>
-                              <option value="TEMPS_PARTIEL">Temps partiel (emploi / études)</option>
                             </select>
                           </div>
                         </div>
@@ -899,44 +887,80 @@ export default function PublicApplicationPage() {
                         </div>
                       </div>
 
-                      {/* Ville de localisation */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          {isPmeOrOrg ? "Ville d'implantation au Gabon" : "Ville de résidence au Gabon"} <span className="text-[#f06553]">*</span>
-                        </label>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          {['Libreville', 'Akanda', 'Owendo', 'Port-Gentil', 'Franceville', 'Oyem', 'Moanda', 'Autre ville'].map((v) => {
-                            const isSelected = city === v || (v === 'Autre ville' && !['Libreville', 'Akanda', 'Owendo', 'Port-Gentil', 'Franceville', 'Oyem', 'Moanda'].includes(city));
-                            return (
-                              <button
-                                key={v}
-                                type="button"
-                                onClick={() => {
-                                  if (v === 'Autre ville') {
-                                    setCity('Autre');
-                                  } else {
-                                    setCity(v);
-                                  }
-                                }}
-                                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer text-center ${
-                                  isSelected
-                                    ? 'bg-[#23c3b1] text-white border-[#23c3b1] shadow-2xs'
-                                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                }`}
-                              >
-                                {v}
-                              </button>
-                            );
-                          })}
+                      {/* Localisation : Ville, Arrondissement et Quartier (champs saisissables librement) */}
+                      <div className="space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {/* Ville */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                              {isPmeOrOrg ? "Ville d'implantation" : "Ville de résidence"} <span className="text-[#f06553]">*</span>
+                            </label>
+                            <input 
+                              type="text"
+                              list="gabon-cities-list"
+                              value={city}
+                              onChange={(e) => setCity(e.target.value)}
+                              required 
+                              placeholder="Ex: Libreville"
+                              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            />
+                            <datalist id="gabon-cities-list">
+                              <option value="Libreville" />
+                              <option value="Akanda" />
+                              <option value="Owendo" />
+                              <option value="Ntoum" />
+                              <option value="Port-Gentil" />
+                              <option value="Franceville" />
+                              <option value="Oyem" />
+                              <option value="Moanda" />
+                              <option value="Lambaréné" />
+                              <option value="Mouila" />
+                              <option value="Tchibanga" />
+                              <option value="Makokou" />
+                              <option value="Koulamoutou" />
+                            </datalist>
+                          </div>
+
+                          {/* Arrondissement */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                              Arrondissement
+                            </label>
+                            <input 
+                              type="text"
+                              list="arrondissements-list"
+                              value={arrondissement}
+                              onChange={(e) => setArrondissement(e.target.value)}
+                              placeholder="Ex: 1er, 2e, 3e, 4e..."
+                              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            />
+                            <datalist id="arrondissements-list">
+                              <option value="1er arrondissement" />
+                              <option value="2e arrondissement" />
+                              <option value="3e arrondissement" />
+                              <option value="4e arrondissement" />
+                              <option value="5e arrondissement" />
+                              <option value="6e arrondissement" />
+                              <option value="Akanda - 1er arrondissement" />
+                              <option value="Akanda - 2e arrondissement" />
+                              <option value="Owendo" />
+                            </datalist>
+                          </div>
+
+                          {/* Quartier */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                              Quartier
+                            </label>
+                            <input 
+                              type="text"
+                              value={quartier}
+                              onChange={(e) => setQuartier(e.target.value)}
+                              placeholder="Ex: Louis, Oloumi, Nzeng-Ayong..."
+                              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            />
+                          </div>
                         </div>
-                        {city === 'Autre' && (
-                          <input
-                            type="text"
-                            placeholder="Précisez votre ville au Gabon (ex: Lambaréné, Mouila, Tchibanga...)"
-                            onChange={(e) => setCity(e.target.value)}
-                            className="w-full mt-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-[#23c3b1]"
-                          />
-                        )}
                       </div>
 
                     </div>

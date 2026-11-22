@@ -676,7 +676,6 @@ export default function ApplicationDetailPage() {
                     <span className="text-xs text-slate-500 font-medium block mt-0.5">
                       {c.position || (c.role === 'PORTEUR_UNIQUE' ? 'Porteur de projet unique' : c.role === 'CO_FONDATEUR' ? 'Co-fondateur' : c.role === 'LEADER_PROJET' ? 'Chef de projet' : c.role)}
                       {c.ageRange ? ` • ${c.ageRange === '25_35' ? '25-35 ans' : c.ageRange === 'MOINS_25' ? '< 25 ans' : '> 35 ans'}` : ''}
-                      {c.availability ? ` • ${c.availability === 'TEMPS_PLEIN' ? 'Temps plein' : 'Temps partiel'}` : ''}
                     </span>
                   )}
                 </div>
@@ -733,9 +732,17 @@ export default function ApplicationDetailPage() {
                   </span>
                   <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
                     <MapPin className="size-3.5 text-[#f06553] shrink-0" />
-                    <span>{c.city || 'Libreville, Gabon'}</span>
+                    <span>
+                      {c.city || 'Libreville'}
+                      {c.arrondissement ? ` (${c.arrondissement})` : ''}
+                    </span>
                   </div>
-                  {c.headquartersAddress && (
+                  {c.quartier && (
+                    <span className="text-xs text-slate-500 font-medium block mt-0.5">
+                      Quartier : {c.quartier}
+                    </span>
+                  )}
+                  {c.headquartersAddress && !c.quartier && (
                     <span className="text-xs text-slate-500 font-medium block mt-0.5">
                       Zone : {c.headquartersAddress}
                     </span>
