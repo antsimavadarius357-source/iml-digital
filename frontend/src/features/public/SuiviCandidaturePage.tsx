@@ -16,7 +16,11 @@ import {
   Loader2,
   Eye,
   Printer,
-  ExternalLink
+  ExternalLink,
+  Upload,
+  Plus,
+  X,
+  Paperclip,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -38,6 +42,7 @@ interface TrackedApplication {
   stage: string;
   documents?: Array<{
     id: string;
+    fileId?: string;
     title: string;
     category?: string;
     status?: string;
@@ -104,7 +109,15 @@ export default function SuiviCandidaturePage() {
   const [activeQuery, setActiveQuery] = useState(initialQuery);
   const [isDetailView, setIsDetailView] = useState(initialView);
 
-  const { data, isLoading, isError } = useQuery({
+  // États pour l'ajout de documents complémentaires en ligne
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('DOCUMENT_COMPLEMENTAIRE');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(null);
+
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['public-track-app', activeQuery],
     queryFn: () => api<{ application: TrackedApplication }>(`/applications/public/track?q=${encodeURIComponent(activeQuery)}`),
     enabled: Boolean(activeQuery.trim()),
@@ -112,6 +125,63 @@ export default function SuiviCandidaturePage() {
   });
 
   const app = data?.application;
+
+  const handleUploadDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      setUploadErrorMessage("Veuillez sélectionner un fichier (PDF, image ou document).");
+      return;
+    }
+    if (!app) return;
+
+    setIsUploading(true);
+    setUploadErrorMessage(null);
+    setUploadSuccessMessage(null);
+
+    try {
+      // 1. Envoi multipart sur la route de téléversement
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+
+      const uploadRes = await fetch('/api/v1/applications/public/attachments', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'iml-digital' },
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        const errJson = await uploadRes.json().catch(() => ({}));
+        throw new Error(errJson?.error?.message || 'Erreur lors du téléversement du fichier.');
+      }
+
+      const uploadData = await uploadRes.json();
+      const att = uploadData.attachment;
+
+      // 2. Rattachement automatique au dossier candidat
+      await api.post('/applications/public/add-document', {
+        q: app.referenceCode || app.id,
+        attachment: {
+          fileId: att.fileId,
+          originalName: uploadFile.name,
+          size: uploadFile.size,
+          mimeType: uploadFile.type,
+          category: selectedCategory,
+        }
+      });
+
+      setUploadSuccessMessage(`✓ Le document "${uploadFile.name}" a été ajouté avec succès à votre dossier !`);
+      setUploadFile(null);
+      await refetch();
+      setTimeout(() => {
+        setIsUploadModalOpen(false);
+        setUploadSuccessMessage(null);
+      }, 2500);
+    } catch (err: any) {
+      setUploadErrorMessage(err?.message || "Erreur lors de l'enregistrement du document.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (initialQuery && initialQuery !== activeQuery) {
@@ -191,6 +261,163 @@ export default function SuiviCandidaturePage() {
     }
     return null;
   }, [app]);
+
+  // Modale partagée pour téléverser un document complémentaire
+  const renderUploadModal = () => {
+    if (!isUploadModalOpen || !app) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 border border-slate-200 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="size-9 rounded-xl bg-teal-50 border border-teal-200/80 flex items-center justify-center text-[#23c3b1]">
+                <Upload className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Ajouter un document au dossier
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Réf. {app.referenceCode} • {app.companyName}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isUploading) {
+                  setIsUploadModalOpen(false);
+                  setUploadFile(null);
+                  setUploadErrorMessage(null);
+                }
+              }}
+              disabled={isUploading}
+              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleUploadDocument} className="space-y-4">
+            {/* Choix de la catégorie */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Type de document à transmettre :
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                disabled={isUploading}
+                className="w-full rounded-xl border border-slate-300 shadow-2xs focus:border-[#23c3b1] focus:ring-2 focus:ring-[#23c3b1]/20 text-xs font-medium text-slate-800 p-2.5 bg-white cursor-pointer"
+              >
+                <option value="IDENTITE">Pièce d'identité (CNI, Passeport, Récépissé)</option>
+                <option value="BUSINESS_PLAN">Business Plan / Présentation de projet</option>
+                <option value="JURIDIQUE">Documents Juridiques (Statuts, RCCM, NIF)</option>
+                <option value="FINANCIER">Documents Financiers (Devis, Bilan, Trésorerie)</option>
+                <option value="DOCUMENT_COMPLEMENTAIRE">Autre justificatif ou pièce demandée</option>
+              </select>
+            </div>
+
+            {/* Sélection du fichier */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Fichier justificatif (PDF, image, Word, Excel) :
+              </label>
+              <div className="relative border-2 border-dashed border-slate-300 hover:border-[#23c3b1] rounded-2xl p-5 text-center transition-colors bg-slate-50/50">
+                <input
+                  type="file"
+                  id="publicDocUpload"
+                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                  disabled={isUploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setUploadFile(file);
+                    setUploadErrorMessage(null);
+                  }}
+                  className="absolute inset-0 size-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                />
+                <div className="space-y-1.5 pointer-events-none">
+                  <div className="size-10 rounded-xl bg-teal-50 text-[#23c3b1] flex items-center justify-center mx-auto">
+                    <Paperclip className="size-5" />
+                  </div>
+                  {uploadFile ? (
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 truncate max-w-xs mx-auto">
+                        {uploadFile.name}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {(uploadFile.size / 1024 / 1024).toFixed(2)} Mo • Prêt à être transmis
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-700">
+                        Cliquez ou glissez votre document ici
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        PDF, images ou bureautique jusqu'à 10 Mo
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Erreur */}
+            {uploadErrorMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                <AlertCircle className="size-4 shrink-0 text-red-600" />
+                <span>{uploadErrorMessage}</span>
+              </div>
+            )}
+
+            {/* Succès */}
+            {uploadSuccessMessage && (
+              <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-semibold">
+                <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                <span>{uploadSuccessMessage}</span>
+              </div>
+            )}
+
+            {/* Boutons d'action */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUploadModalOpen(false);
+                  setUploadFile(null);
+                  setUploadErrorMessage(null);
+                }}
+                disabled={isUploading}
+                className="px-4 py-2.5 rounded-xl text-slate-600 hover:text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+
+              <button
+                type="submit"
+                disabled={!uploadFile || isUploading}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#23c3b1] to-[#1cb0a0] hover:from-[#1fb3a2] hover:to-[#179c8d] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin text-white" />
+                    <span>Envoi en cours...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="size-4" />
+                    <span>Transmettre le document</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
 
   // =========================================================================
   // 1. VUE DÉTAILLÉE : L'UTILISATEUR "RENTRE" COMPLÈTEMENT DANS LA FICHE
@@ -353,51 +580,106 @@ export default function SuiviCandidaturePage() {
             )}
 
             {/* SECTION DOCUMENTS & PIÈCES JUSTIFICATIVES DU DOSSIER */}
-            <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="size-4 text-[#23c3b1]" />
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Documents & Pièces du dossier
-                  </h4>
+            <div className="p-5 sm:p-6 rounded-2xl border border-slate-200 bg-white space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-8 rounded-lg bg-teal-50 border border-teal-200/80 flex items-center justify-center text-[#23c3b1]">
+                    <FileText className="size-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800">
+                      Documents & Pièces justificatives
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      {app.documents?.length || 0} pièce(s) transmise(s) pour l'instruction
+                    </p>
+                  </div>
                 </div>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                  {app.documents?.length || 0} pièce(s)
-                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUploadModalOpen(true);
+                    setUploadSuccessMessage(null);
+                    setUploadErrorMessage(null);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#23c3b1] to-[#1cb0a0] hover:from-[#1fb3a2] hover:to-[#179c8d] text-white text-xs font-bold transition-all shadow-sm shadow-[#23c3b1]/20 hover:scale-105 active:scale-95 cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Ajouter une pièce</span>
+                </button>
               </div>
+
+              {/* Message de confirmation suite à l'ajout */}
+              {uploadSuccessMessage && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                  <span>{uploadSuccessMessage}</span>
+                </div>
+              )}
 
               {app.documents && app.documents.length > 0 ? (
                 <div className="divide-y divide-slate-100">
-                  {app.documents.map((doc) => {
+                  {app.documents.map((doc: any) => {
                     const isVal = doc.status === 'VALIDE';
                     const isRef = doc.status === 'REFUSE';
                     return (
-                      <div key={doc.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="size-3.5 text-slate-400 shrink-0" />
-                          <span className="font-bold text-slate-800 truncate">{doc.title}</span>
-                          {doc.category && (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
-                              {doc.category}
-                            </span>
+                      <div key={doc.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="size-7 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0">
+                            <FileText className="size-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-800 truncate block">{doc.title}</span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {doc.category && (
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                                  {doc.category}
+                                </span>
+                              )}
+                              {doc.createdAt && (
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(doc.createdAt).toLocaleDateString('fr-FR')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                            isVal
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : isRef
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {isVal ? '✓ Validé' : isRef ? 'À mettre à jour' : '⏳ Reçu / En revue'}
+                          </span>
+
+                          {doc.fileId && (
+                            <a
+                              href={`/api/v1/applications/attachments/${doc.fileId}?filename=${encodeURIComponent(doc.title)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="size-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
+                              title="Télécharger / Voir le document"
+                            >
+                              <ExternalLink className="size-3.5" />
+                            </a>
                           )}
                         </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${isVal
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : isRef
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-amber-100 text-amber-800'
-                          }`}>
-                          {isVal ? '✓ Validé' : isRef ? 'À mettre à jour' : '⏳ Reçu / En revue'}
-                        </span>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">
-                  Votre fiche projet et votre formulaire administratif sont bien enregistrés dans le système.
-                </p>
+                <div className="py-6 px-4 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 space-y-1">
+                  <p className="text-xs font-semibold text-slate-700">Aucune pièce justificative complémentaire</p>
+                  <p className="text-[11px] text-slate-500">
+                    Vous pouvez ajouter vos justificatifs (CNI, Business Plan, RCCM...) à tout moment en cliquant sur <strong>« Ajouter une pièce »</strong>.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -526,6 +808,8 @@ export default function SuiviCandidaturePage() {
           </div>
 
         </div>
+
+        {renderUploadModal()}
       </div>
     );
   }
@@ -668,6 +952,18 @@ export default function SuiviCandidaturePage() {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
                 <button
                   type="button"
+                  onClick={() => {
+                    handleOpenDetail();
+                    setIsUploadModalOpen(true);
+                  }}
+                  className="px-4 py-3.5 rounded-2xl bg-white hover:bg-slate-50 border-2 border-[#23c3b1] text-[#137469] font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer hover:scale-105 shrink-0 active:scale-95"
+                >
+                  <Plus className="size-4 text-[#23c3b1]" />
+                  <span>Ajouter une pièce</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleOpenDetail}
                   className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#f06553] to-[#e04a27] hover:from-[#e04a27] hover:to-[#c83719] text-white font-black text-sm transition-all shadow-lg shadow-[#f06553]/25 flex items-center justify-center gap-2.5 cursor-pointer hover:scale-105 shrink-0 active:scale-95"
                 >
@@ -680,6 +976,8 @@ export default function SuiviCandidaturePage() {
         )}
 
       </div>
+
+      {renderUploadModal()}
     </div>
   );
 }

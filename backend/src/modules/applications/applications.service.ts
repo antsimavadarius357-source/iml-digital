@@ -471,15 +471,20 @@ export async function trackApplicationPublic(searchQuery: string) {
     }
   }
 
-  if (benDocs.length === 0 && Array.isArray(project.documents)) {
-    benDocs = project.documents.map((d: any, idx: number) => ({
-      id: d.fileId || `doc-${idx}`,
-      title: d.originalName || 'Document justificatif',
-      category: d.category || 'PROJET',
-      status: 'EN_ATTENTE',
-      createdAt: app.submittedAt || app.createdAt,
-    }));
-  }
+  const rawProjectDocs = Array.isArray(project.documents) ? project.documents : [];
+  const mappedProjectDocs = rawProjectDocs.map((d: any, idx: number) => ({
+    id: d.fileId || `doc-${idx}`,
+    fileId: d.fileId,
+    title: d.originalName || 'Document justificatif',
+    category: d.category || 'PROJET',
+    status: d.status || 'EN_ATTENTE',
+    createdAt: d.uploadedAt || app.submittedAt || app.createdAt,
+  }));
+
+  const allTrackedDocs = [
+    ...mappedProjectDocs,
+    ...benDocs.filter((bd: any) => !mappedProjectDocs.some((pd: any) => pd.fileId && (pd.fileId === bd.filePath || pd.id === bd.id)))
+  ];
 
   let status = app.status;
   if (status !== 'ACCEPTEE' && status !== 'REFUSEE') {
@@ -506,7 +511,7 @@ export async function trackApplicationPublic(searchQuery: string) {
     hasVideoEquipment: applicant.hasVideoEquipment,
     needs: project.needs || [],
     stage: project.stage || 'IDEE',
-    documents: benDocs,
+    documents: allTrackedDocs,
     appointment: appointmentInfo
   };
 }
@@ -586,5 +591,94 @@ export async function resendDossierSummaryEmail(searchQuery: string, overrideEma
     message: mailRes.success
       ? `L'accusé de réception complet de votre dossier (${tracked.referenceCode}) a été envoyé à ${targetEmail}.`
       : (mailRes.message || "Erreur lors de l'envoi de l'e-mail"),
+  };
+}
+
+/**
+ * Permet au candidat d'ajouter une pièce justificative complémentaire en ligne à tout moment depuis son suivi
+ */
+export async function addDocumentPublic(query: string, fileData: {
+  fileId: string;
+  originalName: string;
+  size?: number;
+  mimeType?: string;
+  category?: string;
+}) {
+  const q = String(query).trim();
+  const rawNum = q.replace(/[^0-9]/g, '');
+  const seq = rawNum ? parseInt(rawNum, 10) : -1;
+
+  let app = await prisma.application.findFirst({
+    where: {
+      OR: [
+        { id: q },
+        ...(seq > 0 ? [{ seqNumber: seq }] : []),
+      ],
+    },
+    include: { beneficiary: true }
+  });
+
+  if (!app) {
+    const all = await prisma.application.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { beneficiary: true }
+    });
+    app = all.find((a: any) => {
+      const email = a.applicantData?.email;
+      return email && email.toLowerCase() === q.toLowerCase();
+    }) || null;
+  }
+
+  if (!app) {
+    throw new AppError(404, 'NON_TROUVE', 'Candidature introuvable pour ajouter le document.');
+  }
+
+  const newDoc = {
+    fileId: fileData.fileId,
+    originalName: fileData.originalName,
+    size: fileData.size,
+    mimeType: fileData.mimeType,
+    category: fileData.category || 'DOCUMENT_COMPLEMENTAIRE',
+    status: 'EN_ATTENTE',
+    uploadedAt: new Date().toISOString(),
+  };
+
+  // 1. Mise à jour de projectData dans l'application
+  const project = (app.projectData as any) || {};
+  const currentDocs = Array.isArray(project.documents) ? [...project.documents] : [];
+  currentDocs.push(newDoc);
+  const updatedProject = { ...project, documents: currentDocs };
+
+  await prisma.application.update({
+    where: { id: app.id },
+    data: { projectData: updatedProject }
+  });
+
+  // 2. Si un dossier bénéficiaire est associé, créer l'entrée dans prisma.document
+  if (app.beneficiaryId) {
+    const sysUser = await prisma.user.findFirst({ select: { id: true } });
+    if (sysUser) {
+      await prisma.document.create({
+        data: {
+          title: fileData.originalName || 'Document justificatif',
+          category: fileData.category || 'PROJET',
+          filePath: fileData.fileId,
+          fileName: fileData.originalName || null,
+          mimeType: fileData.mimeType || null,
+          sizeBytes: fileData.size || null,
+          ownerId: app.beneficiaryId,
+          ownerType: 'BENEFICIARY',
+          status: 'EN_ATTENTE',
+          uploadedById: sysUser.id,
+        }
+      }).catch((e) => console.error('Erreur attachement document bénéficiaire:', e));
+    }
+  }
+
+  return {
+    success: true,
+    message: 'Document ajouté avec succès à votre dossier.',
+    document: newDoc,
   };
 }

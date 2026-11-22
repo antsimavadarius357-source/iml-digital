@@ -5,7 +5,7 @@ import fs from 'fs';
 import { requireAuth, requirePermission } from '../../middleware/auth';
 import { AppError } from '../../middleware/error';
 import { createApplicationSchema, idParam, listApplicationsSchema, updateApplicationSchema } from './applications.schemas';
-import { createApplication, getApplication, listApplications, updateApplication, trackApplicationPublic, resendDossierSummaryEmail } from './applications.service';
+import { createApplication, getApplication, listApplications, updateApplication, trackApplicationPublic, resendDossierSummaryEmail, addDocumentPublic } from './applications.service';
 
 export const applicationsRouter = Router();
 
@@ -76,6 +76,19 @@ applicationsRouter.get('/public/track', async (req, res, next) => {
     const q = String(req.query.q || req.query.query || req.query.code || '');
     const tracked = await trackApplicationPublic(q);
     res.json({ application: tracked });
+  } catch (e) { next(e); }
+});
+
+// Route publique : ajouter une pièce justificative complémentaire au dossier
+applicationsRouter.post('/public/add-document', async (req, res, next) => {
+  try {
+    const q = String(req.body?.q || req.body?.code || '');
+    const attachment = req.body?.attachment;
+    if (!q || !attachment || !attachment.fileId) {
+      return res.status(400).json({ error: { code: 'DONNEES_MANQUANTES', message: 'Référence du dossier ou fichier manquant.' } });
+    }
+    const result = await addDocumentPublic(q, attachment);
+    res.status(201).json(result);
   } catch (e) { next(e); }
 });
 
