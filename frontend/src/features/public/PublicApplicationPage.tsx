@@ -64,6 +64,41 @@ const PROVINCE_DEPARTMENTS: Record<string, string[]> = {
   'Woleu-Ntem': ['Woleu', 'Ntem', 'Okano', 'Haut-Ntem', 'Haut-Como']
 };
 
+const PROVINCE_QUARTIERS: Record<string, string[]> = {
+  'Estuaire': [
+    'Louis', 'Glass', 'Oloumi', 'Lalala', 'Nzeng-Ayong', 'Charbonnages', 
+    'Angondjé', 'Batterie 4', 'Haut de Gué-Gué', 'Bas de Gué-Gué', 'Mont-Bouët', 
+    'Nkembo', 'Cocotiers', 'Plein-Ciel', 'Mindoubé', 'PK 5 - PK 12', 'Alibandeng', 
+    'Sablière', 'Avorbam', 'Akournam', 'Alénakiri', 'Essassa', 'Nkoltang'
+  ],
+  'Haut-Ogooué': [
+    'Potos', 'Ongali', 'Yéné', 'Ménaye', 'Saint-Hilaire', 'Sable', 'Mont-Moanda', 
+    'Rio', 'Commercial', 'Alliance', 'Lekolo', 'Djouori'
+  ],
+  'Moyen-Ogooué': [
+    'Isaac', 'Adouma', 'Schweitzer', 'Atongowanga', 'Grand-Village', 'Petit Paris', 'Dakar', 'Fang'
+  ],
+  'Ngounié': [
+    'Dikongo', 'Val-Marie', 'Chapelle', 'Mavoundi', 'Moukoundou', 'Bavanga', 'Guidouma'
+  ],
+  'Nyanga': [
+    'Bibora', 'Likoumba', 'Mougoutsi', 'Minvoul-Tchibanga', 'Massanga', 'Mavoungou'
+  ],
+  'Ogooué-Ivindo': [
+    'Epassendjé', 'Allaralang', 'Mbolo', 'Petit Paris', 'Zoatab', 'Mayibouth'
+  ],
+  'Ogooué-Lolo': [
+    'Mayang', 'Mikoumou', 'Bakélé', 'Boulevard', 'Dibangui', 'Bambao'
+  ],
+  'Ogooué-Maritime': [
+    'Cap Lopez', 'Ntchengué', 'Salsa', 'Quartier Chic', 'Grand Village', 'Mosquée', 
+    'Balise', 'Sans-Fil', 'Matanda', 'Sindara', 'Sainte-Barbe', 'Château', 'Colombie', 'Yenzi'
+  ],
+  'Woleu-Ntem': [
+    'Akoakam', 'Methui', 'Nkoum', 'Eyenassi', 'Mont-Miyélé', 'Angone', 'Batouri'
+  ]
+};
+
 export default function PublicApplicationPage() {
   const [submitted, setSubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -1050,11 +1085,17 @@ export default function PublicApplicationPage() {
                             </label>
                             <input 
                               type="text"
+                              list="current-province-quartiers-list"
                               value={quartier}
                               onChange={(e) => setQuartier(e.target.value)}
                               placeholder="Quartier, secteur ou zone..."
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
+                            <datalist id="current-province-quartiers-list">
+                              {(PROVINCE_QUARTIERS[province] || []).map((q) => (
+                                <option key={q} value={q} />
+                              ))}
+                            </datalist>
                           </div>
                         </div>
                       </div>
