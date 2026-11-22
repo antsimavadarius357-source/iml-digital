@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { 
@@ -99,6 +99,65 @@ const PROVINCE_QUARTIERS: Record<string, string[]> = {
   ]
 };
 
+// Quartiers spécifiques par Arrondissement pour Libreville, Akanda et Owendo
+const LIBREVILLE_ARRONDISSEMENTS_QUARTIERS: Record<string, string[]> = {
+  '1er arrondissement': [
+    'Batterie 4', 'Haut de Gué-Gué', 'Bas de Gué-Gué', 'Louis', 'Charbonnages', 
+    'Alibandeng', 'La Sablière', 'Camp de Police', 'Stade Omnisports', 'Jeanne et Madeleine', 
+    'Okala Carrière', 'Ambowè', 'Kalikak'
+  ],
+  '2e arrondissement': [
+    'Nkembo', 'Cocotiers', 'Camp de Gaulle', 'Sotega', 'Atong-Abè', 
+    'Plaine-Orety', 'Mont-Bouët (Côté 2e)', 'Belle-Vue 1', 'Belle-Vue 2', 'Université (UOB)'
+  ],
+  '3e arrondissement': [
+    'Kinguélé', 'Belle-Vue 3', 'Sorbonne', 'Likouala', 'Peyrie', 
+    'Saint-Michel', 'Nombakélé', 'Mont-Bouët (Grand Marché)', 'Baraka', 'Sainte-Marie'
+  ],
+  '4e arrondissement': [
+    'Glass', 'Oloumi', 'London', 'Plaine-Niger', 'Tolérance', 
+    'Baraka Sud', 'Nomba Domaine', 'Awendjé', 'Zone Industrielle Oloumi'
+  ],
+  '5e arrondissement': [
+    'Lalala Dakar', 'Lalala à droite', 'Lalala à gauche', 'Mindoubé 1', 'Mindoubé 2', 
+    'Mindoubé 3', 'Ozoungué', 'IAI', 'Plein-Ciel Bissegué', 'Soduco'
+  ],
+  '6e arrondissement': [
+    'Nzeng-Ayong (Nouvelle Cité)', 'Nzeng-Ayong (Fin Goudron)', 'Nzeng-Ayong (Dragages)', 
+    'Montalier', 'Sibang', 'PK 5 à PK 8', 'PK 9 à PK 12', 'Melen', 'Beau-Séjour', 'Bambouchine'
+  ],
+  'Akanda - 1er arrondissement': [
+    'Angondjé', 'Avorbam', 'Château', 'La Sablière Nord', 'Delta Postal', 'Cap Caravane'
+  ],
+  'Akanda - 2e arrondissement': [
+    'Cap Estérias', 'Malibé 1', 'Malibé 2'
+  ],
+  'Owendo - 1er arrondissement': [
+    'Akournam 1', 'Akournam 2', 'SNI Owendo', 'Octra', 'Port d\'Owendo'
+  ],
+  'Owendo - 2e arrondissement': [
+    'Alénakiri', 'Razel', 'SETRAG', 'Rougier', 'Barrangoi'
+  ]
+};
+
+const ESTUAIRE_OTHER_CITIES_QUARTIERS: Record<string, string[]> = {
+  'Akanda': [
+    'Angondjé', 'Avorbam', 'Château', 'La Sablière Nord', 'Delta Postal', 'Cap Caravane', 'Cap Estérias', 'Malibé 1', 'Malibé 2'
+  ],
+  'Owendo': [
+    'Akournam 1', 'Akournam 2', 'Alénakiri', 'SNI Owendo', 'Octra', 'Port d\'Owendo', 'Razel', 'SETRAG', 'Rougier', 'Barrangoi'
+  ],
+  'Ntoum': [
+    'Centre-ville Ntoum', 'Essassa', 'Nkoltang', 'Bikélé', 'Meyang', 'Donguila'
+  ],
+  'Cocobeach': [
+    'Centre-ville', 'Bord de Mer', 'Mission', 'Plage'
+  ],
+  'Kango': [
+    'Centre-ville', 'Pont de Kango', 'Bokoué', 'Andem'
+  ]
+};
+
 export default function PublicApplicationPage() {
   const [submitted, setSubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -132,6 +191,42 @@ export default function PublicApplicationPage() {
     setDepartment('');
     setQuartier('');
   };
+
+  // Liste dynamique des quartiers selon la province, la ville et l'arrondissement précis
+  const currentQuartiersSuggestions = useMemo(() => {
+    if (province === 'Estuaire') {
+      if (arrondissement) {
+        const arrTrim = arrondissement.trim();
+        const arrLower = arrTrim.toLowerCase();
+        
+        // Correspondance directe ou partielle avec un arrondissement de Libreville, Akanda ou Owendo
+        for (const [key, qList] of Object.entries(LIBREVILLE_ARRONDISSEMENTS_QUARTIERS)) {
+          if (arrLower.includes(key.toLowerCase()) || key.toLowerCase().includes(arrLower)) {
+            return qList;
+          }
+        }
+        
+        // Si l'utilisateur saisit "1", "1er", "2", "3", etc.
+        const digitMatch = arrLower.match(/^(\d+)/);
+        if (digitMatch && !arrLower.includes('akanda') && !arrLower.includes('owendo')) {
+          const num = digitMatch[1];
+          const standardKey = `${num}${num === '1' ? 'er' : 'e'} arrondissement`;
+          if (LIBREVILLE_ARRONDISSEMENTS_QUARTIERS[standardKey]) {
+            return LIBREVILLE_ARRONDISSEMENTS_QUARTIERS[standardKey];
+          }
+        }
+      }
+      
+      // Si une ville spécifique de l'Estuaire est saisie (ex: Akanda, Owendo, Ntoum...)
+      if (city && ESTUAIRE_OTHER_CITIES_QUARTIERS[city]) {
+        return ESTUAIRE_OTHER_CITIES_QUARTIERS[city];
+      }
+      
+      return PROVINCE_QUARTIERS['Estuaire'] || [];
+    }
+    
+    return PROVINCE_QUARTIERS[province] || [];
+  }, [province, city, arrondissement]);
 
   // Spécifique Groupe 1 (Porteur d'Idée / Startup)
   const [role, setRole] = useState('');
@@ -1016,7 +1111,12 @@ export default function PublicApplicationPage() {
                               type="text"
                               list="current-province-cities-list"
                               value={city}
-                              onChange={(e) => setCity(e.target.value)}
+                              onChange={(e) => {
+                                setCity(e.target.value);
+                                setArrondissement('');
+                                setDepartment('');
+                                setQuartier('');
+                              }}
                               required 
                               placeholder=""
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
@@ -1038,7 +1138,10 @@ export default function PublicApplicationPage() {
                                 type="text"
                                 list="arrondissements-list"
                                 value={arrondissement}
-                                onChange={(e) => setArrondissement(e.target.value)}
+                                onChange={(e) => {
+                                  setArrondissement(e.target.value);
+                                  setQuartier('');
+                                }}
                                 placeholder=""
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                               />
@@ -1064,7 +1167,10 @@ export default function PublicApplicationPage() {
                                 type="text"
                                 list="current-province-departments-list"
                                 value={department}
-                                onChange={(e) => setDepartment(e.target.value)}
+                                onChange={(e) => {
+                                  setDepartment(e.target.value);
+                                  setQuartier('');
+                                }}
                                 placeholder=""
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                               />
@@ -1090,7 +1196,7 @@ export default function PublicApplicationPage() {
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
                             <datalist id="current-province-quartiers-list">
-                              {(PROVINCE_QUARTIERS[province] || []).map((q) => (
+                              {currentQuartiersSuggestions.map((q) => (
                                 <option key={q} value={q} />
                               ))}
                             </datalist>
