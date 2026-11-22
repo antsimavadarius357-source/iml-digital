@@ -43,7 +43,6 @@ export default function PublicApplicationPage() {
   const isPmeOrOrg = structureType === 'PME' || structureType === 'ORGANISATION';
 
   // Étape 2 : Dirigeant / Représentant
-  const [civility, setCivility] = useState<'M.' | 'Mme'>('M.');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [firstName, setFirstName] = useState('');
@@ -323,7 +322,6 @@ export default function PublicApplicationPage() {
 
     mut.mutate({
       applicantData: {
-        civility,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         photo: (structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP') ? (photoPreview || undefined) : undefined,
@@ -598,7 +596,7 @@ export default function PublicApplicationPage() {
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                         {[
                           { id: 'PORTEUR_IDEE', label: "Porteur d'Idée", desc: "Projet ou concept en émergence", icon: Lightbulb, badge: 'Phase 1' },
-                          { id: 'STARTUP', label: "Startup (Tous domaines)", desc: "Projet innovant à fort potentiel (Agro, Santé, Services, Tech...)", icon: Rocket, badge: 'Innovation' },
+                          { id: 'STARTUP', label: "Startup", desc: "Projet innovant à fort potentiel", icon: Rocket, badge: 'Innovation' },
                           { id: 'PME', label: "TPE / PME", desc: "Entreprise formelle en activité", icon: Building2, badge: 'Croissance' },
                           { id: 'ORGANISATION', label: "Organisation / Coop", desc: "Groupement, coopérative ou filière", icon: Layers, badge: 'Filière' }
                         ].map((type) => {
@@ -751,39 +749,9 @@ export default function PublicApplicationPage() {
                         </div>
                       )}
 
-                      {/* Civilité, Prénom, Nom */}
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-                        <div className="sm:col-span-3">
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Civilité <span className="text-[#f06553]">*</span>
-                          </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setCivility('M.')}
-                              className={`py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                civility === 'M.'
-                                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              Monsieur
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setCivility('Mme')}
-                              className={`py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                civility === 'Mme'
-                                  ? 'bg-[#f06553] text-white border-[#f06553] shadow-xs'
-                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              Madame
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="sm:col-span-4">
+                      {/* Prénom, Nom */}
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                             {isPmeOrOrg ? "Prénom du représentant" : "Prénom"} <span className="text-[#f06553]">*</span>
                           </label>
@@ -796,7 +764,7 @@ export default function PublicApplicationPage() {
                           />
                         </div>
 
-                        <div className="sm:col-span-5">
+                        <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                             {isPmeOrOrg ? "Nom du représentant" : "Nom de famille"} <span className="text-[#f06553]">*</span>
                           </label>

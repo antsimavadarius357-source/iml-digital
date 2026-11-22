@@ -664,13 +664,13 @@ export default function ApplicationDetailPage() {
               {/* Grille de données du candidat */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 
-                {/* 1. Nom & Civilité & Mandat */}
+                {/* 1. Nom & Mandat */}
                 <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-50 transition-colors">
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                     {c.position ? "Représentant légal" : "Nom complet"}
                   </span>
                   <div className="font-bold text-slate-800 text-sm">
-                    {c.civility ? `${c.civility} ` : ''}{c.firstName} {c.lastName}
+                    {c.firstName} {c.lastName}
                   </div>
                   {(c.position || c.role) && (
                     <span className="text-xs text-slate-500 font-medium block mt-0.5">
