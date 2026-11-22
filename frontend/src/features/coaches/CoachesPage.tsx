@@ -26,6 +26,7 @@ interface CoachItem {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: 'COACH';
   roleLabel: string;
   language: string;
@@ -69,6 +70,7 @@ export default function CoachesPage() {
           id: u.id,
           name: `${u.firstName || ''} ${u.lastName || ''}`.trim().toUpperCase() || u.email.toUpperCase(),
           email: u.email,
+          phone: u.phone || '',
           role: 'COACH' as const,
           roleLabel: "Coach Référent & Mentor",
           language: 'Français',
@@ -94,6 +96,7 @@ export default function CoachesPage() {
     name: true,
     language: true,
     email: true,
+    phone: true,
     createdAt: true,
     activeBeneficiaries: true,
     groups: true,
@@ -105,6 +108,7 @@ export default function CoachesPage() {
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastName, setNewLastName] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
   const [newLanguage, setNewLanguage] = useState('Français');
   const [newTempPassword, setNewTempPassword] = useState('Password123!');
 
@@ -114,6 +118,7 @@ export default function CoachesPage() {
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   const [editLanguage, setEditLanguage] = useState('Français');
 
   // Modal de suppression d'un coach depuis la liste
@@ -141,7 +146,8 @@ export default function CoachesPage() {
       const q = searchTerm.toLowerCase();
       result = result.filter(c => 
         c.name.toLowerCase().includes(q) || 
-        c.email.toLowerCase().includes(q)
+        c.email.toLowerCase().includes(q) ||
+        (c.phone && c.phone.toLowerCase().includes(q))
       );
     }
 
@@ -171,6 +177,7 @@ export default function CoachesPage() {
       id: `coach-${Date.now()}`,
       name: fullName,
       email: newEmail.trim().toLowerCase(),
+      phone: newPhone.trim(),
       role: 'COACH',
       roleLabel: "Coach d'accompagnement & Mentor",
       language: newLanguage,
@@ -190,6 +197,7 @@ export default function CoachesPage() {
           firstName: newFirstName.trim(),
           lastName: newLastName.trim(),
           email: newEmail.trim().toLowerCase(),
+          phone: newPhone.trim() || undefined,
           role: 'COACH',
           temporaryPassword: newTempPassword || 'ImlDigit2026!'
         }
@@ -200,6 +208,7 @@ export default function CoachesPage() {
       setNewFirstName('');
       setNewLastName('');
       setNewEmail('');
+      setNewPhone('');
       setNewTempPassword('ImlDigit2026!');
       setIsAddCoachOpen(false);
     } catch (err: any) {
@@ -216,23 +225,44 @@ export default function CoachesPage() {
     setEditFirstName(parts[0] || '');
     setEditLastName(parts.slice(1).join(' ') || '');
     setEditEmail(c.email);
+    setEditPhone(c.phone || '');
     setEditLanguage(c.language || 'Français');
     setIsEditCoachOpen(true);
   };
 
   // Enregistrement modification
-  const handleSaveEditCoach = (e: React.FormEvent) => {
+  const handleSaveEditCoach = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!coachToEdit || !editFirstName.trim() || !editLastName.trim() || !editEmail.trim()) return;
     const updatedName = `${editFirstName.trim()} ${editLastName.trim()}`.toUpperCase();
     const updatedEmail = editEmail.trim().toLowerCase();
+    const updatedPhone = editPhone.trim();
 
     setCoaches(prev => prev.map(c => c.id === coachToEdit.id ? {
       ...c,
       name: updatedName,
       email: updatedEmail,
+      phone: updatedPhone,
       language: editLanguage
     } : c));
+
+    try {
+      if (coachToEdit.id && !coachToEdit.id.startsWith('coach-')) {
+        await api(`/users/${coachToEdit.id}`, {
+          method: 'PATCH',
+          body: {
+            firstName: editFirstName.trim(),
+            lastName: editLastName.trim(),
+            email: updatedEmail,
+            phone: updatedPhone || null,
+          }
+        });
+        queryClient.invalidateQueries({ queryKey: ['team-users-list'] });
+        queryClient.invalidateQueries({ queryKey: ['beneficiary-options'] });
+      }
+    } catch (err: any) {
+      console.error('Erreur modification coach:', err);
+    }
 
     setToastMessage(`✓ Informations du coach ${updatedName} modifiées avec succès`);
     setIsEditCoachOpen(false);
@@ -335,6 +365,15 @@ export default function CoachesPage() {
                   className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
                 />
                 <span>Email</span>
+              </label>
+              <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={visibleColumns.phone}
+                  onChange={(e) => setVisibleColumns(c => ({ ...c, phone: e.target.checked }))}
+                  className="rounded text-[#23c3b1] focus:ring-[#23c3b1]"
+                />
+                <span>Téléphone</span>
               </label>
               <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
                 <input
@@ -451,6 +490,11 @@ export default function CoachesPage() {
                   Email
                 </th>
               )}
+              {visibleColumns.phone && (
+                <th className="py-2.5 px-3 font-normal text-slate-700 border-r border-slate-200 min-w-[130px]">
+                  Téléphone
+                </th>
+              )}
               {visibleColumns.createdAt && (
                 <th 
                   onClick={() => setSortOrder(o => o === 'desc' ? 'asc' : 'desc')}
@@ -538,6 +582,25 @@ export default function CoachesPage() {
                 {visibleColumns.email && (
                   <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100 font-normal">
                     {c.email}
+                  </td>
+                )}
+
+                {visibleColumns.phone && (
+                  <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100 font-mono text-xs">
+                    {c.phone ? (
+                      <a 
+                        href={`https://wa.me/${c.phone.replace(/[^0-9]/g, '')}`} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-emerald-600 hover:underline inline-flex items-center gap-1 font-medium text-slate-700"
+                        title="Échanger sur WhatsApp"
+                      >
+                        <span>{c.phone}</span>
+                      </a>
+                    ) : (
+                      <span className="text-slate-300 font-sans">—</span>
+                    )}
                   </td>
                 )}
 
@@ -733,6 +796,19 @@ export default function CoachesPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Numéro de téléphone <span className="text-slate-400 font-normal">(WhatsApp / Appel)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="Ex: +241 07 00 00 00"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-[#23c3b1]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Langue
                 </label>
                 <select
@@ -854,6 +930,19 @@ export default function CoachesPage() {
                   required
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-[#23c3b1]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Numéro de téléphone <span className="text-slate-400 font-normal">(WhatsApp / Appel)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="Ex: +241 07 00 00 00"
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-[#23c3b1]"
                 />
               </div>
