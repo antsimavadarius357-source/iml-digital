@@ -664,14 +664,21 @@ export default function ApplicationDetailPage() {
               {/* Grille de données du candidat */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 
-                {/* 1. Nom */}
+                {/* 1. Nom & Civilité & Mandat */}
                 <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-50 transition-colors">
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                    Nom complet
+                    {c.position ? "Représentant légal" : "Nom complet"}
                   </span>
                   <div className="font-bold text-slate-800 text-sm">
-                    {c.firstName} {c.lastName}
+                    {c.civility ? `${c.civility} ` : ''}{c.firstName} {c.lastName}
                   </div>
+                  {(c.position || c.role) && (
+                    <span className="text-xs text-slate-500 font-medium block mt-0.5">
+                      {c.position || (c.role === 'PORTEUR_UNIQUE' ? 'Porteur de projet unique' : c.role === 'CO_FONDATEUR' ? 'Co-fondateur' : c.role === 'LEADER_PROJET' ? 'Chef de projet' : c.role)}
+                      {c.ageRange ? ` • ${c.ageRange === '25_35' ? '25-35 ans' : c.ageRange === 'MOINS_25' ? '< 25 ans' : '> 35 ans'}` : ''}
+                      {c.availability ? ` • ${c.availability === 'TEMPS_PLEIN' ? 'Temps plein' : 'Temps partiel'}` : ''}
+                    </span>
+                  )}
                 </div>
 
                 {/* 2. E-mail */}
@@ -700,10 +707,10 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                {/* 3. Téléphone */}
+                {/* 3. Téléphone principal & Secondaire */}
                 <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-50 transition-colors">
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                    Téléphone
+                    Téléphone WhatsApp & Contact
                   </span>
                   <div className="font-bold text-slate-800 text-sm">
                     {c.phone ? (
@@ -712,35 +719,58 @@ export default function ApplicationDetailPage() {
                       </a>
                     ) : '—'}
                   </div>
+                  {c.secondaryPhone && (
+                    <span className="text-[11px] text-slate-500 block mt-0.5">
+                      Secours (Airtel/Moov) : {c.secondaryPhone}
+                    </span>
+                  )}
+                  {c.businessPhone && (
+                    <span className="text-[11px] text-slate-500 block mt-0.5">
+                      Bureau / Siège : {c.businessPhone}
+                    </span>
+                  )}
                 </div>
 
-                {/* 4. Localisation */}
+                {/* 4. Localisation & Quartier */}
                 <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-50 transition-colors">
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                    Ville / Localisation
+                    Localisation & Siège
                   </span>
                   <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
                     <MapPin className="size-3.5 text-[#f06553] shrink-0" />
                     <span>{c.city || 'Libreville, Gabon'}</span>
                   </div>
+                  {c.headquartersAddress && (
+                    <span className="text-xs text-slate-500 font-medium block mt-0.5">
+                      Zone : {c.headquartersAddress}
+                    </span>
+                  )}
                 </div>
 
               </div>
 
               {/* Modalité d'entretien souhaitée par le candidat */}
               <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-xs font-medium text-slate-600">
-                  Préférence d'entretien déclarée :
-                </span>
-                {c.interviewPreference === 'VIDEO' ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-orange-50 text-[#f06553] border border-orange-200/80">
-                    <Video className="size-3.5" />
-                    Visioconférence {c.hasVideoEquipment ? '(Équipement validé)' : ''}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <span className="text-xs font-medium text-slate-600">
+                    Préférence d'entretien :
                   </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                    <Building2 className="size-3.5" />
-                    Présentiel (Espace PME, Quartier B2)
+                  {c.interviewPreference === 'VIDEO' ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-orange-50 text-[#f06553] border border-orange-200/80">
+                      <Video className="size-3.5" />
+                      Visioconférence {c.hasVideoEquipment ? '(Équipement validé)' : ''}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                      <Building2 className="size-3.5" />
+                      Présentiel (Siège IML Digit - B2)
+                    </span>
+                  )}
+                </div>
+
+                {c.timeSlotPreference && (
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Créneau : {c.timeSlotPreference === 'MATIN' ? 'Matinée (09h-12h)' : c.timeSlotPreference === 'APRES_MIDI' ? 'Après-midi (14h-17h)' : 'Indifférent'}
                   </span>
                 )}
               </div>
@@ -793,9 +823,9 @@ export default function ApplicationDetailPage() {
                 </div>
               </div>
 
-              {/* Attributs spécifiques PME / Entreprise si existants */}
-              {(c.rccm || c.nif || c.companySize || c.annualRevenue || c.creationYear) && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              {/* Attributs spécifiques PME si existants */}
+              {structureType === 'PME' && (c.rccm || c.nif || c.companySize || c.annualRevenue || c.creationYear || c.targetClientele || c.hasBankAccount) && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                   {c.rccm && (
                     <div>
                       <span className="text-slate-400 block font-medium">N° RCCM</span>
@@ -824,6 +854,102 @@ export default function ApplicationDetailPage() {
                     <div>
                       <span className="text-slate-400 block font-medium">Année création</span>
                       <span className="font-bold text-slate-800">{c.creationYear}</span>
+                    </div>
+                  )}
+                  {c.targetClientele && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Clientèle ciblée</span>
+                      <span className="font-bold text-slate-800">{c.targetClientele}</span>
+                    </div>
+                  )}
+                  {c.hasBankAccount && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Compte bancaire pro</span>
+                      <span className="font-bold text-slate-800">{c.hasBankAccount === 'OUI' ? 'Oui (Actif)' : 'Non / En cours'}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Attributs spécifiques Startup / Porteur d'idée */}
+              {(structureType === 'STARTUP' || structureType === 'PORTEUR_IDEE') && (p.showcaseUrl || p.marketTest || p.targetMarket || p.oapiProtection) && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-orange-50/50 border border-orange-100 text-xs">
+                  {p.showcaseUrl && (
+                    <div className="sm:col-span-3 flex items-center justify-between gap-2">
+                      <span className="text-slate-500 font-medium">Lien vitrine / Réseaux sociaux :</span>
+                      <a 
+                        href={p.showcaseUrl.startsWith('http') ? p.showcaseUrl : `https://${p.showcaseUrl}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="font-bold text-[#f06553] hover:underline flex items-center gap-1 truncate"
+                      >
+                        <ExternalLink className="size-3 shrink-0" />
+                        <span className="truncate">{p.showcaseUrl}</span>
+                      </a>
+                    </div>
+                  )}
+                  {p.marketTest && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Test marché</span>
+                      <span className="font-bold text-slate-800">
+                        {p.marketTest === 'OUI' ? 'Ventes démarrées' : p.marketTest === 'EN_COURS' ? 'En test / Échantillons' : 'Non testé'}
+                      </span>
+                    </div>
+                  )}
+                  {p.targetMarket && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Marché visé</span>
+                      <span className="font-bold text-slate-800">
+                        {p.targetMarket === 'LOCAL' ? 'National (Gabon)' : p.targetMarket === 'CEMAC' ? 'Zone CEMAC' : 'International'}
+                      </span>
+                    </div>
+                  )}
+                  {p.oapiProtection && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Protection OAPI</span>
+                      <span className="font-bold text-slate-800">
+                        {p.oapiProtection === 'OUI' ? 'Enregistré OAPI' : p.oapiProtection === 'EN_COURS' ? 'Dépôt en cours' : 'Non protégé'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Attributs spécifiques Organisation / Coopérative */}
+              {structureType === 'ORGANISATION' && (c.filiere || c.membersCount || c.womenPercentage || c.productionProvince || c.hasOfficialRegistration) && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-100 text-xs">
+                  {c.filiere && (
+                    <div className="sm:col-span-2">
+                      <span className="text-slate-400 block font-medium">Filière / Production</span>
+                      <span className="font-bold text-slate-800">{c.filiere}</span>
+                    </div>
+                  )}
+                  {c.productionProvince && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Province / Bassin</span>
+                      <span className="font-bold text-slate-800">{c.productionProvince}</span>
+                    </div>
+                  )}
+                  {c.membersCount && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Membres actifs</span>
+                      <span className="font-bold text-slate-800">
+                        {c.membersCount === 'MOINS_20' ? '< 20 membres' : c.membersCount === '20_50' ? '20 à 50' : '> 50 membres'}
+                      </span>
+                    </div>
+                  )}
+                  {c.womenPercentage && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Part de femmes</span>
+                      <span className="font-bold text-emerald-700">{c.womenPercentage}</span>
+                    </div>
+                  )}
+                  {c.hasOfficialRegistration && (
+                    <div>
+                      <span className="text-slate-400 block font-medium">Agrément / Récépissé</span>
+                      <span className="font-bold text-slate-800">
+                        {c.hasOfficialRegistration === 'OUI' ? 'Récépissé obtenu' : c.hasOfficialRegistration === 'EN_COURS' ? 'En cours' : 'Non immatriculé'}
+                      </span>
                     </div>
                   )}
                 </div>

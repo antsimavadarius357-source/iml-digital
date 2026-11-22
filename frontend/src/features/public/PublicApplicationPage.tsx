@@ -4,24 +4,28 @@ import { useMutation } from '@tanstack/react-query';
 import { 
   Rocket, 
   ArrowLeft, 
-  ArrowRight,
+  ArrowRight, 
   Loader2, 
   CheckCircle2, 
   Lightbulb, 
   Target, 
   Users, 
-  User,
-  Camera,
+  User, 
+  Camera, 
   Video, 
   Building2, 
   Briefcase, 
-  Layers,
-  Check,
-  UploadCloud,
-  FileText,
-  Trash2,
-  Paperclip,
-  Search
+  Layers, 
+  Check, 
+  UploadCloud, 
+  FileText, 
+  Trash2, 
+  Paperclip, 
+  Search,
+  Globe,
+  Landmark,
+  Sparkles,
+  Users2
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -30,18 +34,50 @@ export default function PublicApplicationPage() {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [referenceCode, setReferenceCode] = useState('');
   
-  // Étape 1 : Profil & Stade (aucun sélectionné par défaut, la couleur sort au clic)
+  // Étape 1 : Profil & Stade
   const [structureType, setStructureType] = useState<'PORTEUR_IDEE' | 'STARTUP' | 'PME' | 'ORGANISATION' | ''>('');
   const [stage, setStage] = useState('');
 
+  // Helpers de distinction de structure
+  const isIndividualOrStartup = structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP';
+  const isPmeOrOrg = structureType === 'PME' || structureType === 'ORGANISATION';
+
   // Étape 2 : Dirigeant / Représentant
+  const [civility, setCivility] = useState<'M.' | 'Mme'>('M.');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [secondaryPhone, setSecondaryPhone] = useState('');
   const [city, setCity] = useState('Libreville');
+
+  // Spécifique Groupe 1 (Porteur d'Idée / Startup)
+  const [role, setRole] = useState<'PORTEUR_UNIQUE' | 'CO_FONDATEUR' | 'LEADER_PROJET'>('PORTEUR_UNIQUE');
+  const [ageRange, setAgeRange] = useState<'MOINS_25' | '25_35' | 'PLUS_35'>('25_35');
+  const [availability, setAvailability] = useState<'TEMPS_PLEIN' | 'TEMPS_PARTIEL'>('TEMPS_PLEIN');
+  const [showcaseUrl, setShowcaseUrl] = useState('');
+  const [marketTest, setMarketTest] = useState<'OUI' | 'EN_COURS' | 'NON'>('NON');
+  const [oapiProtection, setOapiProtection] = useState<'OUI' | 'EN_COURS' | 'NON'>('NON');
+  const [targetMarket, setTargetMarket] = useState<'LOCAL' | 'CEMAC' | 'INTERNATIONAL'>('LOCAL');
+
+  // Spécifique Groupe 2 (PME / Organisation)
+  const [position, setPosition] = useState('');
+  const [businessPhone, setBusinessPhone] = useState('');
+  const [headquartersAddress, setHeadquartersAddress] = useState('');
+  const [targetClientele, setTargetClientele] = useState<'B2C' | 'B2B' | 'B2G' | 'MIXTE'>('B2B');
+  const [hasBankAccount, setHasBankAccount] = useState<'OUI' | 'NON'>('OUI');
+  const [orgType, setOrgType] = useState<'COOPERATIVE' | 'GIE' | 'ASSOCIATION' | 'FEDERATION'>('COOPERATIVE');
+  const [filiere, setFiliere] = useState('');
+  const [membersCount, setMembersCount] = useState<'MOINS_20' | '20_50' | 'PLUS_50'>('20_50');
+  const [womenPercentage, setWomenPercentage] = useState('50%');
+  const [productionProvince, setProductionProvince] = useState('Estuaire');
+  const [hasOfficialRegistration, setHasOfficialRegistration] = useState<'OUI' | 'EN_COURS' | 'NON'>('OUI');
+
+  // Transversaux (Étape 4)
+  const [discoveryChannel, setDiscoveryChannel] = useState('RESEAUX_SOCIAUX');
+  const [timeSlotPreference, setTimeSlotPreference] = useState<'MATIN' | 'APRES_MIDI' | 'INDIFFERENT'>('INDIFFERENT');
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -288,22 +324,45 @@ export default function PublicApplicationPage() {
 
     mut.mutate({
       applicantData: {
+        civility,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         photo: (structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP') ? (photoPreview || undefined) : undefined,
         email: email.trim(),
         phone: phone.trim(),
+        secondaryPhone: secondaryPhone.trim() || undefined,
         city: city.trim() || 'Libreville',
         structureType,
         companyName: compName,
+        // Spécifique Porteur / Startup
+        role: isIndividualOrStartup ? role : undefined,
+        ageRange: isIndividualOrStartup ? ageRange : undefined,
+        availability: isIndividualOrStartup ? availability : undefined,
+        // Spécifique PME / Organisation
+        position: isPmeOrOrg ? (position.trim() || undefined) : undefined,
+        businessPhone: isPmeOrOrg ? (businessPhone.trim() || undefined) : undefined,
+        headquartersAddress: isPmeOrOrg ? (headquartersAddress.trim() || undefined) : undefined,
+        // PME juridique
         rccm: (structureType === 'PME' || structureType === 'STARTUP') && rccm.trim() ? rccm.trim() : undefined,
         nif: (structureType === 'PME' || structureType === 'STARTUP') && nif.trim() ? nif.trim() : undefined,
         legalStatus: (structureType === 'PME' || structureType === 'STARTUP') ? legalStatus : undefined,
         companySize: (structureType === 'PME' || structureType === 'STARTUP') ? companySize : undefined,
         annualRevenue: (structureType === 'PME' || structureType === 'STARTUP') ? annualRevenue : undefined,
         creationYear: (structureType === 'PME' || structureType === 'STARTUP') ? creationYear : undefined,
+        targetClientele: structureType === 'PME' ? targetClientele : undefined,
+        hasBankAccount: structureType === 'PME' ? hasBankAccount : undefined,
+        // Organisation / Coopérative
+        orgType: structureType === 'ORGANISATION' ? orgType : undefined,
+        filiere: structureType === 'ORGANISATION' ? (filiere.trim() || undefined) : undefined,
+        membersCount: structureType === 'ORGANISATION' ? membersCount : undefined,
+        womenPercentage: structureType === 'ORGANISATION' ? womenPercentage : undefined,
+        productionProvince: structureType === 'ORGANISATION' ? productionProvince : undefined,
+        hasOfficialRegistration: structureType === 'ORGANISATION' ? hasOfficialRegistration : undefined,
+        // Entretien & Transversal
         interviewPreference,
         hasVideoEquipment: interviewPreference === 'VIDEO' ? hasVideoEquipment : false,
+        timeSlotPreference,
+        discoveryChannel,
       },
       projectData: {
         title: compName,
@@ -312,6 +371,10 @@ export default function PublicApplicationPage() {
         stage: stage,
         needs: needs,
         documents: documents,
+        showcaseUrl: isIndividualOrStartup && showcaseUrl.trim() ? showcaseUrl.trim() : undefined,
+        marketTest: isIndividualOrStartup ? marketTest : undefined,
+        oapiProtection: isIndividualOrStartup ? oapiProtection : undefined,
+        targetMarket: isIndividualOrStartup ? targetMarket : undefined,
       }
     });
   };
@@ -321,11 +384,16 @@ export default function PublicApplicationPage() {
     { id: 'CROISSANCE', label: 'En développement', desc: 'Plus de clients et nouveaux recrutements' },
     { id: 'RESTRUCTURATION', label: 'Mise à niveau', desc: 'Passer au numérique et s\'organiser' },
     { id: 'MATURITE', label: 'Maturité (> 5 ans)', desc: 'Nouveaux marchés et investissements' },
+  ] : structureType === 'ORGANISATION' ? [
+    { id: 'CONSTITUTION', label: 'Constitution / Légalisation', desc: 'Membres regroupés, statut en formalisation' },
+    { id: 'DEMARRAGE', label: 'Activité pilote', desc: 'Premières campagnes ou récoltes des membres' },
+    { id: 'STRUCTURATION', label: 'Structuration & Mutualisation', desc: 'Équipements et circuits communs' },
+    { id: 'EXPANSION', label: 'Croissance & Débouchés', desc: 'Accès aux grands acheteurs et transformation' },
   ] : [
     { id: 'IDEE', label: 'Idée & Cadrage', desc: 'Je réfléchis encore à mon projet' },
-    { id: 'PROTOTYPE', label: 'Prototype / MVP', desc: 'Première version ou maquette en test' },
+    { id: 'PROTOTYPE', label: 'Prototype / Premier lot', desc: 'Première version ou échantillon testé' },
     { id: 'COMMERCIAL', label: 'Lancement marché', desc: 'Premiers clients et premières ventes' },
-    { id: 'CROISSANCE', label: 'En développement', desc: 'L\'activité grandit et recherche de financements' },
+    { id: 'CROISSANCE', label: 'En accélération', desc: 'Activité grandit et recherche de financements' },
   ];
 
   const availableNeeds = structureType === 'PME' ? [
@@ -335,6 +403,13 @@ export default function PublicApplicationPage() {
     { label: 'Accès aux financements & Banques', desc: 'Préparer un dossier solide pour obtenir un crédit bancaire' },
     { label: 'Conformité fiscale & Juridique', desc: 'Être en règle avec les impôts, les contrats et les lois' },
     { label: 'Accès aux marchés & Partenariats', desc: 'Trouver de gros clients et signer des partenariats commerciaux' }
+  ] : structureType === 'ORGANISATION' ? [
+    { label: 'Structuration juridique & Statuts OHADA', desc: 'Mettre en conformité la coopérative et son registre de membres' },
+    { label: 'Organisation de filière & Mutualisation', desc: 'Mutualiser les achats d\'intrants, équipements et stockage' },
+    { label: 'Recherche de subventions & Appuis bailleurs', desc: 'Accéder aux fonds dédiés aux coopératives et groupements (BAD, AFD, État)' },
+    { label: 'Débouchés commerciaux & Ventes groupées', desc: 'Écouler les productions auprès des grossistes et supermarchés' },
+    { label: 'Gestion administrative & Tenue des comptes', desc: 'Organiser la comptabilité et la gouvernance de la coopérative' },
+    { label: 'Transformation locale & Normes qualité', desc: 'Améliorer le conditionnement et la conservation des produits' }
   ] : [
     { label: 'Diagnostic & Stratégie', desc: 'Faire le point sur mon projet et définir les bonnes priorités' },
     { label: 'Accompagnement méthodologique', desc: 'Apprendre à bien structurer mon travail étape par étape' },
@@ -346,7 +421,7 @@ export default function PublicApplicationPage() {
 
   const stepsList = [
     { num: 1, title: 'Profil de structure', icon: Briefcase, desc: 'Type & maturité' },
-    { num: 2, title: 'Dirigeant', icon: Users, desc: 'Contact & localisation' },
+    { num: 2, title: isIndividualOrStartup ? 'Porteur / Fondateur' : 'Représentant', icon: Users, desc: 'Contact & mandat' },
     { num: 3, title: 'Entreprise & Projet', icon: Building2, desc: 'Activité & juridique' },
     { num: 4, title: 'Besoins & Entretien', icon: Target, desc: 'Forfait & rendez-vous' },
   ];
@@ -524,10 +599,10 @@ export default function PublicApplicationPage() {
                       {/* 4 Cartes de sélection en Grille Ergonomique (2x2 sur Mobile, 4x1 sur Grand Écran) */}
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                         {[
-                          { id: 'PORTEUR_IDEE', label: "Porteur d'Idée", desc: "Projet pas encore lancé", icon: Lightbulb, badge: 'Phase 1' },
-                          { id: 'STARTUP', label: "Startup Tech", desc: "Application ou service innovant", icon: Rocket, badge: 'Tech / MVP' },
-                          { id: 'PME', label: "TPE / PME", desc: "Entreprise en activité", icon: Building2, badge: 'Croissance' },
-                          { id: 'ORGANISATION', label: "Organisation / Coop", desc: "Groupement ou coopérative", icon: Layers, badge: 'Filière' }
+                          { id: 'PORTEUR_IDEE', label: "Porteur d'Idée", desc: "Projet ou concept en émergence", icon: Lightbulb, badge: 'Phase 1' },
+                          { id: 'STARTUP', label: "Startup (Tous domaines)", desc: "Projet innovant à fort potentiel (Agro, Santé, Services, Tech...)", icon: Rocket, badge: 'Innovation' },
+                          { id: 'PME', label: "TPE / PME", desc: "Entreprise formelle en activité", icon: Building2, badge: 'Croissance' },
+                          { id: 'ORGANISATION', label: "Organisation / Coop", desc: "Groupement, coopérative ou filière", icon: Layers, badge: 'Filière' }
                         ].map((type) => {
                           const IconComp = type.icon;
                           const isSelected = structureType === type.id;
@@ -601,22 +676,28 @@ export default function PublicApplicationPage() {
                   )}
 
                   {/* ===================================================================
-                      ÉTAPE 2 : DIRIGEANT OU REPRÉSENTANT
+                      ÉTAPE 2 : DIRIGEANT OU REPRÉSENTANT (Distingue Porteur/Startup vs PME/Organisation)
                      =================================================================== */}
                   {currentStep === 2 && (
                     <div className="space-y-6 animate-in fade-in duration-200">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <Users className="size-5 text-[#f06553]" />
-                          <h2 className="text-lg font-bold text-slate-900">2. Coordonnées du Dirigeant ou Porteur</h2>
+                          <h2 className="text-lg font-bold text-slate-900">
+                            {isIndividualOrStartup 
+                              ? "2. Profil du Porteur de projet ou Fondateur" 
+                              : "2. Représentant légal & Point de contact officiel"}
+                          </h2>
                         </div>
                         <p className="text-xs text-slate-500">
-                          Ces informations serviront pour les convocations officielles et la création de votre espace sécurisé.
+                          {isIndividualOrStartup 
+                            ? "Ces informations serviront pour adapter votre accompagnement individuel et la création de votre espace sécurisé."
+                            : "Coordonnées de la personne habilitée à représenter légalement la structure auprès de l'incubateur IML Digit."}
                         </p>
                       </div>
 
-                      {/* Photo d'identité / Portrait du candidat (uniquement pour Bénéficiaire individuel / Porteur d'idée ou Startup) */}
-                      {(structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP') && (
+                      {/* Photo d'identité / Portrait (uniquement pour Bénéficiaire individuel / Porteur d'idée ou Startup) */}
+                      {isIndividualOrStartup && (
                         <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center gap-4">
                           <div className="relative size-16 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-inner group">
                             {photoPreview ? (
@@ -672,50 +753,174 @@ export default function PublicApplicationPage() {
                         </div>
                       )}
 
-                      <div className="grid sm:grid-cols-2 gap-5">
-                        <div>
+                      {/* Civilité, Prénom, Nom */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                        <div className="sm:col-span-3">
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Prénom <span className="text-[#f06553]">*</span>
+                            Civilité <span className="text-[#f06553]">*</span>
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setCivility('M.')}
+                              className={`py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                civility === 'M.'
+                                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              Monsieur
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCivility('Mme')}
+                              className={`py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                civility === 'Mme'
+                                  ? 'bg-[#f06553] text-white border-[#f06553] shadow-xs'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              Madame
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="sm:col-span-4">
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                            {isPmeOrOrg ? "Prénom du représentant" : "Prénom"} <span className="text-[#f06553]">*</span>
                           </label>
                           <input 
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
                             required 
                             placeholder="Prénom"
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
-                        <div>
+
+                        <div className="sm:col-span-5">
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Nom de famille <span className="text-[#f06553]">*</span>
+                            {isPmeOrOrg ? "Nom du représentant" : "Nom de famille"} <span className="text-[#f06553]">*</span>
                           </label>
                           <input 
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
                             required 
                             placeholder="Nom de famille"
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
                       </div>
 
-                      <div className="grid sm:grid-cols-3 gap-5">
-                        <div className="sm:col-span-1">
+                      {/* Champs spécifiques : Groupe 1 (Porteur / Startup) */}
+                      {isIndividualOrStartup && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-orange-50/40 border border-orange-100">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                              Rôle dans le projet
+                            </label>
+                            <select
+                              value={role}
+                              onChange={(e) => setRole(e.target.value as any)}
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553]"
+                            >
+                              <option value="PORTEUR_UNIQUE">Porteur de projet unique</option>
+                              <option value="CO_FONDATEUR">Co-fondateur / Associé</option>
+                              <option value="LEADER_PROJET">Chef d'équipe / Leader</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                              Tranche d'âge
+                            </label>
+                            <select
+                              value={ageRange}
+                              onChange={(e) => setAgeRange(e.target.value as any)}
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553]"
+                            >
+                              <option value="MOINS_25">Moins de 25 ans</option>
+                              <option value="25_35">25 à 35 ans (Jeune entrepreneur)</option>
+                              <option value="PLUS_35">Plus de 35 ans</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                              Disponibilité pour le projet
+                            </label>
+                            <select
+                              value={availability}
+                              onChange={(e) => setAvailability(e.target.value as any)}
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553]"
+                            >
+                              <option value="TEMPS_PLEIN">100% Temps plein</option>
+                              <option value="TEMPS_PARTIEL">Temps partiel (emploi / études)</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Champs spécifiques : Groupe 2 (PME / Organisation) */}
+                      {isPmeOrOrg && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                          <div className="sm:col-span-1">
+                            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                              Fonction / Mandat officiel <span className="text-[#f06553]">*</span>
+                            </label>
+                            <input
+                              value={position}
+                              onChange={(e) => setPosition(e.target.value)}
+                              placeholder={structureType === 'ORGANISATION' ? "Ex: Président(e), Secrétaire Général" : "Ex: Gérant(e), DG, Administrateur"}
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                            />
+                          </div>
+
+                          <div className="sm:col-span-1">
+                            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                              Quartier / Zone du Siège
+                            </label>
+                            <input
+                              value={headquartersAddress}
+                              onChange={(e) => setHeadquartersAddress(e.target.value)}
+                              placeholder="Ex: Oloumi, Boulevard Triomphal, Akanda..."
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                            />
+                          </div>
+
+                          <div className="sm:col-span-1">
+                            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                              Téléphone du bureau / Siège (Optionnel)
+                            </label>
+                            <input
+                              value={businessPhone}
+                              onChange={(e) => setBusinessPhone(e.target.value)}
+                              placeholder="Fixe ou second contact officiel"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Coordonnées de contact (Email, Téléphone WhatsApp, 2e numéro secours) */}
+                      <div className="grid sm:grid-cols-3 gap-4">
+                        <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Adresse e-mail <span className="text-[#f06553]">*</span>
+                            {isPmeOrOrg ? "Adresse e-mail professionnelle" : "Adresse e-mail"} <span className="text-[#f06553]">*</span>
                           </label>
                           <input 
                             type="email" 
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required 
-                            placeholder="contact@entreprise.ga"
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            placeholder={isPmeOrOrg ? "direction@entreprise.ga" : "votre-email@gmail.com"}
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
-                        <div className="sm:col-span-1">
+
+                        <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Téléphone WhatsApp / Appel <span className="text-[#f06553]">*</span>
+                            Téléphone WhatsApp / Appel direct <span className="text-[#f06553]">*</span>
                           </label>
                           <input 
                             type="tel" 
@@ -723,21 +928,64 @@ export default function PublicApplicationPage() {
                             onChange={(e) => setPhone(e.target.value)}
                             required 
                             placeholder="+241 77 00 00 00"
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
-                        <div className="sm:col-span-1">
+
+                        <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Ville / Localisation au Gabon
+                            Deuxième téléphone (Secours Airtel/Moov)
                           </label>
                           <input 
-                            value={city}
-                            onChange={(e) => setCity(e.target.value)}
-                            placeholder="Libreville, Port-Gentil, Franceville..."
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            type="tel" 
+                            value={secondaryPhone}
+                            onChange={(e) => setSecondaryPhone(e.target.value)}
+                            placeholder="+241 66 00 00 00 (Optionnel)"
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
                       </div>
+
+                      {/* Ville de localisation */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          {isPmeOrOrg ? "Ville d'implantation au Gabon" : "Ville de résidence au Gabon"} <span className="text-[#f06553]">*</span>
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {['Libreville', 'Akanda', 'Owendo', 'Port-Gentil', 'Franceville', 'Oyem', 'Moanda', 'Autre ville'].map((v) => {
+                            const isSelected = city === v || (v === 'Autre ville' && !['Libreville', 'Akanda', 'Owendo', 'Port-Gentil', 'Franceville', 'Oyem', 'Moanda'].includes(city));
+                            return (
+                              <button
+                                key={v}
+                                type="button"
+                                onClick={() => {
+                                  if (v === 'Autre ville') {
+                                    setCity('Autre');
+                                  } else {
+                                    setCity(v);
+                                  }
+                                }}
+                                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer text-center ${
+                                  isSelected
+                                    ? 'bg-[#23c3b1] text-white border-[#23c3b1] shadow-2xs'
+                                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {v}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {city === 'Autre' && (
+                          <input
+                            type="text"
+                            placeholder="Précisez votre ville au Gabon (ex: Lambaréné, Mouila, Tchibanga...)"
+                            onChange={(e) => setCity(e.target.value)}
+                            className="w-full mt-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-[#23c3b1]"
+                          />
+                        )}
+                      </div>
+
                     </div>
                   )}
 
@@ -785,14 +1033,94 @@ export default function PublicApplicationPage() {
                         </div>
                       </div>
 
-                      {/* Renseignements juridiques PME / STARTUP en grille horizontale */}
-                      {(structureType === 'PME' || structureType === 'STARTUP') && (
+                      {/* SECTION 3.A : SPÉCIFIQUE PORTEUR D'IDÉE & STARTUP (Tous domaines) */}
+                      {isIndividualOrStartup && (
+                        <div className="p-5 rounded-2xl bg-orange-50/40 border border-orange-100 space-y-4">
+                          <div className="flex items-center justify-between border-b border-orange-200/70 pb-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                              <Sparkles className="size-4 text-[#f06553]" />
+                              Vitrine, Maturité & Marché visé
+                            </span>
+                            <span className="text-[11px] font-medium text-slate-500">Innovation & Potentiel</span>
+                          </div>
+
+                          {/* Lien vitrine / Réseaux sociaux */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Lien vitrine / Page réseaux sociaux / Démo (Optionnel)
+                            </label>
+                            <div className="relative">
+                              <Globe className="size-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                              <input
+                                value={showcaseUrl}
+                                onChange={(e) => setShowcaseUrl(e.target.value)}
+                                placeholder="https://facebook.com/votre-page ou https://monsite.ga ou boutique WhatsApp"
+                                className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                              />
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-1">
+                              Lien vers vos photos de produits, page Facebook, compte Instagram ou prototype.
+                            </span>
+                          </div>
+
+                          <div className="grid sm:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Test auprès du marché
+                              </label>
+                              <select 
+                                value={marketTest}
+                                onChange={(e) => setMarketTest(e.target.value as any)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                              >
+                                <option value="OUI">Oui, premiers clients / ventes réalisées</option>
+                                <option value="EN_COURS">En phase d'échantillons ou test pilote</option>
+                                <option value="NON">Pas encore testé sur le marché</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Marché géographique ciblé
+                              </label>
+                              <select 
+                                value={targetMarket}
+                                onChange={(e) => setTargetMarket(e.target.value as any)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                              >
+                                <option value="LOCAL">National (Libreville & Gabon)</option>
+                                <option value="CEMAC">Sous-région Afrique centrale (CEMAC)</option>
+                                <option value="INTERNATIONAL">International / Exportation</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Protection de la marque / brevet
+                              </label>
+                              <select 
+                                value={oapiProtection}
+                                onChange={(e) => setOapiProtection(e.target.value as any)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                              >
+                                <option value="NON">Non protégé pour le moment</option>
+                                <option value="EN_COURS">Dépôt OAPI en cours</option>
+                                <option value="OUI">Marque ou brevet enregistré (OAPI)</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SECTION 3.B : SPÉCIFIQUE TPE / PME (Entreprise formelle) */}
+                      {structureType === 'PME' && (
                         <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
                           <div className="flex items-center justify-between border-b border-slate-200/70 pb-2">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                              Données administratives & juridiques (OHADA)
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                              <Landmark className="size-4 text-[#23c3b1]" />
+                              Données administratives, juridiques & Marché (PME)
                             </span>
-                            <span className="text-[11px] font-medium text-slate-400">Optionnel mais recommandé</span>
+                            <span className="text-[11px] font-medium text-slate-400">OHADA / Fiscalité</span>
                           </div>
 
                           <div className="grid sm:grid-cols-3 gap-4">
@@ -836,7 +1164,7 @@ export default function PublicApplicationPage() {
                             </div>
                           </div>
 
-                          <div className="grid sm:grid-cols-3 gap-4">
+                          <div className="grid sm:grid-cols-4 gap-4">
                             <div>
                               <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                                 Taille effectif
@@ -878,6 +1206,146 @@ export default function PublicApplicationPage() {
                                 <option value="PLUS_250M">&gt; 250M FCFA</option>
                               </select>
                             </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Compte bancaire pro
+                              </label>
+                              <select 
+                                value={hasBankAccount}
+                                onChange={(e) => setHasBankAccount(e.target.value as any)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                              >
+                                <option value="OUI">Oui, compte pro actif</option>
+                                <option value="NON">En cours / Non</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Clientèle principale ciblée
+                            </label>
+                            <select
+                              value={targetClientele}
+                              onChange={(e) => setTargetClientele(e.target.value as any)}
+                              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                            >
+                              <option value="B2C">Particuliers & Grand public (B2C)</option>
+                              <option value="B2B">Grandes entreprises & PME partenaires (B2B)</option>
+                              <option value="B2G">Marchés publics & Administrations (B2G)</option>
+                              <option value="MIXTE">Clientèle mixte (Particuliers & Entreprises)</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SECTION 3.C : SPÉCIFIQUE ORGANISATION / COOPÉRATIVE */}
+                      {structureType === 'ORGANISATION' && (
+                        <div className="p-5 rounded-2xl bg-emerald-50/40 border border-emerald-200/70 space-y-4">
+                          <div className="flex items-center justify-between border-b border-emerald-200/70 pb-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                              <Users2 className="size-4 text-emerald-600" />
+                              Structure Collective, Filière & Membres
+                            </span>
+                            <span className="text-[11px] font-medium text-emerald-700">Filières & Impact</span>
+                          </div>
+
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Statut de l'organisation
+                              </label>
+                              <select 
+                                value={orgType}
+                                onChange={(e) => setOrgType(e.target.value as any)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="COOPERATIVE">Coopérative simplifiée (OHADA)</option>
+                                <option value="GIE">Groupement d'Intérêt Économique (GIE)</option>
+                                <option value="ASSOCIATION">Association de producteurs / artisans</option>
+                                <option value="FEDERATION">Fédération / Union de coopératives</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Filière / Activité de production <span className="text-[#f06553]">*</span>
+                              </label>
+                              <input 
+                                value={filiere}
+                                onChange={(e) => setFiliere(e.target.value)}
+                                placeholder="Ex: Manioc & Dérivés, Maraîchage, Pêche, Artisanat..."
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid sm:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Nombre d'adhérents / membres actifs
+                              </label>
+                              <select 
+                                value={membersCount}
+                                onChange={(e) => setMembersCount(e.target.value as any)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="MOINS_20">Moins de 20 membres</option>
+                                <option value="20_50">20 à 50 membres</option>
+                                <option value="PLUS_50">Plus de 50 membres</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Part estimée de femmes parmi les membres
+                              </label>
+                              <select 
+                                value={womenPercentage}
+                                onChange={(e) => setWomenPercentage(e.target.value)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="PLUS_50">Majoritairement des femmes (&gt; 50%)</option>
+                                <option value="30_50">30% à 50% de femmes</option>
+                                <option value="MOINS_30">Moins de 30%</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Province / Bassin d'activité
+                              </label>
+                              <select 
+                                value={productionProvince}
+                                onChange={(e) => setProductionProvince(e.target.value)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="Estuaire">Estuaire (Libreville, Ntoum, Kango...)</option>
+                                <option value="Woleu-Ntem">Woleu-Ntem (Oyem, Bitam...)</option>
+                                <option value="Ngounié">Ngounié (Mouila, Ndendé...)</option>
+                                <option value="Ogooué-Maritime">Ogooué-Maritime (Port-Gentil, Gamba...)</option>
+                                <option value="Haut-Ogooué">Haut-Ogooué (Franceville, Moanda...)</option>
+                                <option value="Moyen-Ogooué">Moyen-Ogooué (Lambaréné...)</option>
+                                <option value="Nyanga">Nyanga (Tchibanga...)</option>
+                                <option value="Ogooué-Ivindo">Ogooué-Ivindo (Makokou...)</option>
+                                <option value="Ogooué-Lolo">Ogooué-Lolo (Koulamoutou...)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Récépissé ou Agrément officiel du Ministère
+                            </label>
+                            <select 
+                              value={hasOfficialRegistration}
+                              onChange={(e) => setHasOfficialRegistration(e.target.value as any)}
+                              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                            >
+                              <option value="OUI">Oui, récépissé ou agrément officiel obtenu</option>
+                              <option value="EN_COURS">En cours d'enregistrement / formalisation</option>
+                              <option value="NON">Non immatriculé pour le moment</option>
+                            </select>
                           </div>
                         </div>
                       )}
@@ -1145,6 +1613,56 @@ export default function PublicApplicationPage() {
                             </label>
                           </div>
                         )}
+                      </div>
+
+                      {/* Créneau horaire préféré */}
+                      <div className="pt-4 border-t border-slate-100 space-y-2.5">
+                        <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                          Créneau horaire préféré pour l'entretien
+                        </label>
+                        <div className="grid grid-cols-3 gap-2.5">
+                          {[
+                            { id: 'MATIN', label: 'Matinée', desc: '09h00 - 12h00' },
+                            { id: 'APRES_MIDI', label: 'Après-midi', desc: '14h00 - 17h00' },
+                            { id: 'INDIFFERENT', label: 'Indifférent', desc: 'Selon disponibilités' },
+                          ].map((t) => {
+                            const isSelected = timeSlotPreference === t.id;
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setTimeSlotPreference(t.id as any)}
+                                className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'border-[#23c3b1] bg-[#23c3b1]/10 text-slate-900 ring-2 ring-[#23c3b1]/20 shadow-2xs'
+                                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                <div className="text-xs font-bold text-slate-900">{t.label}</div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">{t.desc}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Canal de découverte */}
+                      <div className="pt-4 border-t border-slate-100 space-y-2">
+                        <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                          Comment avez-vous connu l'Incubateur IML Digit ?
+                        </label>
+                        <select
+                          value={discoveryChannel}
+                          onChange={(e) => setDiscoveryChannel(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                        >
+                          <option value="RESEAUX_SOCIAUX">Réseaux sociaux (Facebook, LinkedIn, Instagram, TikTok)</option>
+                          <option value="BOUCHE_A_OREILLE">Bouche-à-oreille / Recommandation d'un entrepreneur</option>
+                          <option value="ESPACE_PME">Passage à l'Espace PME (Quartier B2, Libreville)</option>
+                          <option value="EVENEMENT">Événement, Salon, Caravane de l'entrepreneuriat</option>
+                          <option value="PARTENAIRE">Partenaire bancaire ou institutionnel (Ministères, Bailleurs)</option>
+                          <option value="AUTRE">Autre canal</option>
+                        </select>
                       </div>
 
                     </div>
