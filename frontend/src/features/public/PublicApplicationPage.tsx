@@ -193,32 +193,34 @@ export default function PublicApplicationPage() {
   const [phone, setPhone] = useState('');
   const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
+  const [customCity, setCustomCity] = useState('');
   const [arrondissement, setArrondissement] = useState('');
+  const [customArrondissement, setCustomArrondissement] = useState('');
   const [department, setDepartment] = useState('');
+  const [customDepartment, setCustomDepartment] = useState('');
   const [quartier, setQuartier] = useState('');
-
-  const [isCustomCity, setIsCustomCity] = useState(false);
-  const [isCustomArrondissement, setIsCustomArrondissement] = useState(false);
-  const [isCustomDepartment, setIsCustomDepartment] = useState(false);
-  const [isCustomQuartier, setIsCustomQuartier] = useState(false);
+  const [customQuartier, setCustomQuartier] = useState('');
 
   const handleProvinceChange = (newProvince: string) => {
     setProvince(newProvince);
     setCity('');
-    setIsCustomCity(false);
+    setCustomCity('');
     setArrondissement('');
-    setIsCustomArrondissement(false);
+    setCustomArrondissement('');
     setDepartment('');
-    setIsCustomDepartment(false);
+    setCustomDepartment('');
     setQuartier('');
-    setIsCustomQuartier(false);
+    setCustomQuartier('');
   };
 
   // Liste dynamique des quartiers selon la province, la ville et l'arrondissement précis
   const currentQuartiersSuggestions = useMemo(() => {
+    const effectiveCity = city === 'Autre' ? customCity : city;
+    const effectiveArr = arrondissement === 'Autre' ? customArrondissement : arrondissement;
+
     if (province === 'Estuaire') {
-      if (arrondissement) {
-        const arrTrim = arrondissement.trim();
+      if (effectiveArr) {
+        const arrTrim = effectiveArr.trim();
         const arrLower = arrTrim.toLowerCase();
         
         // Correspondance directe ou partielle avec un arrondissement de Libreville, Akanda ou Owendo
@@ -240,15 +242,15 @@ export default function PublicApplicationPage() {
       }
       
       // Si une ville spécifique de l'Estuaire est saisie (ex: Akanda, Owendo, Ntoum...)
-      if (city && ESTUAIRE_OTHER_CITIES_QUARTIERS[city]) {
-        return ESTUAIRE_OTHER_CITIES_QUARTIERS[city];
+      if (effectiveCity && ESTUAIRE_OTHER_CITIES_QUARTIERS[effectiveCity]) {
+        return ESTUAIRE_OTHER_CITIES_QUARTIERS[effectiveCity];
       }
       
       return PROVINCE_QUARTIERS['Estuaire'] || [];
     }
     
     return PROVINCE_QUARTIERS[province] || [];
-  }, [province, city, arrondissement]);
+  }, [province, city, customCity, arrondissement, customArrondissement]);
 
   // Spécifique Groupe 1 (Porteur d'Idée / Startup)
   const [role, setRole] = useState('');
@@ -527,10 +529,10 @@ export default function PublicApplicationPage() {
         email: email.trim(),
         phone: phone.trim(),
         province: province.trim() || undefined,
-        city: city.trim() || undefined,
-        arrondissement: province === 'Estuaire' && arrondissement.trim() ? arrondissement.trim() : undefined,
-        department: province !== 'Estuaire' && department.trim() ? department.trim() : undefined,
-        quartier: quartier.trim() || undefined,
+        city: (city === 'Autre' ? customCity : city).trim() || undefined,
+        arrondissement: province === 'Estuaire' && (arrondissement === 'Autre' ? customArrondissement : arrondissement).trim() ? (arrondissement === 'Autre' ? customArrondissement : arrondissement).trim() : undefined,
+        department: province !== 'Estuaire' && (department === 'Autre' ? customDepartment : department).trim() ? (department === 'Autre' ? customDepartment : department).trim() : undefined,
+        quartier: (quartier === 'Autre' ? customQuartier : quartier).trim() || undefined,
         structureType,
         companyName: compName,
         // Spécifique Porteur / Startup
@@ -1126,68 +1128,48 @@ export default function PublicApplicationPage() {
 
                           {/* 2. Ville */}
                           <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <label className="block text-xs font-semibold text-slate-700">
-                                {isPmeOrOrg ? "Ville d'implantation" : "Ville"} <span className="text-[#f06553]">*</span>
-                              </label>
-                              {province && (
-                                <button 
-                                  type="button" 
-                                  onClick={() => {
-                                    setIsCustomCity(!isCustomCity);
-                                    setCity('');
-                                    setArrondissement('');
-                                    setDepartment('');
-                                    setQuartier('');
-                                  }}
-                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
-                                >
-                                  {isCustomCity ? "Choisir dans la liste" : "Saisie libre"}
-                                </button>
-                              )}
-                            </div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                              {isPmeOrOrg ? "Ville d'implantation" : "Ville"} <span className="text-[#f06553]">*</span>
+                            </label>
                             {!province ? (
                               <select disabled className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-base sm:text-sm cursor-not-allowed">
                                 <option>Sélectionnez d'abord une province</option>
                               </select>
-                            ) : isCustomCity ? (
-                              <input 
-                                type="text"
-                                value={city}
-                                onChange={(e) => {
-                                  setCity(e.target.value);
-                                  setArrondissement('');
-                                  setDepartment('');
-                                  setQuartier('');
-                                }}
-                                required 
-                                placeholder="Saisissez votre ville..."
-                                autoFocus
-                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
-                              />
                             ) : (
-                              <select
-                                value={city}
-                                onChange={(e) => {
-                                  if (e.target.value === 'AUTRE') {
-                                    setIsCustomCity(true);
-                                    setCity('');
-                                  } else {
+                              <>
+                                <select
+                                  value={city}
+                                  onChange={(e) => {
                                     setCity(e.target.value);
-                                  }
-                                  setArrondissement('');
-                                  setDepartment('');
-                                  setQuartier('');
-                                }}
-                                required
-                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
-                              >
-                                <option value="">Sélectionnez une ville...</option>
-                                {(PROVINCE_CITIES[province] || []).map((c) => (
-                                  <option key={c} value={c}>{c}</option>
-                                ))}
-                                <option value="AUTRE">Autre ville (saisie libre)...</option>
-                              </select>
+                                    setCustomCity('');
+                                    setArrondissement('');
+                                    setCustomArrondissement('');
+                                    setDepartment('');
+                                    setCustomDepartment('');
+                                    setQuartier('');
+                                    setCustomQuartier('');
+                                  }}
+                                  required
+                                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                                >
+                                  <option value="">Sélectionnez une ville...</option>
+                                  {(PROVINCE_CITIES[province] || []).map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                  ))}
+                                  <option value="Autre">Autre</option>
+                                </select>
+                                {city === 'Autre' && (
+                                  <input 
+                                    type="text"
+                                    value={customCity}
+                                    onChange={(e) => setCustomCity(e.target.value)}
+                                    required 
+                                    placeholder="Précisez votre ville"
+                                    autoFocus
+                                    className="mt-2 w-full px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                                  />
+                                )}
+                              </>
                             )}
                           </div>
 
@@ -1203,161 +1185,106 @@ export default function PublicApplicationPage() {
                             </div>
                           ) : province === 'Estuaire' ? (
                             <div>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <label className="block text-xs font-semibold text-slate-700">
-                                  Arrondissement
-                                </label>
-                                <button 
-                                  type="button" 
-                                  onClick={() => {
-                                    setIsCustomArrondissement(!isCustomArrondissement);
-                                    setArrondissement('');
-                                    setQuartier('');
-                                  }}
-                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
-                                >
-                                  {isCustomArrondissement ? "Choisir dans la liste" : "Saisie libre"}
-                                </button>
-                              </div>
-                              {isCustomArrondissement ? (
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Arrondissement
+                              </label>
+                              <select
+                                value={arrondissement}
+                                onChange={(e) => {
+                                  setArrondissement(e.target.value);
+                                  setCustomArrondissement('');
+                                  setQuartier('');
+                                  setCustomQuartier('');
+                                }}
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                              >
+                                <option value="">Sélectionnez un arrondissement...</option>
+                                {ESTUAIRE_ARRONDISSEMENTS.map((arr) => (
+                                  <option key={arr} value={arr}>{arr}</option>
+                                ))}
+                                <option value="Autre">Autre</option>
+                              </select>
+                              {arrondissement === 'Autre' && (
                                 <input 
                                   type="text"
-                                  value={arrondissement}
-                                  onChange={(e) => {
-                                    setArrondissement(e.target.value);
-                                    setQuartier('');
-                                  }}
-                                  placeholder="Ex: 1er arrondissement..."
+                                  value={customArrondissement}
+                                  onChange={(e) => setCustomArrondissement(e.target.value)}
+                                  placeholder="Précisez votre arrondissement"
                                   autoFocus
-                                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                                  className="mt-2 w-full px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                                 />
-                              ) : (
-                                <select
-                                  value={arrondissement}
-                                  onChange={(e) => {
-                                    if (e.target.value === 'AUTRE') {
-                                      setIsCustomArrondissement(true);
-                                      setArrondissement('');
-                                    } else {
-                                      setArrondissement(e.target.value);
-                                    }
-                                    setQuartier('');
-                                  }}
-                                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
-                                >
-                                  <option value="">Sélectionnez un arrondissement...</option>
-                                  {ESTUAIRE_ARRONDISSEMENTS.map((arr) => (
-                                    <option key={arr} value={arr}>{arr}</option>
-                                  ))}
-                                  <option value="AUTRE">Autre arrondissement (saisie libre)...</option>
-                                </select>
                               )}
                             </div>
                           ) : (
                             <div>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <label className="block text-xs font-semibold text-slate-700">
-                                  Département
-                                </label>
-                                <button 
-                                  type="button" 
-                                  onClick={() => {
-                                    setIsCustomDepartment(!isCustomDepartment);
-                                    setDepartment('');
-                                    setQuartier('');
-                                  }}
-                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
-                                >
-                                  {isCustomDepartment ? "Choisir dans la liste" : "Saisie libre"}
-                                </button>
-                              </div>
-                              {isCustomDepartment ? (
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Département
+                              </label>
+                              <select
+                                value={department}
+                                onChange={(e) => {
+                                  setDepartment(e.target.value);
+                                  setCustomDepartment('');
+                                  setQuartier('');
+                                  setCustomQuartier('');
+                                }}
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                              >
+                                <option value="">Sélectionnez un département...</option>
+                                {(PROVINCE_DEPARTMENTS[province] || []).map((d) => (
+                                  <option key={d} value={d}>{d}</option>
+                                ))}
+                                <option value="Autre">Autre</option>
+                              </select>
+                              {department === 'Autre' && (
                                 <input 
                                   type="text"
-                                  value={department}
-                                  onChange={(e) => {
-                                    setDepartment(e.target.value);
-                                    setQuartier('');
-                                  }}
-                                  placeholder="Saisissez le département..."
+                                  value={customDepartment}
+                                  onChange={(e) => setCustomDepartment(e.target.value)}
+                                  placeholder="Précisez votre département"
                                   autoFocus
-                                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                                  className="mt-2 w-full px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                                 />
-                              ) : (
-                                <select
-                                  value={department}
-                                  onChange={(e) => {
-                                    if (e.target.value === 'AUTRE') {
-                                      setIsCustomDepartment(true);
-                                      setDepartment('');
-                                    } else {
-                                      setDepartment(e.target.value);
-                                    }
-                                    setQuartier('');
-                                  }}
-                                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
-                                >
-                                  <option value="">Sélectionnez un département...</option>
-                                  {(PROVINCE_DEPARTMENTS[province] || []).map((d) => (
-                                    <option key={d} value={d}>{d}</option>
-                                  ))}
-                                  <option value="AUTRE">Autre département (saisie libre)...</option>
-                                </select>
                               )}
                             </div>
                           )}
 
                           {/* 4. Quartier */}
                           <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <label className="block text-xs font-semibold text-slate-700">
-                                Quartier
-                              </label>
-                              {province && (
-                                <button 
-                                  type="button" 
-                                  onClick={() => {
-                                    setIsCustomQuartier(!isCustomQuartier);
-                                    setQuartier('');
-                                  }}
-                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
-                                >
-                                  {isCustomQuartier ? "Choisir dans la liste" : "Saisie libre"}
-                                </button>
-                              )}
-                            </div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                              Quartier
+                            </label>
                             {!province ? (
                               <select disabled className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-base sm:text-sm cursor-not-allowed">
                                 <option>Sélectionnez d'abord une province</option>
                               </select>
-                            ) : isCustomQuartier ? (
-                              <input 
-                                type="text"
-                                value={quartier}
-                                onChange={(e) => setQuartier(e.target.value)}
-                                placeholder="Saisissez votre quartier..."
-                                autoFocus
-                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
-                              />
                             ) : (
-                              <select
-                                value={quartier}
-                                onChange={(e) => {
-                                  if (e.target.value === 'AUTRE') {
-                                    setIsCustomQuartier(true);
-                                    setQuartier('');
-                                  } else {
+                              <>
+                                <select
+                                  value={quartier}
+                                  onChange={(e) => {
                                     setQuartier(e.target.value);
-                                  }
-                                }}
-                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
-                              >
-                                <option value="">Sélectionnez un quartier...</option>
-                                {currentQuartiersSuggestions.map((q) => (
-                                  <option key={q} value={q}>{q}</option>
-                                ))}
-                                <option value="AUTRE">Autre quartier (saisie libre)...</option>
-                              </select>
+                                    setCustomQuartier('');
+                                  }}
+                                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                                >
+                                  <option value="">Sélectionnez un quartier...</option>
+                                  {currentQuartiersSuggestions.map((q) => (
+                                    <option key={q} value={q}>{q}</option>
+                                  ))}
+                                  <option value="Autre">Autre</option>
+                                </select>
+                                {quartier === 'Autre' && (
+                                  <input 
+                                    type="text"
+                                    value={customQuartier}
+                                    onChange={(e) => setCustomQuartier(e.target.value)}
+                                    placeholder="Précisez votre quartier"
+                                    autoFocus
+                                    className="mt-2 w-full px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                                  />
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
