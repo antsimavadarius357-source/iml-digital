@@ -707,7 +707,7 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                {/* 3. Téléphone principal & Secondaire */}
+                {/* 3. Téléphone principal */}
                 <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-50 transition-colors">
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                     Téléphone WhatsApp & Contact
@@ -719,11 +719,6 @@ export default function ApplicationDetailPage() {
                       </a>
                     ) : '—'}
                   </div>
-                  {c.secondaryPhone && (
-                    <span className="text-[11px] text-slate-500 block mt-0.5">
-                      Secours (Airtel/Moov) : {c.secondaryPhone}
-                    </span>
-                  )}
                   {c.businessPhone && (
                     <span className="text-[11px] text-slate-500 block mt-0.5">
                       Bureau / Siège : {c.businessPhone}

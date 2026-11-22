@@ -50,7 +50,6 @@ export default function PublicApplicationPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [secondaryPhone, setSecondaryPhone] = useState('');
   const [city, setCity] = useState('Libreville');
 
   // Spécifique Groupe 1 (Porteur d'Idée / Startup)
@@ -330,7 +329,6 @@ export default function PublicApplicationPage() {
         photo: (structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP') ? (photoPreview || undefined) : undefined,
         email: email.trim(),
         phone: phone.trim(),
-        secondaryPhone: secondaryPhone.trim() || undefined,
         city: city.trim() || 'Libreville',
         structureType,
         companyName: compName,
@@ -902,8 +900,8 @@ export default function PublicApplicationPage() {
                         </div>
                       )}
 
-                      {/* Coordonnées de contact (Email, Téléphone WhatsApp, 2e numéro secours) */}
-                      <div className="grid sm:grid-cols-3 gap-4">
+                      {/* Coordonnées de contact (Email & Téléphone WhatsApp) */}
+                      <div className="grid sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                             {isPmeOrOrg ? "Adresse e-mail professionnelle" : "Adresse e-mail"} <span className="text-[#f06553]">*</span>
@@ -928,19 +926,6 @@ export default function PublicApplicationPage() {
                             onChange={(e) => setPhone(e.target.value)}
                             required 
                             placeholder="+241 77 00 00 00"
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Deuxième téléphone (Secours Airtel/Moov)
-                          </label>
-                          <input 
-                            type="tel" 
-                            value={secondaryPhone}
-                            onChange={(e) => setSecondaryPhone(e.target.value)}
-                            placeholder="+241 66 00 00 00 (Optionnel)"
                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
