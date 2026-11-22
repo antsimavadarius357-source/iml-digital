@@ -54,7 +54,8 @@ export default function PublicApplicationPage() {
   const [quartier, setQuartier] = useState('');
 
   // Spécifique Groupe 1 (Porteur d'Idée / Startup)
-  const [role, setRole] = useState<'PORTEUR_UNIQUE' | 'CO_FONDATEUR' | 'LEADER_PROJET'>('PORTEUR_UNIQUE');
+  const [role, setRole] = useState('Porteur de projet');
+  const [customRole, setCustomRole] = useState('');
   const [age, setAge] = useState('');
   const [showcaseUrl, setShowcaseUrl] = useState('');
   const [marketTest, setMarketTest] = useState<'OUI' | 'EN_COURS' | 'NON'>('NON');
@@ -334,7 +335,7 @@ export default function PublicApplicationPage() {
         structureType,
         companyName: compName,
         // Spécifique Porteur / Startup
-        role: isIndividualOrStartup ? role : undefined,
+        role: isIndividualOrStartup ? (role === 'Autre' && customRole.trim() ? customRole.trim() : role) : undefined,
         age: isIndividualOrStartup && age.trim() ? (parseInt(age.trim(), 10) || age.trim()) : undefined,
         ageRange: isIndividualOrStartup && age.trim() ? (parseInt(age.trim(), 10) < 25 ? 'MOINS_25' : parseInt(age.trim(), 10) <= 35 ? '25_35' : 'PLUS_35') : undefined,
         // Spécifique PME / Organisation
@@ -790,13 +791,28 @@ export default function PublicApplicationPage() {
                             </label>
                             <select
                               value={role}
-                              onChange={(e) => setRole(e.target.value as any)}
+                              onChange={(e) => setRole(e.target.value)}
                               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
                             >
-                              <option value="PORTEUR_UNIQUE">Porteur de projet unique</option>
-                              <option value="CO_FONDATEUR">Co-fondateur et Associé</option>
-                              <option value="LEADER_PROJET">Chef d'équipe et Leader</option>
+                              <option value="Porteur de projet">Porteur de projet</option>
+                              <option value="Co-fondateur">Co-fondateur</option>
+                              <option value="Associé">Associé</option>
+                              <option value="Chef de projet">Chef de projet</option>
+                              <option value="Chef d'équipe">Chef d'équipe</option>
+                              <option value="Leader">Leader</option>
+                              <option value="Directeur Général">Directeur Général</option>
+                              <option value="Responsable opérationnel">Responsable opérationnel</option>
+                              <option value="Autre">Autre</option>
                             </select>
+                            {role === 'Autre' && (
+                              <input
+                                type="text"
+                                value={customRole}
+                                onChange={(e) => setCustomRole(e.target.value)}
+                                placeholder="Précisez votre rôle"
+                                className="w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                              />
+                            )}
                           </div>
 
                           <div>
