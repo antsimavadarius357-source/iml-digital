@@ -4,13 +4,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
   Loader2, 
-  Save, 
   User, 
   Building2, 
   Video, 
   Calendar, 
   CheckCircle2,
-  AlertCircle,
   Copy,
   MapPin,
   MessageSquare,
@@ -30,7 +28,6 @@ import {
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
 import { APP_STATUS_LABELS, APP_STATUS_STYLE } from './ApplicationsPage';
-import type { Options } from '../beneficiaries/types';
 import CreateAppointmentWizardModal from '../appointments/CreateAppointmentWizardModal';
 
 const STRUCTURE_LABELS: Record<string, { label: string; style: string }> = {
@@ -55,13 +52,10 @@ export default function ApplicationDetailPage() {
   
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('');
-  const [agentId, setAgentId] = useState('');
   const [isAppointmentOpen, setIsAppointmentOpen] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState('');
 
   const [isAddNoteModalOpen, setIsAddNoteModalOpen] = useState(false);
   const [noteTopic, setNoteTopic] = useState('Diagnostic & Stratégie');
@@ -110,8 +104,6 @@ export default function ApplicationDetailPage() {
     queryFn: () => api<{ application: any }>(`/applications/${id}`),
   });
 
-  const options = useQuery({ queryKey: ['beneficiary-options'], queryFn: () => api<Options>('/beneficiaries/options'), staleTime: 300_000 });
-
   const app = res?.application;
 
   useEffect(() => {
@@ -132,7 +124,6 @@ export default function ApplicationDetailPage() {
     if (app && !isInitialized) {
       setStatus(app.status || 'SOUMISE');
       setNotes(app.evaluationNotes || '');
-      setAgentId(app.assignedAgentId || '');
       setIsInitialized(true);
     }
   }, [app, isInitialized]);
@@ -140,21 +131,15 @@ export default function ApplicationDetailPage() {
   const updateMut = useMutation({
     mutationFn: (data: any) => api(`/applications/${id}`, { method: 'PATCH', body: data }),
     onSuccess: (data: any) => {
-      setSaveSuccess(true);
-      setSaveError('');
-      // Mettre à jour l'état local avec les données enregistrées
       if (data?.application) {
         setStatus(data.application.status || status);
         setNotes(data.application.evaluationNotes || notes);
       }
       queryClient.invalidateQueries({ queryKey: ['application', id] });
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      setTimeout(() => setSaveSuccess(false), 4000);
     },
     onError: (err: any) => {
-      setSaveSuccess(false);
-      setSaveError(err?.message || "Erreur lors de l'enregistrement de l'évaluation.");
-      setTimeout(() => setSaveError(''), 6000);
+      alert(err?.message || "Erreur lors de la mise à jour du dossier.");
     }
   });
 
@@ -176,11 +161,6 @@ export default function ApplicationDetailPage() {
   const isDirection = user?.role === 'DIRECTION';
   const isReadOnly = app.status === 'ACCEPTEE' || app.status === 'REFUSEE' || isDirection;
   const structureType = c.structureType || 'PORTEUR_IDEE';
-
-  const handleSave = () => {
-    if (isDirection) return;
-    updateMut.mutate({ status, evaluationNotes: notes, assignedAgentId: agentId || null });
-  };
 
   const handleConvert = () => {
     navigate('/beneficiaires/nouveau', { state: { fromApp: app.seqNumber || app.id, applicant: c, project: p } });
@@ -548,35 +528,59 @@ export default function ApplicationDetailPage() {
               <div className={`p-3.5 rounded-xl border flex items-start gap-3 transition-all ${
                 app.status === 'ACCEPTEE' 
                   ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 ring-2 ring-emerald-500/20' 
-                  : 'bg-white border-slate-200 text-slate-400'
+                  : app.status === 'REFUSEE'
+                    ? 'bg-red-50/70 border-red-200 text-red-900'
+                    : 'bg-white border-slate-200 text-slate-400'
               }`}>
                 <div className={`size-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                  app.status === 'ACCEPTEE' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                  app.status === 'ACCEPTEE' ? 'bg-emerald-600 text-white' : app.status === 'REFUSEE' ? 'bg-red-600 text-white' : 'bg-slate-200 text-slate-600'
                 }`}>
-                  {app.status === 'ACCEPTEE' ? '✓' : '4'}
+                  {app.status === 'ACCEPTEE' ? '✓' : app.status === 'REFUSEE' ? '✕' : '4'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-900 flex items-center justify-between gap-1">
                     <span className="truncate">4. Admission</span>
                     {app.status !== 'ACCEPTEE' && !isReadOnly && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStatus('ACCEPTEE');
-                          updateMut.mutate({ status: 'ACCEPTEE' });
-                        }}
-                        className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
-                        title="Valider l'Admission officielle dans le parcours d'incubation"
-                      >
-                        <span>Valider</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm("Confirmer l'admission officielle de ce candidat à l'incubateur ? Un e-mail d'admission officiel lui sera automatiquement envoyé.")) {
+                              setStatus('ACCEPTEE');
+                              updateMut.mutate({ status: 'ACCEPTEE' });
+                            }
+                          }}
+                          disabled={updateMut.isPending}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
+                          title="Valider l'Admission officielle dans le parcours d'incubation"
+                        >
+                          <CheckCircle2 className="size-3" />
+                          <span>Valider l'admission</span>
+                        </button>
+                        {app.status !== 'REFUSEE' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm("Confirmer le refus de ce dossier de candidature ?")) {
+                                setStatus('REFUSEE');
+                                updateMut.mutate({ status: 'REFUSEE' });
+                              }
+                            }}
+                            disabled={updateMut.isPending}
+                            className="text-[10px] font-medium px-1.5 py-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                            title="Classer comme non retenue"
+                          >
+                            <span>Refuser</span>
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-                    {app.status === 'ACCEPTEE' ? "Admission validée ✓" : "Comité & Agent IML"}
+                    {app.status === 'ACCEPTEE' ? "Admission validée ✓" : app.status === 'REFUSEE' ? "Candidature non retenue" : "Comité & Direction"}
                   </p>
                   <span className="text-[10px] text-slate-500 block truncate">
-                    {app.status === 'ACCEPTEE' ? `Intégré : ${programName}` : "Décision finale sur avis expert"}
+                    {app.status === 'ACCEPTEE' ? `Intégré : ${programName}` : app.status === 'REFUSEE' ? "Dossier non retenu" : "Décision finale sur avis expert"}
                   </span>
                 </div>
               </div>
@@ -599,7 +603,7 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                {beneficiaryId && (
+                {beneficiaryId ? (
                   <Link
                     to={`/beneficiaires/${beneficiaryId}`}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs shadow-xs transition-all shrink-0 cursor-pointer"
@@ -607,7 +611,16 @@ export default function ApplicationDetailPage() {
                     <span>Ouvrir le Suivi d'Accompagnement</span>
                     <ExternalLink className="size-3.5" />
                   </Link>
-                )}
+                ) : can('beneficiaries:write') ? (
+                  <button
+                    type="button"
+                    onClick={handleConvert}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all shrink-0 cursor-pointer"
+                  >
+                    <CheckCircle2 className="size-3.5" />
+                    <span>Créer le Dossier Bénéficiaire</span>
+                  </button>
+                ) : null}
               </div>
             )}
           </div>
@@ -615,12 +628,9 @@ export default function ApplicationDetailPage() {
       })()}
 
       {/* =========================================================================
-          2. CORPS DU DOSSIER : Colonne Gauche (Fiches) + Colonne Droite (Instruction)
+          2. CORPS DU DOSSIER : Vue Pleine Largeur (Fiches d'informations)
          ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Colonne Principale (Gauche) */}
-        <div className="space-y-6 lg:col-span-2">
+      <div className="space-y-6">
           
           {/* =====================================================================
               TABLEAU / FICHE 1 : Dirigeant / Représentant
@@ -1128,168 +1138,6 @@ export default function ApplicationDetailPage() {
 
             </div>
           </section>
-
-        </div>
-
-        {/* =======================================================================
-            COLONNE DROITE : Panneau d'Instruction & Décision du Dossier
-           ======================================================================= */}
-        <div className="space-y-6 lg:col-span-1">
-          <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-5 sticky top-20">
-            
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-              <span className="size-2 rounded-full bg-[#f06553] animate-pulse" />
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                Instruction du Dossier
-              </h2>
-            </div>
-            
-            {user?.role === 'DIRECTION' && (
-              <div className="p-3.5 bg-teal-50 border border-teal-200 text-teal-900 rounded-xl text-xs space-y-1">
-                <div className="font-bold flex items-center gap-1.5 text-teal-800">
-                  <ShieldCheck className="size-4 text-[#23c3b1]" />
-                  <span>Mode Consultation Direction</span>
-                </div>
-                <p className="text-[11px] text-teal-700 leading-relaxed font-normal">
-                  Ce dossier est affiché en lecture seule. Les modifications de statut et les évaluations opérationnelles sont réservées aux agents instructeurs.
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              
-              {/* Choix du Référent (réservé coordination / agent) */}
-              {user?.role !== 'COACH' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Référent assigné (Chargé de dossier ou Coach)
-                  </label>
-                  <select 
-                    className="w-full rounded-xl border border-slate-300 shadow-2xs focus:border-[#23c3b1] focus:ring-2 focus:ring-[#23c3b1]/20 text-xs text-slate-800 p-2.5 bg-white disabled:bg-slate-100 cursor-pointer"
-                    value={agentId}
-                    onChange={(e) => setAgentId(e.target.value)}
-                    disabled={isReadOnly && !can('applications:review')}
-                  >
-                    <option value="">Non assigné (Attribution ultérieure)</option>
-                    {options.data?.agents?.filter(a => a.role?.code === 'AGENT' || !a.role?.code).length ? (
-                      <optgroup label="📋 Chargés de dossier IML (Suivi & Coordination)">
-                        {options.data.agents.filter(a => a.role?.code === 'AGENT' || !a.role?.code).map(a => (
-                          <option key={a.id} value={a.id}>Chargé de dossier : {a.firstName} {a.lastName}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {options.data?.agents?.filter(a => a.role?.code === 'COACH').length ? (
-                      <optgroup label="🎯 Coachs & Mentors (Expertise pratique)">
-                        {options.data.agents.filter(a => a.role?.code === 'COACH').map(a => (
-                          <option key={a.id} value={a.id}>Coach : {a.firstName} {a.lastName}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {options.data?.agents?.filter(a => a.role?.code === 'ADMIN' || a.role?.code === 'DIRECTION').length ? (
-                      <optgroup label="👑 Direction du Programme">
-                        {options.data.agents.filter(a => a.role?.code === 'ADMIN' || a.role?.code === 'DIRECTION').map(a => (
-                          <option key={a.id} value={a.id}>Direction : {a.firstName} {a.lastName}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                  </select>
-                </div>
-              )}
-
-              {/* Choix du Statut */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Statut de la candidature
-                </label>
-                <select 
-                  className="w-full rounded-xl border border-slate-300 shadow-2xs focus:border-[#23c3b1] focus:ring-2 focus:ring-[#23c3b1]/20 text-xs font-bold text-slate-800 p-2.5 bg-white disabled:bg-slate-100 cursor-pointer"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  disabled={isReadOnly || user?.role === 'COACH'}
-                >
-                  {Object.entries(APP_STATUS_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                </select>
-              </div>
-
-              {/* Notes Internes & Diagnostic */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Notes internes & Rapport d'évaluation
-                </label>
-                <textarea 
-                  rows={7}
-                  className="w-full rounded-xl border border-slate-300 shadow-2xs focus:border-[#23c3b1] focus:ring-2 focus:ring-[#23c3b1]/20 text-xs p-3 font-mono text-slate-800 disabled:bg-slate-100 leading-relaxed resize-y"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Évaluation du profil, motivation, solidité du projet..."
-                  disabled={isReadOnly && !can('applications:review')}
-                />
-              </div>
-
-              {/* Notification visuelle de succès ou d'erreur */}
-              {saveSuccess && (
-                <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-semibold animate-in fade-in slide-in-from-top-1 duration-200">
-                  <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                  <span>✓ Notes d'évaluation et statut enregistrés avec succès !</span>
-                </div>
-              )}
-              {saveError && (
-                <div className="p-3 bg-red-50 border border-red-300 text-red-800 text-xs rounded-xl flex items-center gap-2 font-semibold animate-in fade-in slide-in-from-top-1 duration-200">
-                  <AlertCircle className="size-4 text-red-600 shrink-0" />
-                  <span>{saveError}</span>
-                </div>
-              )}
-
-              {/* Bouton Enregistrer l'évaluation (masqué pour la Direction) */}
-              {!isDirection && can('applications:review') && (
-                <button 
-                  type="button"
-                  onClick={handleSave} 
-                  disabled={updateMut.isPending}
-                  className={`w-full flex justify-center items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 text-xs font-bold cursor-pointer ${
-                    saveSuccess
-                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
-                      : 'bg-[#152335] hover:bg-[#0d1724]'
-                  }`}
-                >
-                  {updateMut.isPending ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin text-white" />
-                      <span>Enregistrement en cours...</span>
-                    </>
-                  ) : saveSuccess ? (
-                    <>
-                      <CheckCircle2 className="size-4 text-white" />
-                      <span>Évaluation enregistrée avec succès ✓</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="size-4 text-[#23c3b1]" />
-                      <span>Enregistrer l'évaluation</span>
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Alerte & Bouton Conversion en Bénéficiaire */}
-              {app.status === 'ACCEPTEE' && can('beneficiaries:write') && !app.beneficiaryId && (
-                <div className="pt-4 border-t border-slate-200 mt-4 space-y-3">
-                  <div className="bg-emerald-50 text-emerald-800 text-xs p-3.5 rounded-xl border border-emerald-200 leading-relaxed font-medium">
-                    🎉 Candidature admise ! Vous pouvez maintenant créer le dossier bénéficiaire officiel.
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={handleConvert}
-                    className="w-full flex justify-center items-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors text-xs font-bold shadow-sm cursor-pointer"
-                  >
-                    <CheckCircle2 className="size-4" />
-                    <span>Convertir en Bénéficiaire Officiel</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
 
       </div>
 
