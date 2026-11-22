@@ -158,6 +158,19 @@ const ESTUAIRE_OTHER_CITIES_QUARTIERS: Record<string, string[]> = {
   ]
 };
 
+const ESTUAIRE_ARRONDISSEMENTS = [
+  '1er arrondissement',
+  '2e arrondissement',
+  '3e arrondissement',
+  '4e arrondissement',
+  '5e arrondissement',
+  '6e arrondissement',
+  'Akanda - 1er arrondissement',
+  'Akanda - 2e arrondissement',
+  'Owendo - 1er arrondissement',
+  'Owendo - 2e arrondissement'
+];
+
 export default function PublicApplicationPage() {
   const [submitted, setSubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -184,12 +197,21 @@ export default function PublicApplicationPage() {
   const [department, setDepartment] = useState('');
   const [quartier, setQuartier] = useState('');
 
+  const [isCustomCity, setIsCustomCity] = useState(false);
+  const [isCustomArrondissement, setIsCustomArrondissement] = useState(false);
+  const [isCustomDepartment, setIsCustomDepartment] = useState(false);
+  const [isCustomQuartier, setIsCustomQuartier] = useState(false);
+
   const handleProvinceChange = (newProvince: string) => {
     setProvince(newProvince);
     setCity('');
+    setIsCustomCity(false);
     setArrondissement('');
+    setIsCustomArrondissement(false);
     setDepartment('');
+    setIsCustomDepartment(false);
     setQuartier('');
+    setIsCustomQuartier(false);
   };
 
   // Liste dynamique des quartiers selon la province, la ville et l'arrondissement précis
@@ -941,7 +963,7 @@ export default function PublicApplicationPage() {
                             onChange={(e) => setFirstName(e.target.value)}
                             required 
                             placeholder=""
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
 
@@ -954,7 +976,7 @@ export default function PublicApplicationPage() {
                             onChange={(e) => setLastName(e.target.value)}
                             required 
                             placeholder=""
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
                       </div>
@@ -969,7 +991,7 @@ export default function PublicApplicationPage() {
                             <select
                               value={role}
                               onChange={(e) => setRole(e.target.value)}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-base sm:text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] cursor-pointer"
                             >
                               <option value="">Sélectionnez un rôle...</option>
                               <option value="Porteur de projet">Porteur de projet</option>
@@ -988,7 +1010,7 @@ export default function PublicApplicationPage() {
                                 value={customRole}
                                 onChange={(e) => setCustomRole(e.target.value)}
                                 placeholder=""
-                                className="w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
+                                className="w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-base sm:text-xs text-slate-800 focus:outline-none focus:border-[#f06553]"
                               />
                             )}
                           </div>
@@ -1004,7 +1026,7 @@ export default function PublicApplicationPage() {
                               value={age}
                               onChange={(e) => setAge(e.target.value)}
                               placeholder=""
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] transition-all"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-base sm:text-xs font-medium text-slate-800 focus:outline-none focus:border-[#f06553] transition-all"
                             />
                           </div>
                         </div>
@@ -1021,7 +1043,7 @@ export default function PublicApplicationPage() {
                               value={position}
                               onChange={(e) => setPosition(e.target.value)}
                               placeholder=""
-                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-base sm:text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
                             />
                           </div>
 
@@ -1033,7 +1055,7 @@ export default function PublicApplicationPage() {
                               value={headquartersAddress}
                               onChange={(e) => setHeadquartersAddress(e.target.value)}
                               placeholder=""
-                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-base sm:text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
                             />
                           </div>
 
@@ -1045,7 +1067,7 @@ export default function PublicApplicationPage() {
                               value={businessPhone}
                               onChange={(e) => setBusinessPhone(e.target.value)}
                               placeholder=""
-                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-base sm:text-xs text-slate-800 focus:outline-none focus:border-[#23c3b1]"
                             />
                           </div>
                         </div>
@@ -1063,7 +1085,7 @@ export default function PublicApplicationPage() {
                             onChange={(e) => setEmail(e.target.value)}
                             required 
                             placeholder=""
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
 
@@ -1077,7 +1099,7 @@ export default function PublicApplicationPage() {
                             onChange={(e) => setPhone(e.target.value)}
                             required 
                             placeholder=""
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                           />
                         </div>
                       </div>
@@ -1093,7 +1115,7 @@ export default function PublicApplicationPage() {
                             <select
                               value={province}
                               onChange={(e) => handleProvinceChange(e.target.value)}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
                             >
                               <option value="">Sélectionnez une province...</option>
                               {GABON_PROVINCES.map((p) => (
@@ -1104,102 +1126,239 @@ export default function PublicApplicationPage() {
 
                           {/* 2. Ville */}
                           <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                              {isPmeOrOrg ? "Ville d'implantation" : "Ville"} <span className="text-[#f06553]">*</span>
-                            </label>
-                            <input 
-                              type="text"
-                              list="current-province-cities-list"
-                              value={city}
-                              onChange={(e) => {
-                                setCity(e.target.value);
-                                setArrondissement('');
-                                setDepartment('');
-                                setQuartier('');
-                              }}
-                              required 
-                              placeholder=""
-                              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
-                            />
-                            <datalist id="current-province-cities-list">
-                              {(PROVINCE_CITIES[province] || []).map((c) => (
-                                <option key={c} value={c} />
-                              ))}
-                            </datalist>
-                          </div>
-
-                          {/* 3. Arrondissement (Estuaire / Libreville) OU Département (Autres provinces) */}
-                          {province === 'Estuaire' ? (
-                            <div>
-                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                Arrondissement
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-xs font-semibold text-slate-700">
+                                {isPmeOrOrg ? "Ville d'implantation" : "Ville"} <span className="text-[#f06553]">*</span>
                               </label>
+                              {province && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    setIsCustomCity(!isCustomCity);
+                                    setCity('');
+                                    setArrondissement('');
+                                    setDepartment('');
+                                    setQuartier('');
+                                  }}
+                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                                >
+                                  {isCustomCity ? "Choisir dans la liste" : "Saisie libre"}
+                                </button>
+                              )}
+                            </div>
+                            {!province ? (
+                              <select disabled className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-base sm:text-sm cursor-not-allowed">
+                                <option>Sélectionnez d'abord une province</option>
+                              </select>
+                            ) : isCustomCity ? (
                               <input 
                                 type="text"
-                                list="arrondissements-list"
-                                value={arrondissement}
+                                value={city}
                                 onChange={(e) => {
-                                  setArrondissement(e.target.value);
+                                  setCity(e.target.value);
+                                  setArrondissement('');
+                                  setDepartment('');
                                   setQuartier('');
                                 }}
-                                placeholder=""
-                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                                required 
+                                placeholder="Saisissez votre ville..."
+                                autoFocus
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                               />
-                              <datalist id="arrondissements-list">
-                                <option value="1er arrondissement" />
-                                <option value="2e arrondissement" />
-                                <option value="3e arrondissement" />
-                                <option value="4e arrondissement" />
-                                <option value="5e arrondissement" />
-                                <option value="6e arrondissement" />
-                                <option value="Akanda - 1er arrondissement" />
-                                <option value="Akanda - 2e arrondissement" />
-                                <option value="Owendo - 1er arrondissement" />
-                                <option value="Owendo - 2e arrondissement" />
-                              </datalist>
+                            ) : (
+                              <select
+                                value={city}
+                                onChange={(e) => {
+                                  if (e.target.value === 'AUTRE') {
+                                    setIsCustomCity(true);
+                                    setCity('');
+                                  } else {
+                                    setCity(e.target.value);
+                                  }
+                                  setArrondissement('');
+                                  setDepartment('');
+                                  setQuartier('');
+                                }}
+                                required
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                              >
+                                <option value="">Sélectionnez une ville...</option>
+                                {(PROVINCE_CITIES[province] || []).map((c) => (
+                                  <option key={c} value={c}>{c}</option>
+                                ))}
+                                <option value="AUTRE">Autre ville (saisie libre)...</option>
+                              </select>
+                            )}
+                          </div>
+
+                          {/* 3. Arrondissement (Estuaire) OU Département (Autres provinces) */}
+                          {!province ? (
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Arrondissement / Département
+                              </label>
+                              <select disabled className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-base sm:text-sm cursor-not-allowed">
+                                <option>Sélectionnez d'abord une province</option>
+                              </select>
+                            </div>
+                          ) : province === 'Estuaire' ? (
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <label className="block text-xs font-semibold text-slate-700">
+                                  Arrondissement
+                                </label>
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    setIsCustomArrondissement(!isCustomArrondissement);
+                                    setArrondissement('');
+                                    setQuartier('');
+                                  }}
+                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                                >
+                                  {isCustomArrondissement ? "Choisir dans la liste" : "Saisie libre"}
+                                </button>
+                              </div>
+                              {isCustomArrondissement ? (
+                                <input 
+                                  type="text"
+                                  value={arrondissement}
+                                  onChange={(e) => {
+                                    setArrondissement(e.target.value);
+                                    setQuartier('');
+                                  }}
+                                  placeholder="Ex: 1er arrondissement..."
+                                  autoFocus
+                                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                                />
+                              ) : (
+                                <select
+                                  value={arrondissement}
+                                  onChange={(e) => {
+                                    if (e.target.value === 'AUTRE') {
+                                      setIsCustomArrondissement(true);
+                                      setArrondissement('');
+                                    } else {
+                                      setArrondissement(e.target.value);
+                                    }
+                                    setQuartier('');
+                                  }}
+                                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                                >
+                                  <option value="">Sélectionnez un arrondissement...</option>
+                                  {ESTUAIRE_ARRONDISSEMENTS.map((arr) => (
+                                    <option key={arr} value={arr}>{arr}</option>
+                                  ))}
+                                  <option value="AUTRE">Autre arrondissement (saisie libre)...</option>
+                                </select>
+                              )}
                             </div>
                           ) : (
                             <div>
-                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                Département
-                              </label>
-                              <input 
-                                type="text"
-                                list="current-province-departments-list"
-                                value={department}
-                                onChange={(e) => {
-                                  setDepartment(e.target.value);
-                                  setQuartier('');
-                                }}
-                                placeholder=""
-                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
-                              />
-                              <datalist id="current-province-departments-list">
-                                {(PROVINCE_DEPARTMENTS[province] || []).map((d) => (
-                                  <option key={d} value={d} />
-                                ))}
-                              </datalist>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <label className="block text-xs font-semibold text-slate-700">
+                                  Département
+                                </label>
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    setIsCustomDepartment(!isCustomDepartment);
+                                    setDepartment('');
+                                    setQuartier('');
+                                  }}
+                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                                >
+                                  {isCustomDepartment ? "Choisir dans la liste" : "Saisie libre"}
+                                </button>
+                              </div>
+                              {isCustomDepartment ? (
+                                <input 
+                                  type="text"
+                                  value={department}
+                                  onChange={(e) => {
+                                    setDepartment(e.target.value);
+                                    setQuartier('');
+                                  }}
+                                  placeholder="Saisissez le département..."
+                                  autoFocus
+                                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                                />
+                              ) : (
+                                <select
+                                  value={department}
+                                  onChange={(e) => {
+                                    if (e.target.value === 'AUTRE') {
+                                      setIsCustomDepartment(true);
+                                      setDepartment('');
+                                    } else {
+                                      setDepartment(e.target.value);
+                                    }
+                                    setQuartier('');
+                                  }}
+                                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                                >
+                                  <option value="">Sélectionnez un département...</option>
+                                  {(PROVINCE_DEPARTMENTS[province] || []).map((d) => (
+                                    <option key={d} value={d}>{d}</option>
+                                  ))}
+                                  <option value="AUTRE">Autre département (saisie libre)...</option>
+                                </select>
+                              )}
                             </div>
                           )}
 
                           {/* 4. Quartier */}
                           <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                              Quartier
-                            </label>
-                            <input 
-                              type="text"
-                              list="current-province-quartiers-list"
-                              value={quartier}
-                              onChange={(e) => setQuartier(e.target.value)}
-                              placeholder=""
-                              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
-                            />
-                            <datalist id="current-province-quartiers-list">
-                              {currentQuartiersSuggestions.map((q) => (
-                                <option key={q} value={q} />
-                              ))}
-                            </datalist>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-xs font-semibold text-slate-700">
+                                Quartier
+                              </label>
+                              {province && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    setIsCustomQuartier(!isCustomQuartier);
+                                    setQuartier('');
+                                  }}
+                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                                >
+                                  {isCustomQuartier ? "Choisir dans la liste" : "Saisie libre"}
+                                </button>
+                              )}
+                            </div>
+                            {!province ? (
+                              <select disabled className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-base sm:text-sm cursor-not-allowed">
+                                <option>Sélectionnez d'abord une province</option>
+                              </select>
+                            ) : isCustomQuartier ? (
+                              <input 
+                                type="text"
+                                value={quartier}
+                                onChange={(e) => setQuartier(e.target.value)}
+                                placeholder="Saisissez votre quartier..."
+                                autoFocus
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                              />
+                            ) : (
+                              <select
+                                value={quartier}
+                                onChange={(e) => {
+                                  if (e.target.value === 'AUTRE') {
+                                    setIsCustomQuartier(true);
+                                    setQuartier('');
+                                  } else {
+                                    setQuartier(e.target.value);
+                                  }
+                                }}
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-base sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                              >
+                                <option value="">Sélectionnez un quartier...</option>
+                                {currentQuartiersSuggestions.map((q) => (
+                                  <option key={q} value={q}>{q}</option>
+                                ))}
+                                <option value="AUTRE">Autre quartier (saisie libre)...</option>
+                              </select>
+                            )}
                           </div>
                         </div>
                       </div>

@@ -62,6 +62,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Empêcher le zoom automatique forcé sur iOS Safari quand on touche un champ */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Responsive elements */
 @layer base {
   img, video, iframe {
