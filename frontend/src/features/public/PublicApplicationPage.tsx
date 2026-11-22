@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Rocket, 
   ArrowLeft, 
@@ -17,10 +16,7 @@ import {
   Building2, 
   Briefcase, 
   Layers,
-  ShieldCheck,
-  Clock,
   Check,
-  FileCheck,
   UploadCloud,
   FileText,
   Trash2,
@@ -29,49 +25,8 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
-import cohortCoaching from '../../assets/cohort_coaching.jpg';
-import cohortPitch from '../../assets/cohort_pitch.jpg';
-import cohortProduct from '../../assets/cohort_product.jpg';
-
-const showcaseSlides = [
-  {
-    image: cohortCoaching,
-    badge: "Mentorat & Diagnostic",
-    title: "Coaching individuel & Stratégie",
-    description: "Travaillez en tête-à-tête avec des consultants seniors et mentors sectoriels de la plateforme.",
-    statNumber: "94%",
-    statLabel: "Taux de survie à 3 ans",
-  },
-  {
-    image: cohortPitch,
-    badge: "Comité & Investisseurs",
-    title: "Pitch & Financements Partenaires",
-    description: "Défendez votre modèle d'affaires devant les comités d'investissement, banques et business angels gabonais.",
-    statNumber: "1.2 Md",
-    statLabel: "FCFA mobilisés pour les cohortes",
-  },
-  {
-    image: cohortProduct,
-    badge: "Showroom & Marché",
-    title: "Prototypage & Traction B2B/B2C",
-    description: "De l'idée au déploiement : accédez au showroom, signez vos premiers contrats et accélérez vos ventes.",
-    statNumber: "+450",
-    statLabel: "Entreprises & PME accélérées",
-  },
-];
-
 export default function PublicApplicationPage() {
   const [submitted, setSubmitted] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
-
-  // Défilement automatique continu des images en arrière-plan
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % showcaseSlides.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
-
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [referenceCode, setReferenceCode] = useState('');
   
@@ -485,175 +440,10 @@ export default function PublicApplicationPage() {
           </div>
         ) : (
           /* =========================================================================
-              LAYOUT HORIZONTAL SPLIT (Sidebar d'accueil à gauche + Formulaire par étapes à droite)
+              FORMULAIRE DE CANDIDATURE PAR ÉTAPES (Centré & Optimisé)
              ========================================================================= */
-          <div className="grid lg:grid-cols-12 gap-8 items-start">
-            
-            {/* -----------------------------------------------------------------------
-                PANNEAU GAUCHE : IDENTITÉ & CONTEXTE DE LA PLATEFORME (Sticky)
-               ----------------------------------------------------------------------- */}
-            <div className="lg:col-span-4 space-y-5 lg:sticky lg:top-8">
-              
-              {/* ===================================================================
-                  CARROUSEL D'IMAGES ANIMÉ EN JAVASCRIPT (Framer Motion + Auto-Play)
-                 =================================================================== */}
-              <div 
-                className="relative overflow-hidden rounded-3xl bg-[#0e1726] shadow-xl border border-slate-800 text-white min-h-[420px] flex flex-col justify-end group"
-              >
-                {/* Image d'arrière-plan épousant 100% des dimensions exactes du cadre */}
-                <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-3xl w-full h-full">
-                  {showcaseSlides.map((slide, idx) => {
-                    const isActive = idx === currentSlide;
-                    return (
-                      <motion.div
-                        key={idx}
-                        initial={false}
-                        animate={{
-                          opacity: isActive ? 1 : 0,
-                          scale: isActive ? 1.04 : 1,
-                          zIndex: isActive ? 1 : 0,
-                        }}
-                        transition={{
-                          opacity: { duration: 0.8, ease: "easeInOut" },
-                          scale: { duration: 5, ease: "easeOut" }
-                        }}
-                        className="absolute inset-0 pointer-events-none w-full h-full"
-                        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
-                      >
-                        <img 
-                          src={slide.image} 
-                          alt={slide.title}
-                          className="w-full h-full object-cover object-center"
-                          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                        {/* Voile translucide pour laisser l'image visible sur 100% de la surface du cadre tout en assurant la lisibilité */}
-                        <div 
-                          className="absolute inset-0 pointer-events-none" 
-                          style={{
-                            background: 'linear-gradient(to top, rgba(14, 23, 38, 0.92) 0%, rgba(14, 23, 38, 0.6) 42%, rgba(14, 23, 38, 0.2) 75%, rgba(14, 23, 38, 0.05) 100%)'
-                          }}
-                        />
-                      </motion.div>
-                    );
-                  })}
-                </div>
-
-                {/* Contenu textuel animé de la diapositive */}
-                <div className="relative z-10 p-6 pt-12 space-y-3.5">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={currentSlide}
-                      initial={{ opacity: 0, y: 15 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.45 }}
-                      className="space-y-3"
-                    >
-                      <div className="inline-block px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-white/15 backdrop-blur-md border border-white/20 text-white shadow-sm">
-                        {showcaseSlides[currentSlide].badge}
-                      </div>
-
-                      <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-snug drop-shadow-md text-white">
-                        {showcaseSlides[currentSlide].title}
-                      </h2>
-
-                      <p className="text-slate-100 text-xs sm:text-sm leading-relaxed drop-shadow-sm font-medium">
-                        {showcaseSlides[currentSlide].description}
-                      </p>
-
-                      {/* Statistique clé */}
-                      <div className="pt-2 flex items-center gap-3">
-                        <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-black/50 backdrop-blur-md border border-white/15 shadow-sm">
-                          <div className="leading-tight">
-                            <div className="text-base font-black text-white">
-                              {showcaseSlides[currentSlide].statNumber}
-                            </div>
-                            <div className="text-[10px] font-medium text-slate-300">
-                              {showcaseSlides[currentSlide].statLabel}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              {/* Badges de Réassurance Opérationnelle */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-2 text-xs text-slate-600">
-                <div className="flex items-center gap-2.5 text-slate-700 font-medium">
-                  <Clock className="size-4 text-[#f06553] shrink-0" />
-                  <span>Formulaire en ligne : <strong>~3 minutes</strong></span>
-                </div>
-                <div className="flex items-center gap-2.5 text-slate-700 font-medium">
-                  <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
-                  <span>Examen & retour sous <strong>48 à 72h ouvrées</strong></span>
-                </div>
-                <div className="flex items-center gap-2.5 text-slate-700 font-medium">
-                  <FileCheck className="size-4 text-slate-500 shrink-0" />
-                  <span>Conforme aux normes d'admission IML Digit</span>
-                </div>
-              </div>
-
-              {/* Stepper Vertical de Suivi dans la Colonne de Gauche */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-3 hidden lg:block">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                  Progression de votre dossier
-                </span>
-                <div className="space-y-2">
-                  {stepsList.map((st) => {
-                    const isDone = currentStep > st.num;
-                    const isCurrent = currentStep === st.num;
-                    const IconC = st.icon;
-
-                    return (
-                      <button
-                        key={st.num}
-                        type="button"
-                        onClick={() => {
-                          if (st.num < currentStep || validateStep(currentStep)) {
-                            setCurrentStep(st.num);
-                          }
-                        }}
-                        className={`w-full text-left p-3 rounded-2xl flex items-center gap-3 transition-all ${
-                          isCurrent 
-                            ? 'bg-orange-50/80 border border-[#f06553]/30 shadow-2xs' 
-                            : isDone
-                            ? 'bg-slate-50/80 border border-slate-200/60 hover:bg-slate-100'
-                            : 'opacity-50 pointer-events-none'
-                        }`}
-                      >
-                        <div className={`size-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
-                          isDone 
-                            ? 'bg-emerald-600 text-white' 
-                            : isCurrent
-                            ? 'bg-[#f06553] text-white'
-                            : 'bg-slate-200 text-slate-600'
-                        }`}>
-                          {isDone ? <Check className="size-4 stroke-[3]" /> : <IconC className="size-4" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-xs font-bold truncate ${isCurrent ? 'text-[#f06553]' : 'text-slate-800'}`}>
-                              Étape {st.num}. {st.title}
-                            </span>
-                            {isDone && <span className="text-[10px] font-bold text-emerald-600">Prêt</span>}
-                          </div>
-                          <span className="text-[11px] text-slate-500 block truncate">{st.desc}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-            </div>
-
-            {/* -----------------------------------------------------------------------
-                PANNEAU DROIT : FORMULAIRE HORIZONTAL AVEC STEPPER SUPÉRIEUR
-               ----------------------------------------------------------------------- */}
-            <div className="lg:col-span-8">
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-200/90 overflow-hidden">
+          <div className="max-w-4xl mx-auto w-full">
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-200/90 overflow-hidden">
                 
                 {/* Barre de Stepper Horizontale Supérieure */}
                 <div className="border-b border-slate-100 bg-slate-50/70 p-4 sm:p-6">
@@ -1409,8 +1199,6 @@ export default function PublicApplicationPage() {
 
               </div>
             </div>
-
-          </div>
         )}
 
       </div>
