@@ -734,7 +734,9 @@ export default function ApplicationDetailPage() {
                     <MapPin className="size-3.5 text-[#f06553] shrink-0" />
                     <span>
                       {c.city || 'Libreville'}
-                      {c.arrondissement ? ` (${c.arrondissement})` : ''}
+                      {c.province ? `, ${c.province}` : ''}
+                      {c.arrondissement ? ` • ${c.arrondissement}` : ''}
+                      {c.department ? ` • Dép. ${c.department}` : ''}
                     </span>
                   </div>
                   {c.quartier && (

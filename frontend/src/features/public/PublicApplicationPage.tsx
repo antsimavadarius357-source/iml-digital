@@ -29,6 +29,41 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
+const GABON_PROVINCES = [
+  'Estuaire',
+  'Haut-Ogooué',
+  'Moyen-Ogooué',
+  'Ngounié',
+  'Nyanga',
+  'Ogooué-Ivindo',
+  'Ogooué-Lolo',
+  'Ogooué-Maritime',
+  'Woleu-Ntem'
+] as const;
+
+const PROVINCE_CITIES: Record<string, string[]> = {
+  'Estuaire': ['Libreville', 'Akanda', 'Owendo', 'Ntoum', 'Kango', 'Cocobeach'],
+  'Haut-Ogooué': ['Franceville', 'Moanda', 'Mounana', 'Bongoville', 'Akiéni', 'Okondja', 'Bakoumba', 'Lékoni'],
+  'Moyen-Ogooué': ['Lambaréné', 'Ndjolé'],
+  'Ngounié': ['Mouila', 'Ndendé', 'Fougamou', 'Lébamba', 'Mbigou', 'Mimongo', 'Mandji'],
+  'Nyanga': ['Tchibanga', 'Mayumba', 'Moabi', 'Mabanda'],
+  'Ogooué-Ivindo': ['Makokou', 'Booué', 'Mékambo', 'Ovan'],
+  'Ogooué-Lolo': ['Koulamoutou', 'Lastoursville', 'Pana', 'Iboundji'],
+  'Ogooué-Maritime': ['Port-Gentil', 'Gamba', 'Omboué'],
+  'Woleu-Ntem': ['Oyem', 'Bitam', 'Mitzic', 'Minvoul', 'Médouneu']
+};
+
+const PROVINCE_DEPARTMENTS: Record<string, string[]> = {
+  'Haut-Ogooué': ['Mpassa', 'Lébombi-Léyou', 'Sébé-Brikolo', 'Lékoni-Lékori', 'Djouori-Agnili', 'Plateaux', 'Ogooué-Létili', 'Lékabi-Léwolo', 'Bayi-Brikolo'],
+  'Moyen-Ogooué': ['Ogooué et des Lacs', 'Abanga-Bigné'],
+  'Ngounié': ['Douya-Onoye', 'Tsamba-Magotsi', 'Boumi-Louetsi', 'Louetsi-Wano', 'Louetsi-Bibaka', 'Ogoulou', 'Dola', 'Ndolou', 'Mougalaba'],
+  'Nyanga': ['Mougoutsi', 'Haute-Banio', 'Basse-Banio', 'Douigny', 'Doutsila', 'Mongo'],
+  'Ogooué-Ivindo': ['Ivindo', 'Lopé', 'Zadié', 'Mvoung'],
+  'Ogooué-Lolo': ['Lolo-Bouénguidi', 'Mulundu', 'Lombo-Bouénguidi', 'Offoué-Onoye'],
+  'Ogooué-Maritime': ['Bendjé', 'Ndougou', 'Etimboué'],
+  'Woleu-Ntem': ['Woleu', 'Ntem', 'Okano', 'Haut-Ntem', 'Haut-Como']
+};
+
 export default function PublicApplicationPage() {
   const [submitted, setSubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -49,9 +84,23 @@ export default function PublicApplicationPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [province, setProvince] = useState('Estuaire');
   const [city, setCity] = useState('Libreville');
   const [arrondissement, setArrondissement] = useState('');
+  const [department, setDepartment] = useState('');
   const [quartier, setQuartier] = useState('');
+
+  const handleProvinceChange = (newProvince: string) => {
+    setProvince(newProvince);
+    const defaultCity = PROVINCE_CITIES[newProvince]?.[0] || '';
+    setCity(defaultCity);
+    if (newProvince === 'Estuaire') {
+      setDepartment('');
+    } else {
+      setArrondissement('');
+      setDepartment(PROVINCE_DEPARTMENTS[newProvince]?.[0] || '');
+    }
+  };
 
   // Spécifique Groupe 1 (Porteur d'Idée / Startup)
   const [role, setRole] = useState('Porteur de projet');
@@ -329,8 +378,10 @@ export default function PublicApplicationPage() {
         photo: (structureType === 'PORTEUR_IDEE' || structureType === 'STARTUP') ? (photoPreview || undefined) : undefined,
         email: email.trim(),
         phone: phone.trim(),
-        city: city.trim() || 'Libreville',
-        arrondissement: arrondissement.trim() || undefined,
+        province: province.trim() || 'Estuaire',
+        city: city.trim() || (province === 'Estuaire' ? 'Libreville' : ''),
+        arrondissement: province === 'Estuaire' && arrondissement.trim() ? arrondissement.trim() : undefined,
+        department: province !== 'Estuaire' && department.trim() ? department.trim() : undefined,
         quartier: quartier.trim() || undefined,
         structureType,
         companyName: compName,
@@ -904,67 +955,95 @@ export default function PublicApplicationPage() {
                         </div>
                       </div>
 
-                      {/* Localisation : Ville, Arrondissement et Quartier (champs saisissables librement) */}
+                      {/* Localisation dynamique adaptée par Province : Province, Ville, Arrondissement (Estuaire) ou Département (Autres provinces), Quartier */}
                       <div className="space-y-2.5">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          {/* Ville */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {/* 1. Province */}
                           <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                              {isPmeOrOrg ? "Ville d'implantation" : "Ville de résidence"} <span className="text-[#f06553]">*</span>
+                              Province <span className="text-[#f06553]">*</span>
+                            </label>
+                            <select
+                              value={province}
+                              onChange={(e) => handleProvinceChange(e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all cursor-pointer font-medium"
+                            >
+                              {GABON_PROVINCES.map((p) => (
+                                <option key={p} value={p}>{p}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* 2. Ville */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                              {isPmeOrOrg ? "Ville d'implantation" : "Ville"} <span className="text-[#f06553]">*</span>
                             </label>
                             <input 
                               type="text"
-                              list="gabon-cities-list"
+                              list="current-province-cities-list"
                               value={city}
                               onChange={(e) => setCity(e.target.value)}
                               required 
-                              placeholder="Libreville"
+                              placeholder={PROVINCE_CITIES[province]?.[0] || "Ville"}
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
-                            <datalist id="gabon-cities-list">
-                              <option value="Libreville" />
-                              <option value="Akanda" />
-                              <option value="Owendo" />
-                              <option value="Ntoum" />
-                              <option value="Port-Gentil" />
-                              <option value="Franceville" />
-                              <option value="Oyem" />
-                              <option value="Moanda" />
-                              <option value="Lambaréné" />
-                              <option value="Mouila" />
-                              <option value="Tchibanga" />
-                              <option value="Makokou" />
-                              <option value="Koulamoutou" />
+                            <datalist id="current-province-cities-list">
+                              {(PROVINCE_CITIES[province] || []).map((c) => (
+                                <option key={c} value={c} />
+                              ))}
                             </datalist>
                           </div>
 
-                          {/* Arrondissement */}
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                              Arrondissement
-                            </label>
-                            <input 
-                              type="text"
-                              list="arrondissements-list"
-                              value={arrondissement}
-                              onChange={(e) => setArrondissement(e.target.value)}
-                              placeholder="1er, 2e, 3e, 4e..."
-                              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
-                            />
-                            <datalist id="arrondissements-list">
-                              <option value="1er arrondissement" />
-                              <option value="2e arrondissement" />
-                              <option value="3e arrondissement" />
-                              <option value="4e arrondissement" />
-                              <option value="5e arrondissement" />
-                              <option value="6e arrondissement" />
-                              <option value="Akanda - 1er arrondissement" />
-                              <option value="Akanda - 2e arrondissement" />
-                              <option value="Owendo" />
-                            </datalist>
-                          </div>
+                          {/* 3. Arrondissement (Estuaire / Libreville) OU Département (Autres provinces) */}
+                          {province === 'Estuaire' ? (
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Arrondissement
+                              </label>
+                              <input 
+                                type="text"
+                                list="arrondissements-list"
+                                value={arrondissement}
+                                onChange={(e) => setArrondissement(e.target.value)}
+                                placeholder="1er, 2e, 3e, 4e..."
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                              />
+                              <datalist id="arrondissements-list">
+                                <option value="1er arrondissement" />
+                                <option value="2e arrondissement" />
+                                <option value="3e arrondissement" />
+                                <option value="4e arrondissement" />
+                                <option value="5e arrondissement" />
+                                <option value="6e arrondissement" />
+                                <option value="Akanda - 1er arrondissement" />
+                                <option value="Akanda - 2e arrondissement" />
+                                <option value="Owendo - 1er arrondissement" />
+                                <option value="Owendo - 2e arrondissement" />
+                              </datalist>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Département
+                              </label>
+                              <input 
+                                type="text"
+                                list="current-province-departments-list"
+                                value={department}
+                                onChange={(e) => setDepartment(e.target.value)}
+                                placeholder={PROVINCE_DEPARTMENTS[province]?.[0] || "Département"}
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
+                              />
+                              <datalist id="current-province-departments-list">
+                                {(PROVINCE_DEPARTMENTS[province] || []).map((d) => (
+                                  <option key={d} value={d} />
+                                ))}
+                              </datalist>
+                            </div>
+                          )}
 
-                          {/* Quartier */}
+                          {/* 4. Quartier */}
                           <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                               Quartier
@@ -973,7 +1052,7 @@ export default function PublicApplicationPage() {
                               type="text"
                               value={quartier}
                               onChange={(e) => setQuartier(e.target.value)}
-                              placeholder="Louis, Oloumi, Nzeng-Ayong..."
+                              placeholder="Quartier, secteur ou zone..."
                               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#f06553] transition-all" 
                             />
                           </div>
